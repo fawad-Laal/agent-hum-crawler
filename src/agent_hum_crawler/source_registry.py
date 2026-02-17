@@ -31,7 +31,7 @@ def _default_registry() -> SourceRegistry:
                 "https://news.un.org/feed/subscribe/en/news/topic/humanitarian-aid/feed/rss.xml",
             ),
         ],
-        ngo=[FeedSource("IFRC News", "https://www.ifrc.org/rss.xml")],
+        ngo=[FeedSource("CARE News", "https://www.care.org/feed/")],
         local_news=[],
     )
 

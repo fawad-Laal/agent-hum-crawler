@@ -22,8 +22,8 @@
     ],
     "ngo": [
       {
-        "name": "IFRC News",
-        "url": "https://www.ifrc.org/rss.xml"
+        "name": "CARE News",
+        "url": "https://www.care.org/feed/"
       }
     ],
     "local_news": []
