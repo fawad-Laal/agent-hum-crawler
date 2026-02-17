@@ -1,0 +1,50 @@
+{
+  "global": {
+    "government": [
+      {
+        "name": "USGS Earthquakes",
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom"
+      },
+      {
+        "name": "GDACS",
+        "url": "https://www.gdacs.org/xml/rss.xml"
+      }
+    ],
+    "un": [
+      {
+        "name": "UN News Climate",
+        "url": "https://news.un.org/feed/subscribe/en/news/topic/climate-change/feed/rss.xml"
+      },
+      {
+        "name": "UN News Humanitarian",
+        "url": "https://news.un.org/feed/subscribe/en/news/topic/humanitarian-aid/feed/rss.xml"
+      }
+    ],
+    "ngo": [
+      {
+        "name": "IFRC News",
+        "url": "https://www.ifrc.org/rss.xml"
+      }
+    ],
+    "local_news": []
+  },
+  "countries": {
+    "Pakistan": {
+      "government": [],
+      "un": [],
+      "ngo": [],
+      "local_news": [
+        {
+          "name": "Dawn Pakistan",
+          "url": "https://www.dawn.com/feeds/home"
+        }
+      ]
+    },
+    "Bangladesh": {
+      "government": [],
+      "un": [],
+      "ngo": [],
+      "local_news": []
+    }
+  }
+}

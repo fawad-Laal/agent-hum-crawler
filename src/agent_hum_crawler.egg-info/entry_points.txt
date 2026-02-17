@@ -1,0 +1,2 @@
+[console_scripts]
+agent-hum-crawler = agent_hum_crawler.main:main
