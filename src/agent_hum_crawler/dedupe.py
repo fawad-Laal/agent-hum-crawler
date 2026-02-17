@@ -176,9 +176,12 @@ def detect_changes(
             status = _find_similar_status(primary.item.title, deduped)
 
         severity, confidence = _calibrate_severity_and_confidence(cluster)
+        corroboration_sources = len(cluster)
+        corroboration_connectors = len({c.item.connector for c in cluster})
+        corroboration_source_types = len({c.item.source_type for c in cluster})
         summary_seed = primary.item.text if primary.item.text else primary.item.title
         summary = summary_seed[:260].strip()
-        summary = f"{summary} [corroboration_sources={len(cluster)}]"
+        summary = f"{summary} [corroboration_sources={corroboration_sources}]"
 
         event = ProcessedEvent(
             event_id=event_id,
@@ -193,6 +196,9 @@ def detect_changes(
             severity=severity,
             confidence=confidence,
             summary=summary,
+            corroboration_sources=corroboration_sources,
+            corroboration_connectors=corroboration_connectors,
+            corroboration_source_types=corroboration_source_types,
         )
         deduped[event_id] = event
 

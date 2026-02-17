@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from agent_hum_crawler.database import get_recent_cycles, init_db, persist_cycle
+from sqlmodel import Session, select
+
+from agent_hum_crawler.database import EventRecord, build_engine, get_recent_cycles, init_db, persist_cycle
 from agent_hum_crawler.models import ProcessedEvent, RawSourceItem
 
 
@@ -35,6 +37,9 @@ def test_persist_cycle(tmp_path: Path) -> None:
             severity="medium",
             confidence="medium",
             summary="Flood warning text",
+            corroboration_sources=2,
+            corroboration_connectors=2,
+            corroboration_source_types=2,
         )
     ]
 
@@ -44,3 +49,11 @@ def test_persist_cycle(tmp_path: Path) -> None:
     cycles = get_recent_cycles(limit=5, path=db_path)
     assert len(cycles) == 1
     assert cycles[0].event_count == 1
+
+    engine = build_engine(db_path)
+    with Session(engine) as session:
+        record = session.exec(select(EventRecord)).first()
+        assert record is not None
+        assert record.corroboration_sources == 2
+        assert record.corroboration_connectors == 2
+        assert record.corroboration_source_types == 2

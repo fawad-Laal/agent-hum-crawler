@@ -9,7 +9,8 @@ from typing import List
 
 from .config import RuntimeConfig
 from .cycle import run_cycle_once
-from .database import get_recent_cycles, init_db
+from .alerts import build_alert_contract
+from .database import build_quality_report, get_recent_cycles, init_db
 from .intake import run_intake
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
@@ -107,13 +108,14 @@ def cmd_run_cycle(args: argparse.Namespace) -> int:
     config = _resolve_config(args)
 
     result = run_cycle_once(config=config, limit=args.limit, include_content=args.include_content)
+    alert_contract = build_alert_contract(result.events, interval_minutes=config.check_interval_minutes)
     payload = {
         "cycle_id": result.cycle_id,
         "summary": result.summary,
         "connector_count": result.connector_count,
         "raw_item_count": result.raw_item_count,
         "event_count": result.event_count,
-        "events": [e.model_dump(mode="json") for e in result.events],
+        "alerts_contract": alert_contract,
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
@@ -128,12 +130,15 @@ def cmd_start_scheduler(args: argparse.Namespace) -> int:
 
     def run_once() -> None:
         result = run_cycle_once(config=config, limit=args.limit, include_content=args.include_content)
+        alert_contract = build_alert_contract(result.events, interval_minutes=interval)
         print(
             json.dumps(
                 {
                     "cycle_id": result.cycle_id,
                     "summary": result.summary,
                     "event_count": result.event_count,
+                    "critical_high_count": len(alert_contract["critical_high_alerts"]),
+                    "medium_updates_count": len(alert_contract["medium_updates"]),
                 },
                 ensure_ascii=False,
             )
@@ -149,6 +154,12 @@ def cmd_start_scheduler(args: argparse.Namespace) -> int:
 def cmd_show_cycles(args: argparse.Namespace) -> int:
     cycles = get_recent_cycles(limit=args.limit)
     print(json.dumps([c.model_dump() for c in cycles], indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_quality_report(args: argparse.Namespace) -> int:
+    report = build_quality_report(limit_cycles=args.limit)
+    print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -192,6 +203,13 @@ def build_parser() -> argparse.ArgumentParser:
     cycles_parser = subparsers.add_parser("show-cycles", help="Show recent persisted cycles")
     cycles_parser.add_argument("--limit", type=int, default=10)
     cycles_parser.set_defaults(func=cmd_show_cycles)
+
+    quality_parser = subparsers.add_parser(
+        "quality-report",
+        help="Show quality metrics from recent persisted cycles",
+    )
+    quality_parser.add_argument("--limit", type=int, default=10)
+    quality_parser.set_defaults(func=cmd_quality_report)
 
     return parser
 

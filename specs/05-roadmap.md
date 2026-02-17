@@ -40,13 +40,14 @@ Delivered:
 - Severity/confidence calibration
 
 ### Milestone 4 (End of Week 4): Operational Alert Delivery
-Status: In Progress
+Status: Completed
 Delivered:
 - SQLite persistence (cycles/events/raw items)
 - `run-cycle` operational command
 - `start-scheduler` interval command (`--max-runs` support)
-In progress:
-- output contract stabilization for Moltis chat alert payloads
+- output contract stabilized for Moltis chat payloads (`critical_high_alerts`, `medium_updates`, `watchlist_signals`, `source_log`, `next_check_time`)
+- corroboration metadata persisted in event records
+- quality metrics command added (`quality-report`)
 
 ### Milestone 5 (End of Week 5): QA and Hardening
 Status: Not Started
@@ -68,8 +69,8 @@ Planned:
 - Consecutive successful cycles without blocking error (target >= 7 for sign-off).
 
 ## Immediate Next Actions
-1. Add event-level corroboration metadata persistence.
-2. Implement stronger parser rules for selected high-priority feeds.
-3. Add replay/integration fixtures and scenario tests.
-4. Finalize Moltis alert output contract and validate format in scheduled runs.
-5. Execute pilot run and record KPI report.
+1. Implement stronger parser rules for selected high-priority feeds.
+2. Add replay/integration fixtures and scenario tests.
+3. Execute pilot run and record KPI report.
+4. Tune dedupe/corroboration thresholds from pilot evidence.
+5. Add source health checks and feed failure analytics.

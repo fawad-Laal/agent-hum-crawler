@@ -36,6 +36,9 @@ class EventRecord(SQLModel, table=True):
     severity: str
     confidence: str
     summary: str
+    corroboration_sources: int = 1
+    corroboration_connectors: int = 1
+    corroboration_source_types: int = 1
 
 
 class RawItemRecord(SQLModel, table=True):
@@ -62,6 +65,26 @@ def build_engine(path: Path | None = None):
 def init_db(path: Path | None = None) -> None:
     engine = build_engine(path)
     SQLModel.metadata.create_all(engine)
+    _ensure_eventrecord_columns(engine)
+
+
+def _ensure_eventrecord_columns(engine) -> None:
+    required = {
+        "corroboration_sources": "INTEGER NOT NULL DEFAULT 1",
+        "corroboration_connectors": "INTEGER NOT NULL DEFAULT 1",
+        "corroboration_source_types": "INTEGER NOT NULL DEFAULT 1",
+    }
+
+    with engine.connect() as conn:
+        existing = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(eventrecord)").fetchall()
+        }
+        for column, column_type in required.items():
+            if column not in existing:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE eventrecord ADD COLUMN {column} {column_type}"
+                )
 
 
 def persist_cycle(
@@ -73,6 +96,7 @@ def persist_cycle(
 ) -> int:
     engine = build_engine(path)
     SQLModel.metadata.create_all(engine)
+    _ensure_eventrecord_columns(engine)
 
     now = datetime.now(timezone.utc).isoformat()
     cycle = CycleRun(
@@ -105,6 +129,9 @@ def persist_cycle(
                     severity=event.severity,
                     confidence=event.confidence,
                     summary=event.summary,
+                    corroboration_sources=event.corroboration_sources,
+                    corroboration_connectors=event.corroboration_connectors,
+                    corroboration_source_types=event.corroboration_source_types,
                 )
             )
 
@@ -132,3 +159,49 @@ def get_recent_cycles(limit: int = 10, path: Path | None = None) -> list[CycleRu
     with Session(engine) as session:
         statement = select(CycleRun).order_by(CycleRun.id.desc()).limit(limit)
         return list(session.exec(statement))
+
+
+def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> dict:
+    engine = build_engine(path)
+    SQLModel.metadata.create_all(engine)
+    _ensure_eventrecord_columns(engine)
+
+    with Session(engine) as session:
+        cycles = list(session.exec(select(CycleRun).order_by(CycleRun.id.desc()).limit(limit_cycles)))
+        if not cycles:
+            return {
+                "cycles_analyzed": 0,
+                "events_analyzed": 0,
+                "duplicate_rate_estimate": 0.0,
+                "traceable_rate": 0.0,
+                "high_critical_count": 0,
+                "high_confidence_high_critical_count": 0,
+            }
+
+        cycle_ids = [c.id for c in cycles if c.id is not None]
+        events = list(session.exec(select(EventRecord).where(EventRecord.cycle_id.in_(cycle_ids))))
+
+        total = len(events)
+        if total == 0:
+            return {
+                "cycles_analyzed": len(cycles),
+                "events_analyzed": 0,
+                "duplicate_rate_estimate": 0.0,
+                "traceable_rate": 1.0,
+                "high_critical_count": 0,
+                "high_confidence_high_critical_count": 0,
+            }
+
+        unchanged = sum(1 for e in events if e.status == "unchanged")
+        traceable = sum(1 for e in events if bool(e.url and e.published_at))
+        high_critical = [e for e in events if e.severity in {"high", "critical"}]
+        high_conf_high_critical = sum(1 for e in high_critical if e.confidence == "high")
+
+        return {
+            "cycles_analyzed": len(cycles),
+            "events_analyzed": total,
+            "duplicate_rate_estimate": round(unchanged / total, 4),
+            "traceable_rate": round(traceable / total, 4),
+            "high_critical_count": len(high_critical),
+            "high_confidence_high_critical_count": high_conf_high_critical,
+        }

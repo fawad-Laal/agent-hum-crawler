@@ -46,3 +46,6 @@ class ProcessedEvent(BaseModel):
     severity: Literal["low", "medium", "high", "critical"]
     confidence: Literal["low", "medium", "high"]
     summary: str
+    corroboration_sources: int = 1
+    corroboration_connectors: int = 1
+    corroboration_source_types: int = 1

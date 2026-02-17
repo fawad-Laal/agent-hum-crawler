@@ -57,6 +57,13 @@ Run one full monitoring cycle (ReliefWeb + government + UN + NGO + local-news fe
 python -m agent_hum_crawler.main run-cycle --countries "Pakistan,Bangladesh" --disaster-types "flood,cyclone/storm,earthquake" --interval 30 --limit 10 --include-content --local-news-feeds "https://example.com/rss.xml"
 ```
 
+`run-cycle` returns an alert contract with these sections:
+- `critical_high_alerts`
+- `medium_updates`
+- `watchlist_signals`
+- `source_log`
+- `next_check_time`
+
 Use saved config for cycle:
 
 ```powershell
@@ -67,6 +74,12 @@ Show persisted cycles:
 
 ```powershell
 python -m agent_hum_crawler.main show-cycles --limit 10
+```
+
+Show quality metrics from recent cycles:
+
+```powershell
+python -m agent_hum_crawler.main quality-report --limit 10
 ```
 
 Start scheduled monitoring (example: one test run and stop):

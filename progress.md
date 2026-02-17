@@ -2,12 +2,12 @@
 
 Date: 2026-02-17
 Last Updated: 2026-02-17
-Status: In Progress (Core MVP engine running)
+Status: In Progress (Milestone 4 completed, hardening phase next)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
-- Implementation phase (MVP milestones): 70% complete
-- Estimated overall MVP progress: 78%
+- Implementation phase (MVP milestones): 75% complete
+- Estimated overall MVP progress: 83%
 
 ## Completed
 - Moltis setup verified on Windows.
@@ -30,27 +30,39 @@ Status: In Progress (Core MVP engine running)
   - severity/confidence calibration using corroboration strength
 - SQLite persistence implemented for cycle runs, events, and raw item snapshots.
 - Scheduler implemented (`start-scheduler`) with bounded test mode (`--max-runs`).
-- Current test status: `13 passed`.
+- Alert output contract finalized in `run-cycle` output:
+  - `critical_high_alerts`
+  - `medium_updates`
+  - `watchlist_signals`
+  - `source_log`
+  - `next_check_time`
+- Corroboration metadata now persisted in event records:
+  - `corroboration_sources`
+  - `corroboration_connectors`
+  - `corroboration_source_types`
+- Quality checks added:
+  - `quality-report` command for recent cycle metrics
+- Current test status: `14 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
 - Milestone 2 (Week 2): Completed
 - Milestone 3 (Week 3): Completed
-- Milestone 4 (Week 4): In Progress
+- Milestone 4 (Week 4): Completed
 - Milestone 5 (Week 5): Not Started
 - Milestone 6 (Week 6): Not Started
 
 ## Current Focus
-1. Finish Milestone 4 operational readiness.
-2. Raise signal quality (corroboration-aware scoring refinements).
+1. Start Milestone 5 QA and hardening.
+2. Expand replay-based integration coverage with fixture feeds.
 3. Expand country onboarding and per-source parsing robustness.
 
 ## Next Action Queue
-1. Add event-level corroboration metadata to stored records (counts + source diversity).
-2. Implement stronger per-source parsers for high-priority feeds.
-3. Add replay-style integration tests over saved fixture feeds.
-4. Add alert-routing output contract for Moltis chat formatting.
-5. Run 7-cycle pilot and capture quality metrics.
+1. Implement stronger per-source parsers for high-priority feeds.
+2. Add replay-style integration tests over saved fixture feeds.
+3. Run 7-cycle pilot and capture quality metrics.
+4. Tune dedupe/calibration thresholds from pilot output.
+5. Add source health checks and feed failure analytics.
 
 ## Risks / Blockers
 - ReliefWeb access still blocked until appname approval is active.
