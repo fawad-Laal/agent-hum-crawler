@@ -2,12 +2,12 @@
 
 Date: 2026-02-17
 Last Updated: 2026-02-17
-Status: In Progress (Milestone 4 completed, hardening phase next)
+Status: In Progress (Milestone 5 hardening active)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
-- Implementation phase (MVP milestones): 75% complete
-- Estimated overall MVP progress: 83%
+- Implementation phase (MVP milestones): 82% complete
+- Estimated overall MVP progress: 88%
 
 ## Completed
 - Moltis setup verified on Windows.
@@ -28,7 +28,7 @@ Status: In Progress (Milestone 4 completed, hardening phase next)
   - clustering of near-duplicate items
   - corroboration scoring across connectors/source types
   - severity/confidence calibration using corroboration strength
-- SQLite persistence implemented for cycle runs, events, and raw item snapshots.
+- SQLite persistence implemented for cycle runs, events, raw items, and connector/feed health records.
 - Scheduler implemented (`start-scheduler`) with bounded test mode (`--max-runs`).
 - Alert output contract finalized in `run-cycle` output:
   - `critical_high_alerts`
@@ -36,37 +36,40 @@ Status: In Progress (Milestone 4 completed, hardening phase next)
   - `watchlist_signals`
   - `source_log`
   - `next_check_time`
-- Corroboration metadata now persisted in event records:
+- Corroboration metadata persisted in event records:
   - `corroboration_sources`
   - `corroboration_connectors`
   - `corroboration_source_types`
-- Quality checks added:
-  - `quality-report` command for recent cycle metrics
-- Current test status: `14 passed`.
+- QA/hardening tooling added:
+  - `quality-report` command
+  - `source-health` command
+  - `replay-fixture` command
+  - fixture scenario in `tests/fixtures/replay_pakistan_flood_quake.json`
+- Current test status: `15 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
 - Milestone 2 (Week 2): Completed
 - Milestone 3 (Week 3): Completed
 - Milestone 4 (Week 4): Completed
-- Milestone 5 (Week 5): Not Started
+- Milestone 5 (Week 5): In Progress
 - Milestone 6 (Week 6): Not Started
 
 ## Current Focus
-1. Start Milestone 5 QA and hardening.
+1. Finish Milestone 5 QA and hardening.
 2. Expand replay-based integration coverage with fixture feeds.
-3. Expand country onboarding and per-source parsing robustness.
+3. Improve parser resilience for unstable feeds.
 
 ## Next Action Queue
-1. Implement stronger per-source parsers for high-priority feeds.
-2. Add replay-style integration tests over saved fixture feeds.
-3. Run 7-cycle pilot and capture quality metrics.
-4. Tune dedupe/calibration thresholds from pilot output.
-5. Add source health checks and feed failure analytics.
+1. Add fixture scenarios for connector failure spikes and malformed feeds.
+2. Add automated threshold checks on `source-health` and `quality-report` outputs.
+3. Add parser guards for known problematic feeds (GDACS/IFRC examples seen in telemetry).
+4. Run a 7-cycle pilot and capture KPI deltas.
+5. Tune dedupe/corroboration thresholds from pilot evidence.
 
 ## Risks / Blockers
 - ReliefWeb access still blocked until appname approval is active.
-- Feed volatility and schema drift across local news sources.
+- Feed volatility and schema drift across local/NGO news sources.
 
 ## Decisions Locked
 - Alerts channel for phase 1: Moltis chat only.
@@ -81,3 +84,4 @@ Status: In Progress (Milestone 4 completed, hardening phase next)
 - `specs/05-roadmap.md`
 - `specs/07-source-connectors.md`
 - `specs/08-country-source-onboarding.md`
+- `specs/09-stocktake.md`

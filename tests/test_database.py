@@ -2,7 +2,14 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
-from agent_hum_crawler.database import EventRecord, build_engine, get_recent_cycles, init_db, persist_cycle
+from agent_hum_crawler.database import (
+    EventRecord,
+    build_engine,
+    build_source_health_report,
+    get_recent_cycles,
+    init_db,
+    persist_cycle,
+)
 from agent_hum_crawler.models import ProcessedEvent, RawSourceItem
 
 
@@ -43,7 +50,44 @@ def test_persist_cycle(tmp_path: Path) -> None:
         )
     ]
 
-    cycle_id = persist_cycle(raw_items=raw, events=events, connector_count=1, summary="ok", path=db_path)
+    connector_metrics = [
+        {
+            "connector": "government_feeds",
+            "attempted_sources": 2,
+            "healthy_sources": 1,
+            "failed_sources": 1,
+            "fetched_count": 10,
+            "matched_count": 1,
+            "errors": ["timeout"],
+            "source_results": [
+                {
+                    "source_name": "Gov Feed A",
+                    "source_url": "https://example.org/feed-a.xml",
+                    "status": "ok",
+                    "error": "",
+                    "fetched_count": 10,
+                    "matched_count": 1,
+                },
+                {
+                    "source_name": "Gov Feed B",
+                    "source_url": "https://example.org/feed-b.xml",
+                    "status": "failed",
+                    "error": "timeout",
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                },
+            ],
+        }
+    ]
+
+    cycle_id = persist_cycle(
+        raw_items=raw,
+        events=events,
+        connector_count=1,
+        summary="ok",
+        connector_metrics=connector_metrics,
+        path=db_path,
+    )
     assert cycle_id > 0
 
     cycles = get_recent_cycles(limit=5, path=db_path)
@@ -57,3 +101,9 @@ def test_persist_cycle(tmp_path: Path) -> None:
         assert record.corroboration_sources == 2
         assert record.corroboration_connectors == 2
         assert record.corroboration_source_types == 2
+
+    health = build_source_health_report(limit_cycles=5, path=db_path)
+    assert health["cycles_analyzed"] == 1
+    assert health["connectors"][0]["connector"] == "government_feeds"
+    assert health["connectors"][0]["failed_sources"] == 1
+    assert len(health["sources"]) == 2

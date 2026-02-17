@@ -82,6 +82,18 @@ Show quality metrics from recent cycles:
 python -m agent_hum_crawler.main quality-report --limit 10
 ```
 
+Show connector/feed health analytics:
+
+```powershell
+python -m agent_hum_crawler.main source-health --limit 10
+```
+
+Run replay fixture for dry-run QA:
+
+```powershell
+python -m agent_hum_crawler.main replay-fixture --fixture tests/fixtures/replay_pakistan_flood_quake.json
+```
+
 Start scheduled monitoring (example: one test run and stop):
 
 ```powershell

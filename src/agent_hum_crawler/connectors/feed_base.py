@@ -30,15 +30,77 @@ class FeedConnector:
 
     def fetch(self, config: RuntimeConfig, limit: int = 20, include_content: bool = True) -> FetchResult:
         if not self.feeds:
-            return FetchResult(items=[], total_fetched=0, total_matched=0)
+            return FetchResult(
+                items=[],
+                total_fetched=0,
+                total_matched=0,
+                connector_metrics={
+                    "connector": self.connector_name,
+                    "attempted_sources": 0,
+                    "healthy_sources": 0,
+                    "failed_sources": 0,
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                    "errors": [],
+                    "source_results": [],
+                },
+            )
 
         matched: List[RawSourceItem] = []
         total_fetched = 0
+        source_results: list[dict] = []
+        errors: list[str] = []
+        healthy_sources = 0
+        failed_sources = 0
 
         with httpx.Client(timeout=self.timeout_seconds) as client:
             for feed in self.feeds:
-                parsed = feedparser.parse(feed.url)
-                entries = parsed.entries[: max(1, limit)]
+                try:
+                    parsed = feedparser.parse(feed.url)
+                except Exception as exc:
+                    failed_sources += 1
+                    error = f"{feed.name}: {exc}"
+                    errors.append(error)
+                    source_results.append(
+                        {
+                            "source_name": feed.name,
+                            "source_url": feed.url,
+                            "status": "failed",
+                            "error": str(exc),
+                            "fetched_count": 0,
+                            "matched_count": 0,
+                        }
+                    )
+                    continue
+
+                if getattr(parsed, "bozo", False):
+                    failed_sources += 1
+                    bozo_exc = getattr(parsed, "bozo_exception", "feed parse error")
+                    errors.append(f"{feed.name}: {bozo_exc}")
+                    entries = []
+                    source_results.append(
+                        {
+                            "source_name": feed.name,
+                            "source_url": feed.url,
+                            "status": "failed",
+                            "error": str(bozo_exc),
+                            "fetched_count": 0,
+                            "matched_count": 0,
+                        }
+                    )
+                else:
+                    healthy_sources += 1
+                    entries = parsed.entries[: max(1, limit)]
+                    source_results.append(
+                        {
+                            "source_name": feed.name,
+                            "source_url": feed.url,
+                            "status": "ok",
+                            "error": "",
+                            "fetched_count": len(entries),
+                            "matched_count": 0,
+                        }
+                    )
                 total_fetched += len(entries)
 
                 for entry in entries:
@@ -53,8 +115,24 @@ class FeedConnector:
                         disaster_types=config.disaster_types,
                     ):
                         matched.append(item)
+                        if source_results:
+                            source_results[-1]["matched_count"] += 1
 
-        return FetchResult(items=matched, total_fetched=total_fetched, total_matched=len(matched))
+        return FetchResult(
+            items=matched,
+            total_fetched=total_fetched,
+            total_matched=len(matched),
+            connector_metrics={
+                "connector": self.connector_name,
+                "attempted_sources": len(self.feeds),
+                "healthy_sources": healthy_sources,
+                "failed_sources": failed_sources,
+                "fetched_count": total_fetched,
+                "matched_count": len(matched),
+                "errors": errors,
+                "source_results": source_results,
+            },
+        )
 
     def _entry_to_item(
         self,

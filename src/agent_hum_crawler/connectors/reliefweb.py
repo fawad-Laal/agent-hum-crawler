@@ -44,15 +44,34 @@ class ReliefWebConnector:
 
             data = payload.get("data", [])
             raw_items: List[RawSourceItem] = []
+            source_result = {
+                "source_name": "ReliefWeb Reports API",
+                "source_url": self.base_url,
+                "status": "ok",
+                "error": "",
+                "fetched_count": len(data),
+                "matched_count": 0,
+            }
             for entry in data:
                 item = self._map_entry_to_item(entry, include_content=include_content, client=client)
                 if item and self._matches_config(item, config):
                     raw_items.append(item)
+                    source_result["matched_count"] += 1
 
             return FetchResult(
                 items=raw_items,
                 total_fetched=len(data),
                 total_matched=len(raw_items),
+                connector_metrics={
+                    "connector": "reliefweb",
+                    "attempted_sources": 1,
+                    "healthy_sources": 1,
+                    "failed_sources": 0,
+                    "fetched_count": len(data),
+                    "matched_count": len(raw_items),
+                    "errors": [],
+                    "source_results": [source_result],
+                },
             )
 
     def _map_entry_to_item(

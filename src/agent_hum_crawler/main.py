@@ -10,10 +10,11 @@ from typing import List
 from .config import RuntimeConfig
 from .cycle import run_cycle_once
 from .alerts import build_alert_contract
-from .database import build_quality_report, get_recent_cycles, init_db
+from .database import build_quality_report, build_source_health_report, get_recent_cycles, init_db
 from .intake import run_intake
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
+from .replay import run_replay_fixture
 from .state import RuntimeState, load_state, save_state
 
 
@@ -116,6 +117,7 @@ def cmd_run_cycle(args: argparse.Namespace) -> int:
         "raw_item_count": result.raw_item_count,
         "event_count": result.event_count,
         "alerts_contract": alert_contract,
+        "connector_metrics": result.connector_metrics,
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
@@ -160,6 +162,25 @@ def cmd_show_cycles(args: argparse.Namespace) -> int:
 def cmd_quality_report(args: argparse.Namespace) -> int:
     report = build_quality_report(limit_cycles=args.limit)
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_source_health(args: argparse.Namespace) -> int:
+    report = build_source_health_report(limit_cycles=args.limit)
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_replay_fixture(args: argparse.Namespace) -> int:
+    result = run_replay_fixture(args.fixture)
+    payload = {
+        "summary": result.summary,
+        "event_count": len(result.events),
+        "events": [e.model_dump(mode="json") for e in result.events],
+        "current_hashes": result.current_hashes,
+        "alerts_contract": result.alerts_contract,
+    }
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -210,6 +231,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     quality_parser.add_argument("--limit", type=int, default=10)
     quality_parser.set_defaults(func=cmd_quality_report)
+
+    source_health_parser = subparsers.add_parser(
+        "source-health",
+        help="Show connector/feed health and failure analytics",
+    )
+    source_health_parser.add_argument("--limit", type=int, default=10)
+    source_health_parser.set_defaults(func=cmd_source_health)
+
+    replay_parser = subparsers.add_parser(
+        "replay-fixture",
+        help="Run a fixture-based replay cycle for QA/hardening",
+    )
+    replay_parser.add_argument("--fixture", required=True, help="Path to replay fixture JSON")
+    replay_parser.set_defaults(func=cmd_replay_fixture)
 
     return parser
 

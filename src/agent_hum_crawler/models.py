@@ -31,6 +31,7 @@ class FetchResult(BaseModel):
     items: List[RawSourceItem]
     total_fetched: int
     total_matched: int
+    connector_metrics: dict = Field(default_factory=dict)
 
 
 class ProcessedEvent(BaseModel):

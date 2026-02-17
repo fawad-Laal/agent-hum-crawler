@@ -1,0 +1,51 @@
+{
+  "description": "Flood + earthquake replay fixture",
+  "countries": ["Pakistan"],
+  "disaster_types": ["flood", "earthquake"],
+  "check_interval_minutes": 30,
+  "previous_hashes": [],
+  "items": [
+    {
+      "connector": "government_feeds",
+      "source_type": "official",
+      "url": "https://example.org/gov-flood-1",
+      "title": "Pakistan flood warning Sindh",
+      "published_at": "2026-02-17T12:00:00Z",
+      "country_candidates": ["Pakistan"],
+      "text": "Severe flood warning issued for Sindh and nearby districts.",
+      "language": "en",
+      "content_mode": "content-level",
+      "content_sources": [
+        {"type": "web_page", "url": "https://example.org/gov-flood-1"}
+      ]
+    },
+    {
+      "connector": "local_news_feeds",
+      "source_type": "news",
+      "url": "https://example.org/news-flood-1",
+      "title": "Pakistan flood warning Sindh",
+      "published_at": "2026-02-17T12:20:00Z",
+      "country_candidates": ["Pakistan"],
+      "text": "Local coverage confirms flood warning and road closures.",
+      "language": "en",
+      "content_mode": "link-level",
+      "content_sources": [
+        {"type": "web_page", "url": "https://example.org/news-flood-1"}
+      ]
+    },
+    {
+      "connector": "government_feeds",
+      "source_type": "official",
+      "url": "https://example.org/gov-quake-1",
+      "title": "Earthquake tremor reported in Pakistan",
+      "published_at": "2026-02-17T13:00:00Z",
+      "country_candidates": ["Pakistan"],
+      "text": "Seismic tremor reported, advisory issued.",
+      "language": "en",
+      "content_mode": "content-level",
+      "content_sources": [
+        {"type": "web_page", "url": "https://example.org/gov-quake-1"}
+      ]
+    }
+  ]
+}

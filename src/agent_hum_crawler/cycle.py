@@ -28,6 +28,7 @@ class CycleResult:
     raw_item_count: int
     event_count: int
     events: list[ProcessedEvent]
+    connector_metrics: list[dict]
 
 
 def run_cycle_once(
@@ -37,6 +38,7 @@ def run_cycle_once(
 ) -> CycleResult:
     all_items: list[RawSourceItem] = []
     connector_count = 0
+    connector_metrics: list[dict] = []
     registry = load_registry(config.countries)
     local_news_urls = [f.url for f in registry.local_news]
     local_news_urls.extend(config.priority_sources)
@@ -48,8 +50,30 @@ def run_cycle_once(
             rw = reliefweb.fetch(config=config, limit=limit, include_content=include_content)
             all_items.extend(rw.items)
             connector_count += 1
+            connector_metrics.append(rw.connector_metrics)
         except Exception as exc:
             print(f"Warning: ReliefWeb connector skipped ({exc})")
+            connector_metrics.append(
+                {
+                    "connector": "reliefweb",
+                    "attempted_sources": 1,
+                    "healthy_sources": 0,
+                    "failed_sources": 1,
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                    "errors": [str(exc)],
+                    "source_results": [
+                        {
+                            "source_name": "ReliefWeb Reports API",
+                            "source_url": "https://api.reliefweb.int/v1/reports",
+                            "status": "failed",
+                            "error": str(exc),
+                            "fetched_count": 0,
+                            "matched_count": 0,
+                        }
+                    ],
+                }
+            )
     else:
         print("Info: ReliefWeb disabled (RELIEFWEB_ENABLED=false), running fallback connectors only.")
 
@@ -65,8 +89,31 @@ def run_cycle_once(
             result = connector.fetch(config=config, limit=limit, include_content=include_content)
             all_items.extend(result.items)
             connector_count += 1
+            connector_metrics.append(result.connector_metrics)
         except Exception as exc:
             print(f"Warning: connector {connector.connector_name} skipped ({exc})")
+            connector_metrics.append(
+                {
+                    "connector": connector.connector_name,
+                    "attempted_sources": len(connector.feeds),
+                    "healthy_sources": 0,
+                    "failed_sources": len(connector.feeds),
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                    "errors": [str(exc)],
+                    "source_results": [
+                        {
+                            "source_name": feed.name,
+                            "source_url": feed.url,
+                            "status": "failed",
+                            "error": str(exc),
+                            "fetched_count": 0,
+                            "matched_count": 0,
+                        }
+                        for feed in connector.feeds
+                    ],
+                }
+            )
 
     prior_state = load_state()
     if not isinstance(prior_state, RuntimeState):
@@ -90,6 +137,7 @@ def run_cycle_once(
         events=dedupe.events,
         connector_count=connector_count,
         summary=summary,
+        connector_metrics=connector_metrics,
     )
 
     prior_state.touch()
@@ -104,4 +152,5 @@ def run_cycle_once(
         raw_item_count=len(all_items),
         event_count=len(dedupe.events),
         events=dedupe.events,
+        connector_metrics=connector_metrics,
     )

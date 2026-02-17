@@ -1,7 +1,7 @@
 # Development Roadmap - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-17
-Version: 0.2
+Version: 0.3
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.
@@ -45,16 +45,19 @@ Delivered:
 - SQLite persistence (cycles/events/raw items)
 - `run-cycle` operational command
 - `start-scheduler` interval command (`--max-runs` support)
-- output contract stabilized for Moltis chat payloads (`critical_high_alerts`, `medium_updates`, `watchlist_signals`, `source_log`, `next_check_time`)
-- corroboration metadata persisted in event records
-- quality metrics command added (`quality-report`)
+- Alert contract stabilized (`critical_high_alerts`, `medium_updates`, `watchlist_signals`, `source_log`, `next_check_time`)
+- Corroboration metadata persisted in event records
 
 ### Milestone 5 (End of Week 5): QA and Hardening
-Status: Not Started
-Planned:
-- Replay tests with saved fixtures
-- Failure-path coverage expansion
-- Threshold tuning and parser hardening
+Status: In Progress
+Delivered so far:
+- Replay-driven dry-run QA (`replay-fixture`)
+- Source health + feed failure analytics (`source-health`)
+- Quality KPI snapshot command (`quality-report`)
+Remaining:
+- Expand fixture scenarios for failure and noisy-data conditions
+- Add threshold assertions to prevent regressions
+- Parser hardening for unstable feeds
 
 ### Milestone 6 (End of Week 6): MVP Pilot and Sign-off
 Status: Not Started
@@ -69,8 +72,8 @@ Planned:
 - Consecutive successful cycles without blocking error (target >= 7 for sign-off).
 
 ## Immediate Next Actions
-1. Implement stronger parser rules for selected high-priority feeds.
-2. Add replay/integration fixtures and scenario tests.
-3. Execute pilot run and record KPI report.
-4. Tune dedupe/corroboration thresholds from pilot evidence.
-5. Add source health checks and feed failure analytics.
+1. Add failure-heavy fixture scenarios and replay assertions.
+2. Add source-health threshold checks and warning thresholds in CI/tests.
+3. Harden problematic feed parsing (GDACS/IFRC paths observed in telemetry).
+4. Run 7-cycle pilot and record KPI report.
+5. Tune dedupe/corroboration thresholds from pilot evidence.

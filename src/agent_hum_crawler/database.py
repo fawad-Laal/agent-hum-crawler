@@ -52,6 +52,30 @@ class RawItemRecord(SQLModel, table=True):
     payload_json: str
 
 
+class ConnectorHealthRecord(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    cycle_id: int = Field(index=True)
+    connector: str = Field(index=True)
+    attempted_sources: int
+    healthy_sources: int
+    failed_sources: int
+    fetched_count: int
+    matched_count: int
+    errors_json: str = "[]"
+
+
+class FeedHealthRecord(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    cycle_id: int = Field(index=True)
+    connector: str = Field(index=True)
+    source_name: str
+    source_url: str
+    status: str
+    error: str = ""
+    fetched_count: int = 0
+    matched_count: int = 0
+
+
 def default_db_path() -> Path:
     return Path.home() / ".moltis" / "agent-hum-crawler" / "monitoring.db"
 
@@ -92,6 +116,7 @@ def persist_cycle(
     events: List[ProcessedEvent],
     connector_count: int,
     summary: str,
+    connector_metrics: list[dict] | None = None,
     path: Path | None = None,
 ) -> int:
     engine = build_engine(path)
@@ -148,6 +173,35 @@ def persist_cycle(
                 )
             )
 
+        for metric in connector_metrics or []:
+            connector = str(metric.get("connector", "unknown"))
+            session.add(
+                ConnectorHealthRecord(
+                    cycle_id=cycle_id,
+                    connector=connector,
+                    attempted_sources=int(metric.get("attempted_sources", 0)),
+                    healthy_sources=int(metric.get("healthy_sources", 0)),
+                    failed_sources=int(metric.get("failed_sources", 0)),
+                    fetched_count=int(metric.get("fetched_count", 0)),
+                    matched_count=int(metric.get("matched_count", 0)),
+                    errors_json=json.dumps(metric.get("errors", [])),
+                )
+            )
+
+            for source in metric.get("source_results", []) or []:
+                session.add(
+                    FeedHealthRecord(
+                        cycle_id=cycle_id,
+                        connector=connector,
+                        source_name=str(source.get("source_name", "")),
+                        source_url=str(source.get("source_url", "")),
+                        status=str(source.get("status", "unknown")),
+                        error=str(source.get("error", "")),
+                        fetched_count=int(source.get("fetched_count", 0)),
+                        matched_count=int(source.get("matched_count", 0)),
+                    )
+                )
+
         session.commit()
 
     return cycle_id
@@ -163,8 +217,17 @@ def get_recent_cycles(limit: int = 10, path: Path | None = None) -> list[CycleRu
 
 def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> dict:
     engine = build_engine(path)
-    SQLModel.metadata.create_all(engine)
-    _ensure_eventrecord_columns(engine)
+    try:
+        _ensure_eventrecord_columns(engine)
+    except Exception:
+        return {
+            "cycles_analyzed": 0,
+            "events_analyzed": 0,
+            "duplicate_rate_estimate": 0.0,
+            "traceable_rate": 0.0,
+            "high_critical_count": 0,
+            "high_confidence_high_critical_count": 0,
+        }
 
     with Session(engine) as session:
         cycles = list(session.exec(select(CycleRun).order_by(CycleRun.id.desc()).limit(limit_cycles)))
@@ -204,4 +267,97 @@ def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> di
             "traceable_rate": round(traceable / total, 4),
             "high_critical_count": len(high_critical),
             "high_confidence_high_critical_count": high_conf_high_critical,
+        }
+
+
+def build_source_health_report(limit_cycles: int = 10, path: Path | None = None) -> dict:
+    engine = build_engine(path)
+
+    with Session(engine) as session:
+        try:
+            cycles = list(session.exec(select(CycleRun).order_by(CycleRun.id.desc()).limit(limit_cycles)))
+        except Exception:
+            return {"cycles_analyzed": 0, "connectors": [], "sources": []}
+        if not cycles:
+            return {"cycles_analyzed": 0, "connectors": [], "sources": []}
+
+        cycle_ids = [c.id for c in cycles if c.id is not None]
+        try:
+            connector_rows = list(
+                session.exec(
+                    select(ConnectorHealthRecord).where(ConnectorHealthRecord.cycle_id.in_(cycle_ids))
+                )
+            )
+            source_rows = list(
+                session.exec(
+                    select(FeedHealthRecord).where(FeedHealthRecord.cycle_id.in_(cycle_ids))
+                )
+            )
+        except Exception:
+            return {"cycles_analyzed": len(cycles), "connectors": [], "sources": []}
+
+        connector_agg: dict[str, dict] = {}
+        for row in connector_rows:
+            bucket = connector_agg.setdefault(
+                row.connector,
+                {
+                    "connector": row.connector,
+                    "runs": 0,
+                    "attempted_sources": 0,
+                    "healthy_sources": 0,
+                    "failed_sources": 0,
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                },
+            )
+            bucket["runs"] += 1
+            bucket["attempted_sources"] += row.attempted_sources
+            bucket["healthy_sources"] += row.healthy_sources
+            bucket["failed_sources"] += row.failed_sources
+            bucket["fetched_count"] += row.fetched_count
+            bucket["matched_count"] += row.matched_count
+
+        connectors = []
+        for bucket in connector_agg.values():
+            attempted = bucket["attempted_sources"] or 1
+            bucket["failure_rate"] = round(bucket["failed_sources"] / attempted, 4)
+            bucket["match_rate"] = round(bucket["matched_count"] / max(1, bucket["fetched_count"]), 4)
+            connectors.append(bucket)
+        connectors.sort(key=lambda x: x["failure_rate"], reverse=True)
+
+        source_agg: dict[tuple[str, str], dict] = {}
+        for row in source_rows:
+            key = (row.connector, row.source_url)
+            bucket = source_agg.setdefault(
+                key,
+                {
+                    "connector": row.connector,
+                    "source_name": row.source_name,
+                    "source_url": row.source_url,
+                    "runs": 0,
+                    "failed_runs": 0,
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                    "last_error": "",
+                },
+            )
+            bucket["runs"] += 1
+            if row.status != "ok":
+                bucket["failed_runs"] += 1
+                if row.error:
+                    bucket["last_error"] = row.error
+            bucket["fetched_count"] += row.fetched_count
+            bucket["matched_count"] += row.matched_count
+
+        sources = []
+        for bucket in source_agg.values():
+            bucket["failure_rate"] = round(bucket["failed_runs"] / max(1, bucket["runs"]), 4)
+            bucket["match_rate"] = round(bucket["matched_count"] / max(1, bucket["fetched_count"]), 4)
+            sources.append(bucket)
+        sources.sort(key=lambda x: (x["failure_rate"], -x["match_rate"]), reverse=True)
+
+        return {
+            "cycles_analyzed": len(cycles),
+            "connectors": connectors,
+            "sources": sources,
         }
