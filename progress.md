@@ -2,12 +2,12 @@
 
 Date: 2026-02-17
 Last Updated: 2026-02-17
-Status: In Progress (Milestone 5 hardening active)
+Status: In Progress (Milestone 5 completed, preparing pilot sign-off)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
-- Implementation phase (MVP milestones): 82% complete
-- Estimated overall MVP progress: 88%
+- Implementation phase (MVP milestones): 88% complete
+- Estimated overall MVP progress: 92%
 
 ## Completed
 - Moltis setup verified on Windows.
@@ -28,7 +28,11 @@ Status: In Progress (Milestone 5 hardening active)
   - clustering of near-duplicate items
   - corroboration scoring across connectors/source types
   - severity/confidence calibration using corroboration strength
-- SQLite persistence implemented for cycle runs, events, raw items, and connector/feed health records.
+- SQLite persistence implemented for:
+  - cycle runs
+  - event records
+  - raw item snapshots
+  - connector/feed health records
 - Scheduler implemented (`start-scheduler`) with bounded test mode (`--max-runs`).
 - Alert output contract finalized in `run-cycle` output:
   - `critical_high_alerts`
@@ -36,40 +40,38 @@ Status: In Progress (Milestone 5 hardening active)
   - `watchlist_signals`
   - `source_log`
   - `next_check_time`
-- Corroboration metadata persisted in event records:
-  - `corroboration_sources`
-  - `corroboration_connectors`
-  - `corroboration_source_types`
-- QA/hardening tooling added:
-  - `quality-report` command
-  - `source-health` command
-  - `replay-fixture` command
-  - fixture scenario in `tests/fixtures/replay_pakistan_flood_quake.json`
-- Current test status: `15 passed`.
+- Corroboration metadata persisted in event records.
+- QA/hardening tooling completed:
+  - `quality-report`
+  - `source-health`
+  - `replay-fixture`
+  - `hardening-gate`
+- Parser hardening added for unstable RSS feeds:
+  - bozo recovery via fallback fetch + reparsing.
+- Current test status: `18 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
 - Milestone 2 (Week 2): Completed
 - Milestone 3 (Week 3): Completed
 - Milestone 4 (Week 4): Completed
-- Milestone 5 (Week 5): In Progress
-- Milestone 6 (Week 6): Not Started
+- Milestone 5 (Week 5): Completed
+- Milestone 6 (Week 6): In Progress
 
 ## Current Focus
-1. Finish Milestone 5 QA and hardening.
-2. Expand replay-based integration coverage with fixture feeds.
-3. Improve parser resilience for unstable feeds.
+1. Execute pilot cycles and collect KPI evidence.
+2. Validate hardening-gate status with non-empty event datasets.
+3. Final tuning and sign-off prep.
 
 ## Next Action Queue
-1. Add fixture scenarios for connector failure spikes and malformed feeds.
-2. Add automated threshold checks on `source-health` and `quality-report` outputs.
-3. Add parser guards for known problematic feeds (GDACS/IFRC examples seen in telemetry).
-4. Run a 7-cycle pilot and capture KPI deltas.
-5. Tune dedupe/corroboration thresholds from pilot evidence.
+1. Run a 7-cycle pilot with monitored countries/disaster types.
+2. Capture and store KPI snapshots after pilot (`quality-report`, `source-health`, `hardening-gate`).
+3. Tune thresholds if pilot metrics drift beyond targets.
+4. Produce MVP sign-off note.
 
 ## Risks / Blockers
 - ReliefWeb access still blocked until appname approval is active.
-- Feed volatility and schema drift across local/NGO news sources.
+- External feed reliability variance (GDACS/IFRC currently unstable in sample runs).
 
 ## Decisions Locked
 - Alerts channel for phase 1: Moltis chat only.

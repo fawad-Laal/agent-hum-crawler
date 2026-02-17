@@ -74,20 +74,34 @@ class FeedConnector:
                     continue
 
                 if getattr(parsed, "bozo", False):
-                    failed_sources += 1
                     bozo_exc = getattr(parsed, "bozo_exception", "feed parse error")
-                    errors.append(f"{feed.name}: {bozo_exc}")
-                    entries = []
-                    source_results.append(
-                        {
-                            "source_name": feed.name,
-                            "source_url": feed.url,
-                            "status": "failed",
-                            "error": str(bozo_exc),
-                            "fetched_count": 0,
-                            "matched_count": 0,
-                        }
-                    )
+                    entries, recovery_error = self._recover_bozo_entries(client, feed.url, limit)
+                    if entries:
+                        healthy_sources += 1
+                        source_results.append(
+                            {
+                                "source_name": feed.name,
+                                "source_url": feed.url,
+                                "status": "recovered",
+                                "error": str(bozo_exc),
+                                "fetched_count": len(entries),
+                                "matched_count": 0,
+                            }
+                        )
+                    else:
+                        failed_sources += 1
+                        error_text = str(recovery_error or bozo_exc)
+                        errors.append(f"{feed.name}: {error_text}")
+                        source_results.append(
+                            {
+                                "source_name": feed.name,
+                                "source_url": feed.url,
+                                "status": "failed",
+                                "error": error_text,
+                                "fetched_count": 0,
+                                "matched_count": 0,
+                            }
+                        )
                 else:
                     healthy_sources += 1
                     entries = parsed.entries[: max(1, limit)]
@@ -133,6 +147,32 @@ class FeedConnector:
                 "source_results": source_results,
             },
         )
+
+    def _recover_bozo_entries(
+        self,
+        client: httpx.Client,
+        feed_url: str,
+        limit: int,
+    ) -> tuple[list, str | None]:
+        try:
+            response = client.get(feed_url, follow_redirects=True)
+            response.raise_for_status()
+        except Exception as exc:
+            return [], str(exc)
+
+        # Retry parsing from raw bytes first.
+        parsed = feedparser.parse(response.content)
+        if not getattr(parsed, "bozo", False):
+            return parsed.entries[: max(1, limit)], None
+
+        # Last resort: decode leniently and parse from text.
+        sanitized_text = response.content.decode("utf-8", errors="ignore")
+        reparsed = feedparser.parse(sanitized_text.encode("utf-8", errors="ignore"))
+        if not getattr(reparsed, "bozo", False):
+            return reparsed.entries[: max(1, limit)], None
+
+        bozo_exc = getattr(reparsed, "bozo_exception", "feed parse error")
+        return [], str(bozo_exc)
 
     def _entry_to_item(
         self,

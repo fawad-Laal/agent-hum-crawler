@@ -88,6 +88,12 @@ Show connector/feed health analytics:
 python -m agent_hum_crawler.main source-health --limit 10
 ```
 
+Evaluate hardening gate thresholds:
+
+```powershell
+python -m agent_hum_crawler.main hardening-gate --limit 10
+```
+
 Run replay fixture for dry-run QA:
 
 ```powershell

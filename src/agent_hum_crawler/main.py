@@ -11,6 +11,7 @@ from .config import RuntimeConfig
 from .cycle import run_cycle_once
 from .alerts import build_alert_contract
 from .database import build_quality_report, build_source_health_report, get_recent_cycles, init_db
+from .hardening import evaluate_hardening_gate
 from .intake import run_intake
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
@@ -184,6 +185,20 @@ def cmd_replay_fixture(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hardening_gate(args: argparse.Namespace) -> int:
+    quality = build_quality_report(limit_cycles=args.limit)
+    source_health = build_source_health_report(limit_cycles=args.limit)
+    report = evaluate_hardening_gate(
+        quality,
+        source_health,
+        max_duplicate_rate=args.max_duplicate_rate,
+        min_traceable_rate=args.min_traceable_rate,
+        max_connector_failure_rate=args.max_connector_failure_rate,
+    )
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-hum-crawler")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -245,6 +260,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     replay_parser.add_argument("--fixture", required=True, help="Path to replay fixture JSON")
     replay_parser.set_defaults(func=cmd_replay_fixture)
+
+    gate_parser = subparsers.add_parser(
+        "hardening-gate",
+        help="Evaluate hardening thresholds from recent cycle metrics",
+    )
+    gate_parser.add_argument("--limit", type=int, default=10)
+    gate_parser.add_argument("--max-duplicate-rate", type=float, default=0.10)
+    gate_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
+    gate_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
+    gate_parser.set_defaults(func=cmd_hardening_gate)
 
     return parser
 

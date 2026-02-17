@@ -1,7 +1,7 @@
 # Development Roadmap - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-17
-Version: 0.3
+Version: 0.4
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.
@@ -49,18 +49,16 @@ Delivered:
 - Corroboration metadata persisted in event records
 
 ### Milestone 5 (End of Week 5): QA and Hardening
-Status: In Progress
-Delivered so far:
+Status: Completed
+Delivered:
 - Replay-driven dry-run QA (`replay-fixture`)
 - Source health + feed failure analytics (`source-health`)
 - Quality KPI snapshot command (`quality-report`)
-Remaining:
-- Expand fixture scenarios for failure and noisy-data conditions
-- Add threshold assertions to prevent regressions
-- Parser hardening for unstable feeds
+- Threshold evaluation gate (`hardening-gate`)
+- Parser hardening for bozo/malformed feed recovery
 
 ### Milestone 6 (End of Week 6): MVP Pilot and Sign-off
-Status: Not Started
+Status: In Progress
 Planned:
 - 7-cycle monitored pilot
 - KPI validation and final acceptance review
@@ -72,8 +70,7 @@ Planned:
 - Consecutive successful cycles without blocking error (target >= 7 for sign-off).
 
 ## Immediate Next Actions
-1. Add failure-heavy fixture scenarios and replay assertions.
-2. Add source-health threshold checks and warning thresholds in CI/tests.
-3. Harden problematic feed parsing (GDACS/IFRC paths observed in telemetry).
-4. Run 7-cycle pilot and record KPI report.
-5. Tune dedupe/corroboration thresholds from pilot evidence.
+1. Run 7-cycle pilot and record KPI snapshots.
+2. Evaluate `hardening-gate` on post-pilot dataset.
+3. Tune thresholds and parser rules from pilot evidence.
+4. Create MVP sign-off report.
