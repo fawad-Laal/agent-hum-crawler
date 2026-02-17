@@ -1,7 +1,7 @@
 # Development Roadmap - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-17
-Version: 0.4
+Version: 0.5
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.
@@ -20,57 +20,30 @@ Version: 0.4
 
 ### Milestone 1 (End of Week 1): Configurable Agent Foundation
 Status: Completed
-Delivered:
-- Runtime intake flow
-- Input validation (`countries`, `disaster_types`, `check_interval_minutes`)
-- Initial state persistence
 
 ### Milestone 2 (End of Week 2): Monitoring Engine v1
 Status: Completed
-Delivered:
-- Multi-source collection pipeline (ReliefWeb + government + UN + NGO + local news)
-- Normalized source item model
-- Country source allowlist registry
 
 ### Milestone 3 (End of Week 3): Alert Intelligence v1
 Status: Completed
-Delivered:
-- Dedupe + change detection
-- Multi-source corroboration scoring
-- Severity/confidence calibration
 
 ### Milestone 4 (End of Week 4): Operational Alert Delivery
 Status: Completed
-Delivered:
-- SQLite persistence (cycles/events/raw items)
-- `run-cycle` operational command
-- `start-scheduler` interval command (`--max-runs` support)
-- Alert contract stabilized (`critical_high_alerts`, `medium_updates`, `watchlist_signals`, `source_log`, `next_check_time`)
-- Corroboration metadata persisted in event records
 
 ### Milestone 5 (End of Week 5): QA and Hardening
 Status: Completed
-Delivered:
-- Replay-driven dry-run QA (`replay-fixture`)
-- Source health + feed failure analytics (`source-health`)
-- Quality KPI snapshot command (`quality-report`)
-- Threshold evaluation gate (`hardening-gate`)
-- Parser hardening for bozo/malformed feed recovery
 
 ### Milestone 6 (End of Week 6): MVP Pilot and Sign-off
 Status: In Progress
-Planned:
-- 7-cycle monitored pilot
-- KPI validation and final acceptance review
-
-## KPI Tracking (Weekly)
-- Duplicate alert rate (target <= 10%).
-- Traceable alerts with source/timestamp (target 100%).
-- High/critical corroboration rate (target >= 90% where available).
-- Consecutive successful cycles without blocking error (target >= 7 for sign-off).
+Delivered so far:
+- 7-cycle pilot executed.
+- KPI snapshots captured (`quality-report`, `source-health`, `hardening-gate`).
+Pending for final sign-off:
+- reliefweb activation and re-pilot with richer event coverage
+- NGO source stabilization
+- hardening-gate status `pass` on non-zero event dataset
 
 ## Immediate Next Actions
-1. Run 7-cycle pilot and record KPI snapshots.
-2. Evaluate `hardening-gate` on post-pilot dataset.
-3. Tune thresholds and parser rules from pilot evidence.
-4. Create MVP sign-off report.
+1. Enable ReliefWeb and rerun 7-cycle pilot.
+2. Replace failing NGO feed and validate source-health failure thresholds.
+3. Capture final KPI evidence and publish MVP sign-off.

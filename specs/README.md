@@ -8,6 +8,7 @@
 - `07-source-connectors.md`: tiered source-collection strategy (ReliefWeb, government, UN, NGO, local news) and connector rules.
 - `08-country-source-onboarding.md`: country allowlist schema and onboarding workflow for government/local-news sources.
 - `09-stocktake.md`: current delivery snapshot, stability status, and remaining hardening work.
+- `10-pilot-signoff.md`: 7-cycle pilot outcome, KPI snapshot, hardening-gate status, and sign-off actions.
 
 ## Source Inputs
 - `docs/research/03-personal-assistant-scope.md`
