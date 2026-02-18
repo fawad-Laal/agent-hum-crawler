@@ -12,7 +12,7 @@ from .conformance import evaluate_moltis_conformance
 from .cycle import run_cycle_once
 from .alerts import build_alert_contract
 from .database import build_quality_report, build_source_health_report, get_recent_cycles, init_db
-from .hardening import evaluate_hardening_gate
+from .hardening import evaluate_hardening_gate, evaluate_llm_quality_gate
 from .intake import run_intake
 from .pilot import run_pilot
 from .scheduler import SchedulerOptions, start_scheduler
@@ -170,6 +170,22 @@ def cmd_quality_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_llm_report(args: argparse.Namespace) -> int:
+    quality = build_quality_report(limit_cycles=args.limit)
+    report = evaluate_llm_quality_gate(
+        quality,
+        min_llm_enrichment_rate=args.min_llm_enrichment_rate,
+        min_citation_coverage_rate=args.min_citation_coverage_rate,
+        enforce_llm_quality=args.enforce_llm_quality,
+    )
+    payload = {
+        "quality_report": quality,
+        "llm_quality_gate": report,
+    }
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
 def cmd_source_health(args: argparse.Namespace) -> int:
     report = build_source_health_report(limit_cycles=args.limit)
     print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -198,6 +214,9 @@ def cmd_hardening_gate(args: argparse.Namespace) -> int:
         max_duplicate_rate=args.max_duplicate_rate,
         min_traceable_rate=args.min_traceable_rate,
         max_connector_failure_rate=args.max_connector_failure_rate,
+        min_llm_enrichment_rate=args.min_llm_enrichment_rate,
+        min_citation_coverage_rate=args.min_citation_coverage_rate,
+        enforce_llm_quality=args.enforce_llm_quality,
     )
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
@@ -216,6 +235,9 @@ def cmd_pilot_run(args: argparse.Namespace) -> int:
         max_duplicate_rate=args.max_duplicate_rate,
         min_traceable_rate=args.min_traceable_rate,
         max_connector_failure_rate=args.max_connector_failure_rate,
+        min_llm_enrichment_rate=args.min_llm_enrichment_rate,
+        min_citation_coverage_rate=args.min_citation_coverage_rate,
+        enforce_llm_quality=args.enforce_llm_quality,
     )
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
@@ -230,6 +252,9 @@ def cmd_conformance_report(args: argparse.Namespace) -> int:
         max_duplicate_rate=args.max_duplicate_rate,
         min_traceable_rate=args.min_traceable_rate,
         max_connector_failure_rate=args.max_connector_failure_rate,
+        min_llm_enrichment_rate=args.min_llm_enrichment_rate,
+        min_citation_coverage_rate=args.min_citation_coverage_rate,
+        enforce_llm_quality=args.enforce_llm_quality,
     )
     conformance = evaluate_moltis_conformance(
         hardening_status=str(gate.get("status", "warning")),
@@ -297,6 +322,16 @@ def build_parser() -> argparse.ArgumentParser:
     quality_parser.add_argument("--limit", type=int, default=10)
     quality_parser.set_defaults(func=cmd_quality_report)
 
+    llm_parser = subparsers.add_parser(
+        "llm-report",
+        help="Show LLM enrichment quality metrics and LLM quality gate status",
+    )
+    llm_parser.add_argument("--limit", type=int, default=10)
+    llm_parser.add_argument("--min-llm-enrichment-rate", type=float, default=0.10)
+    llm_parser.add_argument("--min-citation-coverage-rate", type=float, default=0.95)
+    llm_parser.add_argument("--enforce-llm-quality", action="store_true")
+    llm_parser.set_defaults(func=cmd_llm_report)
+
     source_health_parser = subparsers.add_parser(
         "source-health",
         help="Show connector/feed health and failure analytics",
@@ -319,6 +354,9 @@ def build_parser() -> argparse.ArgumentParser:
     gate_parser.add_argument("--max-duplicate-rate", type=float, default=0.10)
     gate_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
     gate_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
+    gate_parser.add_argument("--min-llm-enrichment-rate", type=float, default=0.10)
+    gate_parser.add_argument("--min-citation-coverage-rate", type=float, default=0.95)
+    gate_parser.add_argument("--enforce-llm-quality", action="store_true")
     gate_parser.set_defaults(func=cmd_hardening_gate)
 
     pilot_parser = subparsers.add_parser(
@@ -337,6 +375,9 @@ def build_parser() -> argparse.ArgumentParser:
     pilot_parser.add_argument("--max-duplicate-rate", type=float, default=0.10)
     pilot_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
     pilot_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
+    pilot_parser.add_argument("--min-llm-enrichment-rate", type=float, default=0.10)
+    pilot_parser.add_argument("--min-citation-coverage-rate", type=float, default=0.95)
+    pilot_parser.add_argument("--enforce-llm-quality", action="store_true")
     pilot_parser.set_defaults(func=cmd_pilot_run)
 
     conformance_parser = subparsers.add_parser(
@@ -347,6 +388,9 @@ def build_parser() -> argparse.ArgumentParser:
     conformance_parser.add_argument("--max-duplicate-rate", type=float, default=0.10)
     conformance_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
     conformance_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
+    conformance_parser.add_argument("--min-llm-enrichment-rate", type=float, default=0.10)
+    conformance_parser.add_argument("--min-citation-coverage-rate", type=float, default=0.95)
+    conformance_parser.add_argument("--enforce-llm-quality", action="store_true")
     conformance_parser.add_argument(
         "--streaming-event-lifecycle",
         choices=["pass", "fail", "pending"],

@@ -107,3 +107,10 @@ def test_persist_cycle(tmp_path: Path) -> None:
     assert health["connectors"][0]["connector"] == "government_feeds"
     assert health["connectors"][0]["failed_sources"] == 1
     assert len(health["sources"]) == 2
+
+    from agent_hum_crawler.database import build_quality_report
+
+    quality = build_quality_report(limit_cycles=5, path=db_path)
+    assert "llm_attempted_events" in quality
+    assert "llm_enriched_events" in quality
+    assert "citation_coverage_rate" in quality

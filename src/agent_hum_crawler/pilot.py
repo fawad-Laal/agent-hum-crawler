@@ -21,6 +21,9 @@ def run_pilot(
     max_duplicate_rate: float = 0.10,
     min_traceable_rate: float = 0.95,
     max_connector_failure_rate: float = 0.60,
+    min_llm_enrichment_rate: float = 0.10,
+    min_citation_coverage_rate: float = 0.95,
+    enforce_llm_quality: bool = False,
     run_cycle_fn: Callable[[RuntimeConfig, int, bool], CycleResult] = run_cycle_once,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> dict:
@@ -48,6 +51,9 @@ def run_pilot(
         max_duplicate_rate=max_duplicate_rate,
         min_traceable_rate=min_traceable_rate,
         max_connector_failure_rate=max_connector_failure_rate,
+        min_llm_enrichment_rate=min_llm_enrichment_rate,
+        min_citation_coverage_rate=min_citation_coverage_rate,
+        enforce_llm_quality=enforce_llm_quality,
     )
 
     return {

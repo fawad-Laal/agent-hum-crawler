@@ -87,11 +87,19 @@ python -m agent_hum_crawler.main quality-report --limit 10
 ```
 
 `quality-report` includes LLM metrics:
+- `llm_attempted_events`
 - `llm_enriched_events`
+- `llm_fallback_events`
 - `llm_enrichment_rate`
 - `citation_coverage_rate`
 - `llm_provider_error_count`
 - `llm_validation_fail_count`
+
+Show LLM quality gate summary:
+
+```powershell
+python -m agent_hum_crawler.main llm-report --limit 10 --min-llm-enrichment-rate 0.10 --min-citation-coverage-rate 0.95
+```
 
 Show connector/feed health analytics:
 
@@ -102,7 +110,7 @@ python -m agent_hum_crawler.main source-health --limit 10
 Evaluate hardening gate thresholds:
 
 ```powershell
-python -m agent_hum_crawler.main hardening-gate --limit 10
+python -m agent_hum_crawler.main hardening-gate --limit 10 --min-llm-enrichment-rate 0.10 --min-citation-coverage-rate 0.95
 ```
 
 Run an automated pilot evidence pack (N cycles + quality + health + gate):
