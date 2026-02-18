@@ -14,6 +14,7 @@
 - `13-moltis-security-auth.md`: unified auth-gate model, scoped API key policy, proxy hardening, and third-party skills security controls.
 - `14-moltis-streaming-tool-registry.md`: streaming event lifecycle, runner/gateway event mapping, and source-aware tool registry controls.
 - `15-llm-intelligence-layer-v1.md`: optional LLM enrichment design for full-text summary, severity/confidence calibration, citation-locked outputs, and deterministic fallback.
+- `16-phase-c-skill-branch-sop.md`: Phase C governance policy for skill lifecycle safety and incident session branching workflow.
 
 ## Source Inputs
 - `docs/research/03-personal-assistant-scope.md`

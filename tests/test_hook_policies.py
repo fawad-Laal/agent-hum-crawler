@@ -39,3 +39,16 @@ def test_redacts_secrets_recursively() -> None:
     assert changed is True
     assert "sk-" not in str(redacted)
     assert "hello123" not in str(redacted)
+
+
+def test_delete_skill_blocked_without_explicit_confirmation() -> None:
+    reason = should_block_tool_call("delete_skill", {"name": "tmp-skill"})
+    assert reason is not None
+
+
+def test_delete_skill_allowed_with_explicit_confirmation() -> None:
+    reason = should_block_tool_call(
+        "delete_skill",
+        {"name": "tmp-skill", "confirm": True, "confirm_phrase": "DELETE_SKILL"},
+    )
+    assert reason is None

@@ -61,7 +61,11 @@ Evidence:
 - Hardened profile template created: `config/moltis.hardened.example.toml`.
 - Includes sandbox/network hardening, browser domain restrictions, hooks, metrics, and memory settings.
 - Rollout instructions documented in `README.md`.
-3. Skill self-extension governance and session branching SOP.
+3. Skill self-extension governance and session branching SOP. Status: Baseline implemented.
+Evidence:
+- Governance/SOP documented in `specs/16-phase-c-skill-branch-sop.md`.
+- `delete_skill` explicit-confirmation policy enforced in hook policy layer.
+- Tests added to guard against unconfirmed skill deletion.
 4. Local-validation and e2e release gates.
 5. Security/auth hardening rollout from `specs/13-moltis-security-auth.md` (auth matrix, proxy posture, scoped keys, third-party skills trust controls).
 6. Streaming/tool-registry conformance from `specs/14-moltis-streaming-tool-registry.md` (event lifecycle, websocket UX, MCP source filtering).

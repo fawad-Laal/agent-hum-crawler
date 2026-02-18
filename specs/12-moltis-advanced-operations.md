@@ -1,7 +1,7 @@
 # Moltis Advanced Operations
 
 Date: 2026-02-18
-Status: Phases A-B completed, Phases C-D pending
+Status: Phases A-B completed, Phase C baseline implemented, Phase D pending
 
 ## Purpose
 Capture additional Moltis-native capabilities to harden operations after MVP sign-off.
@@ -68,7 +68,12 @@ Capture additional Moltis-native capabilities to harden operations after MVP sig
    - Hardened profile template added at `config/moltis.hardened.example.toml`.
    - Profile includes provider/model priorities, sandbox/network defaults, browser domain restrictions, hooks registration, metrics, and memory settings.
    - Rollout procedure added in `README.md`.
-3. Phase C: Skill self-extension governance and branch workflow SOP.
+3. Phase C: Skill self-extension governance and branch workflow SOP. Status: Baseline implemented.
+   Evidence:
+   - Governance/SOP spec added: `specs/16-phase-c-skill-branch-sop.md`.
+   - `delete_skill` safety enforcement added in `src/agent_hum_crawler/hook_policies.py`:
+     - requires `confirm=true` and `confirm_phrase="DELETE_SKILL"`.
+   - Policy tests added in `tests/test_hook_policies.py`.
 4. Phase D: Local-validate and E2E regression gate adoption.
 
 ## 7. Acceptance Criteria

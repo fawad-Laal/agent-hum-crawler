@@ -106,6 +106,15 @@ def should_block_tool_call(tool: str, arguments: dict[str, Any]) -> str | None:
     command = str(arguments.get("command", "") or "")
     haystack = f"{name} {command}".lower()
 
+    if name == "delete_skill":
+        confirm = bool(arguments.get("confirm"))
+        confirm_phrase = str(arguments.get("confirm_phrase", "") or "").strip().upper()
+        if not confirm or confirm_phrase != "DELETE_SKILL":
+            return (
+                "Blocked delete_skill: explicit confirmation required "
+                "(confirm=true and confirm_phrase='DELETE_SKILL')."
+            )
+
     blocked_patterns = [
         r"rm\s+-rf\s+/",
         r"del\s+/s\s+/q\s+c:\\",

@@ -28,6 +28,10 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - Post-MVP Phase B completed with hardened Moltis profile template:
   - `config/moltis.hardened.example.toml`
   - rollout steps documented in `README.md`
+- Post-MVP Phase C baseline started:
+  - Skill/session governance SOP added (`specs/16-phase-c-skill-branch-sop.md`).
+  - `delete_skill` now requires explicit confirmation contract in hook policy.
+  - Guard tests added in `tests/test_hook_policies.py`.
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
@@ -52,10 +56,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Start Phase C from `specs/12-moltis-advanced-operations.md` (skill self-extension governance + branch workflow SOP).
-2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
-3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
-4. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
+1. Complete Phase C evidence run: incident branch simulation + merge-back summary proof.
+2. Start Phase D from `specs/12-moltis-advanced-operations.md` (local-validate + E2E gate adoption).
+3. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+4. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
+5. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.
