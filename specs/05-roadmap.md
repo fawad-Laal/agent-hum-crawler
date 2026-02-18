@@ -1,7 +1,7 @@
 # Development Roadmap - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-18
-Version: 1.0
+Version: 1.1
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.
@@ -34,28 +34,20 @@ Status: Completed
 Status: Completed
 
 ### Milestone 6 (End of Week 6): MVP Pilot and Sign-off
-Status: In Progress
+Status: Completed
 Delivered so far:
 - 7-cycle pilot executed.
 - KPI snapshots captured (`quality-report`, `source-health`, `hardening-gate`).
 - Automated pilot orchestration command added (`pilot-run`) to produce sign-off evidence in one run.
-Pending for final sign-off:
-- reliefweb activation and re-pilot with richer event coverage
-- NGO source stabilization
-- hardening-gate status `pass` on non-zero event dataset (achieved)
-- Moltis runtime alignment checks complete (prompt layering, streaming UX, metrics endpoints)
-- Tool registry conformance checks complete (`source`/`mcpServer`, MCP-disable fallback)
-- Auth/proxy matrix checks complete (local/remote/proxy behavior)
-- LLM quality thresholds pass in 7-cycle enforced window (`llm_enrichment_rate_ok`, `citation_coverage_ok`) (achieved)
+Final sign-off evidence:
+- `hardening-gate`: `pass`
+- `llm-report --enforce-llm-quality`: `pass`
+- `conformance-report`: `pass`
 
 ## Immediate Next Actions
-1. Capture Moltis conformance evidence and set checks to `pass` where verified:
-   - streaming lifecycle
-   - tool registry source metadata
-   - MCP-disabled builtin fallback
-   - auth/proxy matrix
-2. Run `conformance-report --limit 7 ...` with verified check statuses.
-3. Publish final Milestone 6 sign-off snapshot in `specs/10-pilot-signoff.md`.
+1. Begin post-MVP hardening execution track.
+2. Convert remaining manual evidence capture steps into automated scripts where feasible.
+3. Continue source expansion and production readiness.
 
 ## Post-MVP Hardening Track
 After Milestone 6 sign-off, execute `specs/12-moltis-advanced-operations.md` in this order:

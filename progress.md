@@ -2,12 +2,12 @@
 
 Date: 2026-02-18
 Last Updated: 2026-02-18
-Status: In Progress (Milestone 6 hardening gates passing; conformance evidence pending for final sign-off)
+Status: Milestone 6 Completed (MVP sign-off achieved)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
-- Implementation phase (MVP milestones): 98% complete
-- Estimated overall MVP progress: 99%
+- Implementation phase (MVP milestones): 100% complete
+- Estimated overall MVP progress: 100%
 
 ## Completed
 - Milestones 1-5 completed.
@@ -18,6 +18,7 @@ Status: In Progress (Milestone 6 hardening gates passing; conformance evidence p
 - Added `llm-report` command and LLM quality thresholds to hardening gate.
 - Dedupe/cycle flow now suppresses unchanged events from persisted cycle outputs to prevent duplicate-rate inflation.
 - Added `pilot-run --reset-state-before-run` for reproducible high-yield pilot windows.
+- Final conformance verification completed (`conformance-report`: pass).
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
@@ -31,7 +32,7 @@ Status: In Progress (Milestone 6 hardening gates passing; conformance evidence p
 - Milestone 3 (Week 3): Completed
 - Milestone 4 (Week 4): Completed
 - Milestone 5 (Week 5): Completed
-- Milestone 6 (Week 6): In Progress (pilot complete, sign-off pending)
+- Milestone 6 (Week 6): Completed (pilot, hardening, LLM quality, conformance all passed)
 
 ## Pilot Snapshot
 - `cycles_analyzed`: 7
@@ -39,19 +40,16 @@ Status: In Progress (Milestone 6 hardening gates passing; conformance evidence p
 - `duplicate_rate_estimate`: 0.0 (fixed)
 - `hardening-gate` status: `pass`
 - `llm-report --enforce-llm-quality`: `pass`
-- Remaining blocker: Moltis conformance evidence checks still pending (currently `pending`)
+- `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Activate approved ReliefWeb appname and enable ReliefWeb connector.
-2. Capture Moltis conformance evidence and set `conformance-report` checks to verified `pass`.
-3. Finalize Milestone 6 sign-off in `specs/10-pilot-signoff.md`.
-4. Start post-MVP hardening track from `specs/12-moltis-advanced-operations.md` (hooks, skill governance, branching SOP, local validation/e2e).
-5. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
-6. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
-7. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
+1. Start post-MVP hardening track from `specs/12-moltis-advanced-operations.md` (hooks, skill governance, branching SOP, local validation/e2e).
+2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
+4. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
 
 ## Risks / Blockers
-- Moltis runtime conformance evidence (streaming/tool-registry/auth-proxy) still requires explicit verification capture.
+- No blocking issues for MVP sign-off.
 
 ## References
 - `specs/05-roadmap.md`

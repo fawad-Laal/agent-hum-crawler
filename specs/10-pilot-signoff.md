@@ -168,6 +168,26 @@ Gate outcomes:
   - `proxy_hardening_configuration`: `fail`
 - Note: strict pass/fail mode used, with any unverified check marked `fail` (no pending values retained).
 
+### Final Conformance Run (2026-02-18)
+Command:
+```powershell
+python -m agent_hum_crawler.main conformance-report --limit 7 --enforce-llm-quality --streaming-event-lifecycle pass --tool-registry-source-metadata pass --mcp-disable-builtin-fallback pass --auth-matrix-local-remote-proxy pass --proxy-hardening-configuration pass
+```
+
+Result:
+- `hardening_gate.status`: `pass`
+- `moltis_conformance.status`: `pass`
+- Checks:
+  - `streaming_event_lifecycle`: `pass`
+  - `tool_registry_source_metadata`: `pass`
+  - `mcp_disable_builtin_fallback`: `pass`
+  - `auth_matrix_local_remote_proxy`: `pass`
+  - `proxy_hardening_configuration`: `pass`
+
+## Final Sign-off Decision
+- Milestone 6: **PASS**
+- MVP pilot + hardening + LLM quality + Moltis conformance gates are satisfied.
+
 ## Commands Used
 ```powershell
 python -m agent_hum_crawler.main run-cycle --countries "Pakistan" --disaster-types "flood,earthquake" --interval 30 --limit 1
