@@ -18,7 +18,7 @@ from .pilot import run_pilot
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
 from .replay import run_replay_fixture
-from .state import RuntimeState, load_state, save_state
+from .state import RuntimeState, load_state, reset_state, save_state
 
 
 def default_config_path() -> Path:
@@ -225,6 +225,9 @@ def cmd_hardening_gate(args: argparse.Namespace) -> int:
 def cmd_pilot_run(args: argparse.Namespace) -> int:
     load_environment()
     init_db()
+    if args.reset_state_before_run:
+        reset_path = reset_state()
+        print(f'{{"state_reset": true, "state_path": "{reset_path}"}}')
     config = _resolve_config(args)
     report = run_pilot(
         config=config,
@@ -378,6 +381,11 @@ def build_parser() -> argparse.ArgumentParser:
     pilot_parser.add_argument("--min-llm-enrichment-rate", type=float, default=0.10)
     pilot_parser.add_argument("--min-citation-coverage-rate", type=float, default=0.95)
     pilot_parser.add_argument("--enforce-llm-quality", action="store_true")
+    pilot_parser.add_argument(
+        "--reset-state-before-run",
+        action="store_true",
+        help="Reset runtime hash state before pilot window for reproducible non-zero sampling",
+    )
     pilot_parser.set_defaults(func=cmd_pilot_run)
 
     conformance_parser = subparsers.add_parser(

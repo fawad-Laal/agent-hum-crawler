@@ -51,3 +51,10 @@ def save_state(state: RuntimeState, path: Optional[Path] = None) -> Path:
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(state.to_dict(), indent=2), encoding="utf-8")
     return state_path
+
+
+def reset_state(path: Optional[Path] = None) -> Path:
+    state = RuntimeState()
+    state.touch()
+    state.last_summary = "State reset by operator"
+    return save_state(state, path=path)

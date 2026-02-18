@@ -119,6 +119,12 @@ Run an automated pilot evidence pack (N cycles + quality + health + gate):
 python -m agent_hum_crawler.main pilot-run --countries "Madagascar" --disaster-types "cyclone/storm" --limit 10 --cycles 7 --sleep-seconds 0 --include-content
 ```
 
+For reproducible pilot windows in rapid back-to-back runs, reset state before pilot:
+
+```powershell
+python -m agent_hum_crawler.main pilot-run --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit 10 --cycles 7 --sleep-seconds 0 --include-content --enforce-llm-quality --reset-state-before-run
+```
+
 Run consolidated conformance report (hardening + Moltis checks):
 
 ```powershell

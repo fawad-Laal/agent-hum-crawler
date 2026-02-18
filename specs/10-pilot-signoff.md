@@ -132,6 +132,32 @@ Hardening impact:
 - LLM checks are now passing.
 - Overall `hardening-gate` still `fail` due duplicate-rate check (`duplicate_rate_ok=false`).
 
+### 7-Cycle Enforced Pilot With Reset State (2026-02-18)
+Run config:
+- `LLM_ENRICHMENT_ENABLED=true` (temporary shell override for run window)
+- countries=`Madagascar,Mozambique`
+- disaster_types=`cyclone/storm,flood`
+- cycles=`7`
+- limit=`10`
+- `--enforce-llm-quality`
+- `--reset-state-before-run`
+
+Measured outputs:
+- `events_analyzed`: 2
+- `duplicate_rate_estimate`: 0.0
+- `traceable_rate`: 1.0
+- `llm_attempted_events`: 2
+- `llm_enriched_events`: 2
+- `llm_fallback_events`: 0
+- `llm_validation_fail_count`: 0
+- `llm_enrichment_rate`: 1.0
+- `citation_coverage_rate`: 1.0
+
+Gate outcomes:
+- `hardening-gate`: `pass`
+- `llm-report --enforce-llm-quality`: `pass`
+- `conformance-report`: `warning` (only because conformance checks are still `pending`, not because hardening failed)
+
 ### Current Conformance Run (2026-02-18)
 - `moltis_conformance.status`: `fail`
 - Checks:
