@@ -17,3 +17,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.egg-info/
+
+# Moltis hook runtime logs
+.moltis/logs/

@@ -19,6 +19,7 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - Dedupe/cycle flow now suppresses unchanged events from persisted cycle outputs to prevent duplicate-rate inflation.
 - Added `pilot-run --reset-state-before-run` for reproducible high-yield pilot windows.
 - Final conformance verification completed (`conformance-report`: pass).
+- Post-MVP Phase A baseline implemented: project-local Moltis hooks for LLM/tool guardrails and audit logging (`.moltis/hooks/*`).
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
@@ -43,7 +44,7 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Start post-MVP hardening track from `specs/12-moltis-advanced-operations.md` (hooks, skill governance, branching SOP, local validation/e2e).
+1. Continue post-MVP hardening track from `specs/12-moltis-advanced-operations.md` (Phase A hook safety baseline + audit controls implemented).
 2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 4. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
