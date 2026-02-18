@@ -1,7 +1,7 @@
 # Development Roadmap - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-18
-Version: 0.8
+Version: 0.9
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.
@@ -46,13 +46,15 @@ Pending for final sign-off:
 - Moltis runtime alignment checks complete (prompt layering, streaming UX, metrics endpoints)
 - Tool registry conformance checks complete (`source`/`mcpServer`, MCP-disable fallback)
 - Auth/proxy matrix checks complete (local/remote/proxy behavior)
+- LLM quality thresholds pass in 7-cycle enforced window (`llm_enrichment_rate_ok`, `citation_coverage_ok`)
 
 ## Immediate Next Actions
 1. Run `pilot-run --cycles 7` on active disaster windows and capture evidence JSON.
 2. Confirm `hardening-gate` status `pass` with non-zero events analyzed.
-3. Run `conformance-report` with Moltis check statuses and capture evidence JSON.
-4. Validate Moltis prompt + streaming + observability checklist from `specs/11-moltis-ops-alignment.md`.
-5. Publish final sign-off snapshot in `specs/10-pilot-signoff.md`.
+3. Resolve LLM validation failures in live 7-cycle window to pass LLM quality checks.
+4. Run `conformance-report` with Moltis check statuses and capture evidence JSON.
+5. Validate Moltis prompt + streaming + observability checklist from `specs/11-moltis-ops-alignment.md`.
+6. Publish final sign-off snapshot in `specs/10-pilot-signoff.md`.
 
 ## Post-MVP Hardening Track
 After Milestone 6 sign-off, execute `specs/12-moltis-advanced-operations.md` in this order:

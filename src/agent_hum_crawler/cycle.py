@@ -126,6 +126,7 @@ def run_cycle_once(
         previous_hashes=prior_state.last_cycle_hashes,
         countries=config.countries,
         disaster_types=config.disaster_types,
+        include_unchanged=False,
     )
 
     events = dedupe.events

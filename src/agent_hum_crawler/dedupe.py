@@ -143,6 +143,7 @@ def detect_changes(
     previous_hashes: List[str],
     countries: List[str],
     disaster_types: List[str],
+    include_unchanged: bool = True,
 ) -> DedupeResult:
     prior = set(previous_hashes)
     deduped: Dict[str, ProcessedEvent] = {}
@@ -203,4 +204,6 @@ def detect_changes(
         deduped[event_id] = event
 
     produced = list(deduped.values())
+    if not include_unchanged:
+        produced = [e for e in produced if e.status != "unchanged"]
     return DedupeResult(events=produced, current_hashes=sorted(set(current_hashes)))
