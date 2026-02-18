@@ -27,6 +27,7 @@ def enrich_events_with_llm(
     provider_error_count = 0
     validation_fail_count = 0
     insufficient_text_count = 0
+    citation_recovery_count = 0
 
     for event in events:
         item = by_url.get(str(event.url))
@@ -44,14 +45,21 @@ def enrich_events_with_llm(
             provider_error_count += 1
             candidate = None
 
-        validated = _validate_candidate(candidate, source_url=str(event.url), source_text=text)
+        validated = _validate_candidate(
+            candidate,
+            source_url=str(event.url),
+            source_text=text,
+            fallback_summary=event.summary,
+        )
         if not validated:
             validation_fail_count += 1
             fallback_count += 1
             enriched.append(event)
             continue
 
-        summary, severity, confidence, citations = validated
+        summary, severity, confidence, citations, used_recovery = validated
+        if used_recovery:
+            citation_recovery_count += 1
         enriched.append(
             event.model_copy(
                 update={
@@ -73,6 +81,7 @@ def enrich_events_with_llm(
         "provider_error_count": provider_error_count,
         "validation_fail_count": validation_fail_count,
         "insufficient_text_count": insufficient_text_count,
+        "citation_recovery_count": citation_recovery_count,
     }
 
 
@@ -175,7 +184,8 @@ def _validate_candidate(
     *,
     source_url: str,
     source_text: str,
-) -> tuple[str, str, str, list[EventCitation]] | None:
+    fallback_summary: str,
+) -> tuple[str, str, str, list[EventCitation], bool] | None:
     if not isinstance(candidate, dict):
         return None
     summary = str(candidate.get("summary", "")).strip()
@@ -187,37 +197,54 @@ def _validate_candidate(
         return None
     if confidence not in {"low", "medium", "high"}:
         return None
-    if not isinstance(raw_citations, list) or not raw_citations:
-        return None
-
     citations: list[EventCitation] = []
-    for citation in raw_citations:
-        if not isinstance(citation, dict):
-            return None
-        url = str(citation.get("url", "")).strip()
-        quote = str(citation.get("quote", "")).strip()
-        quote_start = citation.get("quote_start")
-        quote_end = citation.get("quote_end")
-        if not url or not quote:
-            return None
-        if url != source_url:
-            return None
-        if not isinstance(quote_start, int) or not isinstance(quote_end, int):
-            return None
-        resolved = _resolve_quote_span(source_text, quote, quote_start, quote_end)
-        if not resolved:
-            return None
-        quote_start, quote_end, exact_slice = resolved
-        citations.append(
-            EventCitation(
-                url=url,
-                quote=exact_slice,
-                quote_start=quote_start,
-                quote_end=quote_end,
-            )
-        )
+    if isinstance(raw_citations, list):
+        for citation in raw_citations:
+            parsed = _coerce_citation(citation, source_text=source_text, source_url=source_url)
+            if parsed:
+                citations.append(parsed)
 
-    return summary, severity, confidence, citations
+    used_recovery = False
+    if not citations:
+        recovery_citation = _extract_fallback_citation(
+            source_text=source_text,
+            source_url=source_url,
+            summary=summary or fallback_summary,
+        )
+        if not recovery_citation:
+            return None
+        citations = [recovery_citation]
+        used_recovery = True
+
+    return summary, severity, confidence, citations, used_recovery
+
+
+def _coerce_citation(
+    citation: object,
+    *,
+    source_text: str,
+    source_url: str,
+) -> EventCitation | None:
+    if not isinstance(citation, dict):
+        return None
+    quote = str(citation.get("quote", "")).strip()
+    if not quote:
+        return None
+    quote_start = citation.get("quote_start")
+    quote_end = citation.get("quote_end")
+    if not isinstance(quote_start, int) or not isinstance(quote_end, int):
+        # Try direct discovery when indices are missing.
+        quote_start, quote_end = 0, 0
+    resolved = _resolve_quote_span(source_text, quote, quote_start, quote_end)
+    if not resolved:
+        return None
+    start, end, exact_slice = resolved
+    return EventCitation(
+        url=source_url,
+        quote=exact_slice,
+        quote_start=start,
+        quote_end=end,
+    )
 
 
 def _resolve_quote_span(
@@ -266,4 +293,39 @@ def _normalize_quotes(text: str) -> str:
         .replace("\u2019", "'")
         .replace("\u201c", '"')
         .replace("\u201d", '"')
+    )
+
+
+def _extract_fallback_citation(
+    *,
+    source_text: str,
+    source_url: str,
+    summary: str,
+) -> EventCitation | None:
+    # Sentence split is intentionally simple; recovery is best-effort and source-locked.
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", source_text) if s.strip()]
+    if not sentences:
+        return None
+
+    summary_tokens = set(re.findall(r"[a-zA-Z0-9]{4,}", summary.lower()))
+    best_sentence = ""
+    best_score = -1
+    for sentence in sentences:
+        stokens = set(re.findall(r"[a-zA-Z0-9]{4,}", sentence.lower()))
+        score = len(summary_tokens.intersection(stokens))
+        if score > best_score:
+            best_score = score
+            best_sentence = sentence
+
+    chosen = best_sentence or sentences[0]
+    if len(chosen) < 8:
+        return None
+    idx = source_text.find(chosen)
+    if idx < 0:
+        return None
+    return EventCitation(
+        url=source_url,
+        quote=source_text[idx : idx + len(chosen)],
+        quote_start=idx,
+        quote_end=idx + len(chosen),
     )

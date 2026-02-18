@@ -91,7 +91,7 @@ def test_enrichment_recovers_when_indices_wrong_but_quote_valid() -> None:
     assert citation.quote_end == 90
 
 
-def test_enrichment_fallback_when_quote_not_in_text() -> None:
+def test_enrichment_recovers_when_quote_not_in_text() -> None:
     event = _sample_event()
     raw_item = _sample_raw_item()
 
@@ -108,6 +108,26 @@ def test_enrichment_fallback_when_quote_not_in_text() -> None:
                     "quote_end": 12,
                 }
             ],
+        }
+
+    enriched, stats = enrich_events_with_llm([event], [raw_item], complete_fn=fake_complete)
+    assert stats["fallback_count"] == 0
+    assert stats["validation_fail_count"] == 0
+    assert stats["citation_recovery_count"] == 1
+    assert enriched[0].llm_enriched is True
+    assert len(enriched[0].citations) == 1
+
+
+def test_enrichment_fallback_on_invalid_severity() -> None:
+    event = _sample_event()
+    raw_item = _sample_raw_item()
+
+    def fake_complete(_, __):
+        return {
+            "summary": "Invalid severity should force fallback",
+            "severity": "urgent",
+            "confidence": "high",
+            "citations": [],
         }
 
     enriched, stats = enrich_events_with_llm([event], [raw_item], complete_fn=fake_complete)
