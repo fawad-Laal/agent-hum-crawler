@@ -14,8 +14,9 @@ from .connectors import (
 )
 from .database import persist_cycle
 from .dedupe import detect_changes
+from .llm_enrichment import enrich_events_with_llm
 from .models import ProcessedEvent, RawSourceItem
-from .settings import get_reliefweb_appname, is_reliefweb_enabled
+from .settings import get_reliefweb_appname, is_llm_enrichment_enabled, is_reliefweb_enabled
 from .source_registry import load_registry
 from .state import RuntimeState, load_state, save_state
 
@@ -29,6 +30,7 @@ class CycleResult:
     event_count: int
     events: list[ProcessedEvent]
     connector_metrics: list[dict]
+    llm_enrichment: dict
 
 
 def run_cycle_once(
@@ -126,15 +128,22 @@ def run_cycle_once(
         disaster_types=config.disaster_types,
     )
 
+    events = dedupe.events
+    llm_stats = {"enabled": False, "enriched_count": 0, "fallback_count": len(events)}
+    if is_llm_enrichment_enabled():
+        events, llm_stats = enrich_events_with_llm(events, all_items)
+
     summary = (
         f"Cycle complete: items={len(all_items)}, events={len(dedupe.events)}, "
         f"new={sum(1 for e in dedupe.events if e.status == 'new')}, "
-        f"updated={sum(1 for e in dedupe.events if e.status == 'updated')}"
+        f"updated={sum(1 for e in dedupe.events if e.status == 'updated')}, "
+        f"llm_enrichment_used={str(llm_stats['enabled']).lower()}, "
+        f"llm_enriched={llm_stats['enriched_count']}, llm_fallback={llm_stats['fallback_count']}"
     )
 
     cycle_id = persist_cycle(
         raw_items=all_items,
-        events=dedupe.events,
+        events=events,
         connector_count=connector_count,
         summary=summary,
         connector_metrics=connector_metrics,
@@ -150,7 +159,8 @@ def run_cycle_once(
         summary=summary,
         connector_count=connector_count,
         raw_item_count=len(all_items),
-        event_count=len(dedupe.events),
-        events=dedupe.events,
+        event_count=len(events),
+        events=events,
         connector_metrics=connector_metrics,
+        llm_enrichment=llm_stats,
     )

@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import List
 
 from .config import RuntimeConfig
+from .conformance import evaluate_moltis_conformance
 from .cycle import run_cycle_once
 from .alerts import build_alert_contract
 from .database import build_quality_report, build_source_health_report, get_recent_cycles, init_db
 from .hardening import evaluate_hardening_gate
 from .intake import run_intake
+from .pilot import run_pilot
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
 from .replay import run_replay_fixture
@@ -117,6 +119,7 @@ def cmd_run_cycle(args: argparse.Namespace) -> int:
         "connector_count": result.connector_count,
         "raw_item_count": result.raw_item_count,
         "event_count": result.event_count,
+        "llm_enrichment": result.llm_enrichment,
         "alerts_contract": alert_contract,
         "connector_metrics": result.connector_metrics,
     }
@@ -140,6 +143,7 @@ def cmd_start_scheduler(args: argparse.Namespace) -> int:
                     "cycle_id": result.cycle_id,
                     "summary": result.summary,
                     "event_count": result.event_count,
+                    "llm_enriched_count": int(result.llm_enrichment.get("enriched_count", 0)),
                     "critical_high_count": len(alert_contract["critical_high_alerts"]),
                     "medium_updates_count": len(alert_contract["medium_updates"]),
                 },
@@ -196,6 +200,52 @@ def cmd_hardening_gate(args: argparse.Namespace) -> int:
         max_connector_failure_rate=args.max_connector_failure_rate,
     )
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_pilot_run(args: argparse.Namespace) -> int:
+    load_environment()
+    init_db()
+    config = _resolve_config(args)
+    report = run_pilot(
+        config=config,
+        cycles=args.cycles,
+        limit=args.limit,
+        include_content=args.include_content,
+        sleep_seconds=args.sleep_seconds,
+        max_duplicate_rate=args.max_duplicate_rate,
+        min_traceable_rate=args.min_traceable_rate,
+        max_connector_failure_rate=args.max_connector_failure_rate,
+    )
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_conformance_report(args: argparse.Namespace) -> int:
+    quality = build_quality_report(limit_cycles=args.limit)
+    source_health = build_source_health_report(limit_cycles=args.limit)
+    gate = evaluate_hardening_gate(
+        quality,
+        source_health,
+        max_duplicate_rate=args.max_duplicate_rate,
+        min_traceable_rate=args.min_traceable_rate,
+        max_connector_failure_rate=args.max_connector_failure_rate,
+    )
+    conformance = evaluate_moltis_conformance(
+        hardening_status=str(gate.get("status", "warning")),
+        checks={
+            "streaming_event_lifecycle": args.streaming_event_lifecycle,
+            "tool_registry_source_metadata": args.tool_registry_source_metadata,
+            "mcp_disable_builtin_fallback": args.mcp_disable_builtin_fallback,
+            "auth_matrix_local_remote_proxy": args.auth_matrix_local_remote_proxy,
+            "proxy_hardening_configuration": args.proxy_hardening_configuration,
+        },
+    )
+    payload = {
+        "hardening_gate": gate,
+        "moltis_conformance": conformance,
+    }
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -270,6 +320,59 @@ def build_parser() -> argparse.ArgumentParser:
     gate_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
     gate_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
     gate_parser.set_defaults(func=cmd_hardening_gate)
+
+    pilot_parser = subparsers.add_parser(
+        "pilot-run",
+        help="Run N consecutive cycles and return quality/source-health/hardening evidence",
+    )
+    pilot_parser.add_argument("--countries", help="Comma-separated country list")
+    pilot_parser.add_argument("--disaster-types", help="Comma-separated disaster types")
+    pilot_parser.add_argument("--interval", type=int, default=30, help="Interval minutes for config validation")
+    pilot_parser.add_argument("--limit", type=int, default=15, help="Max items per connector")
+    pilot_parser.add_argument("--include-content", action="store_true", help="Fetch content-level text")
+    pilot_parser.add_argument("--local-news-feeds", help="Comma-separated local news RSS/Atom feed URLs")
+    pilot_parser.add_argument("--use-saved-config", action="store_true", help="Use saved runtime config")
+    pilot_parser.add_argument("--cycles", type=int, default=7, help="Number of consecutive cycles to run")
+    pilot_parser.add_argument("--sleep-seconds", type=float, default=0.0, help="Delay between cycles")
+    pilot_parser.add_argument("--max-duplicate-rate", type=float, default=0.10)
+    pilot_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
+    pilot_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
+    pilot_parser.set_defaults(func=cmd_pilot_run)
+
+    conformance_parser = subparsers.add_parser(
+        "conformance-report",
+        help="Combine hardening gate with Moltis conformance checks",
+    )
+    conformance_parser.add_argument("--limit", type=int, default=10)
+    conformance_parser.add_argument("--max-duplicate-rate", type=float, default=0.10)
+    conformance_parser.add_argument("--min-traceable-rate", type=float, default=0.95)
+    conformance_parser.add_argument("--max-connector-failure-rate", type=float, default=0.60)
+    conformance_parser.add_argument(
+        "--streaming-event-lifecycle",
+        choices=["pass", "fail", "pending"],
+        default="pending",
+    )
+    conformance_parser.add_argument(
+        "--tool-registry-source-metadata",
+        choices=["pass", "fail", "pending"],
+        default="pending",
+    )
+    conformance_parser.add_argument(
+        "--mcp-disable-builtin-fallback",
+        choices=["pass", "fail", "pending"],
+        default="pending",
+    )
+    conformance_parser.add_argument(
+        "--auth-matrix-local-remote-proxy",
+        choices=["pass", "fail", "pending"],
+        default="pending",
+    )
+    conformance_parser.add_argument(
+        "--proxy-hardening-configuration",
+        choices=["pass", "fail", "pending"],
+        default="pending",
+    )
+    conformance_parser.set_defaults(func=cmd_conformance_report)
 
     return parser
 

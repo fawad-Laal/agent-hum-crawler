@@ -60,6 +60,52 @@ Date: 2026-02-17
 - Moltis chat alerts with traceable sources
 - Documented runbook for daily operation
 
+## Phase 5 - Moltis Native Operations Alignment
+1. Prompt persona files and instruction layering
+- Task: configure `~/.moltis/IDENTITY.md`, `SOUL.md`, and `USER.md` for this disaster-monitoring assistant.
+- Acceptance: runtime sessions consistently load persona + project instructions without prompt bloat.
+
+2. Streaming UX validation
+- Task: validate streaming responses in multi-tool cycles (delta text + tool state events).
+- Acceptance: long cycle runs provide incremental user feedback with no broken final message.
+
+3. Observability integration
+- Task: verify Moltis metrics endpoints and map key gateway metrics to app health KPIs.
+- Acceptance: operator can diagnose LLM/tool/browser failures and correlate with connector failures.
+
+## Phase 6 - Advanced Moltis Operations (Post-MVP Hardening)
+1. Hook policy pack
+- Task: implement and test `BeforeLLMCall`, `AfterLLMCall`, and `BeforeToolCall` hooks for injection/tool safety.
+- Acceptance: known unsafe tool-call patterns are blocked in controlled tests.
+
+2. Skill self-extension governance
+- Task: define allow/deny policy for `create_skill`, `update_skill`, `delete_skill` and enforce deletion confirmation.
+- Acceptance: skill modifications are auditable and safe by default.
+
+3. Session branching SOP
+- Task: define incident-branch workflow and merge-back summary pattern.
+- Acceptance: at least one incident simulation uses branch workflow end-to-end.
+
+4. Local validation + E2E gate
+- Task: adopt local parity checks and browser e2e checks before release.
+- Acceptance: release candidate includes passing validation evidence.
+
+5. Auth and proxy hardening profile
+- Task: define and validate auth gate behavior for local, remote, and proxied deployments.
+- Acceptance: scoped API-key model and proxy classification controls are documented and tested.
+
+6. Third-party skills trust controls
+- Task: enforce trust/provenance/drift handling policy for external skill sources.
+- Acceptance: untrusted or drifted skills cannot remain enabled without explicit re-trust.
+
+7. Streaming and tool-registry conformance
+- Task: validate streaming event flow and runner/gateway/websocket mappings for long tool-heavy cycles.
+- Acceptance: deltas/tool lifecycle events are consistent and MCP source filtering behaves as expected.
+
+8. LLM Intelligence Layer v1
+- Task: implement optional LLM enrichment for full-text summary + severity/confidence calibration with strict citation locking.
+- Acceptance: all LLM-enriched outputs include URL + quote spans; deterministic rules are used automatically when LLM is unavailable.
+
 ## Definition of Done (MVP)
 - End-to-end operation for 7 consecutive cycles without blocking errors.
 - Critical/high alerts emitted correctly during test scenarios.

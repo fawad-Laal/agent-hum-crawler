@@ -1,7 +1,7 @@
 ﻿# Technical Spec - Dynamic Monitoring Agent
 
-Date: 2026-02-17
-Version: 0.1 (MVP)
+Date: 2026-02-18
+Version: 0.2 (MVP)
 
 ## 1. Architecture Overview
 Components:
@@ -98,3 +98,55 @@ Per cycle capture:
 - Exact source connector strategy (RSS/APIs/scrape mix)
 - Fuzzy-match threshold for near-duplicates
 - Quiet-hours behavior for critical events (likely always notify)
+
+## 11. Moltis Prompt Architecture Alignment
+- Use Moltis dynamic system prompt assembly as primary orchestration layer (identity, soul, user profile, project context, runtime context, skills, tools, guidelines).
+- Keep agent guidance in project `AGENTS.md`; keep user-level persona files in `~/.moltis/`:
+  - `IDENTITY.md`
+  - `SOUL.md`
+  - `USER.md`
+  - optional `TOOLS.md`
+- Ensure prompt instructions emphasize:
+  - API-first collection for trusted sources.
+  - Browser automation only when API/RSS is unavailable or insufficient.
+  - source attribution and uncertainty language for all alerting.
+
+## 12. Streaming and Tool-Loop Behavior
+- Operate with Moltis streaming mode enabled so users receive token deltas during long runs.
+- Preserve tool-call accumulation + parallel execution semantics for multi-source fetch steps.
+- Keep alert responses concise while tool execution state is surfaced through streaming events (`thinking`, `tool_call_start`, `tool_call_end`, `delta`).
+
+## 13. Collection Strategy in Moltis
+- Preferred order:
+  1. Official APIs (ReliefWeb and similar).
+  2. Stable RSS/Atom feeds (government, UN, NGO, local news).
+  3. Browser automation for JavaScript-heavy or blocked content.
+- Browser usage policy:
+  - enable domain allowlists for trusted domains where possible.
+  - prefer sandboxed browser sessions when available.
+  - store extracted body text in `rawitemrecord.payload_json.text`.
+
+## 14. Observability Requirements (Moltis + App)
+- Keep app-level quality commands (`quality-report`, `source-health`, `hardening-gate`, `pilot-run`) as operator-facing QA controls.
+- Enable Moltis metrics/tracing in gateway deployment for runtime observability:
+  - `/metrics` Prometheus endpoint
+  - `/api/metrics`, `/api/metrics/summary`, `/api/metrics/history`
+- Minimum operational dashboards:
+  - LLM request latency and token usage.
+  - Tool execution error rates.
+  - Browser/session failures.
+  - Connector/feed health from app DB outputs.
+
+## 15. Authentication and Security Baseline
+- For any non-local deployment, require Moltis auth enabled (`auth.disabled = false`).
+- Use scoped API keys only; enforce least-privilege permissions for integrations.
+- Prefer passkey-enabled operator access for admin functions.
+- In reverse proxy deployments, set `MOLTIS_BEHIND_PROXY=true` unless equivalent remote classification guarantees are verified.
+- Keep command approvals in `smart` (or stricter) mode and sandbox execution enabled.
+- Apply third-party skills trust lifecycle controls and monitor security audit logs.
+
+## 16. Streaming and Tool Registry Baseline
+- Preserve Moltis streaming event contract and surface incremental updates in chat.
+- Keep tool-call lifecycle visibility (`tool_call_start`/`tool_call_end`) for long workflows.
+- Monitor streaming performance risks from frequent delta rendering and slow websocket clients.
+- Use source-aware registry filtering for MCP controls (`builtin` vs `mcp`), avoiding name-prefix heuristics.

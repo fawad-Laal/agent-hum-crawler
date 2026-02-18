@@ -34,6 +34,11 @@ class FetchResult(BaseModel):
     connector_metrics: dict = Field(default_factory=dict)
 
 
+class EventCitation(BaseModel):
+    url: HttpUrl
+    quote: str
+
+
 class ProcessedEvent(BaseModel):
     event_id: str
     status: Literal["new", "updated", "unchanged"]
@@ -47,6 +52,8 @@ class ProcessedEvent(BaseModel):
     severity: Literal["low", "medium", "high", "critical"]
     confidence: Literal["low", "medium", "high"]
     summary: str
+    llm_enriched: bool = False
+    citations: List[EventCitation] = Field(default_factory=list)
     corroboration_sources: int = 1
     corroboration_connectors: int = 1
     corroboration_source_types: int = 1

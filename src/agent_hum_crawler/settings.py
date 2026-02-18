@@ -24,3 +24,16 @@ def get_reliefweb_appname() -> str:
             "https://apidoc.reliefweb.int/parameters#appname"
         )
     return appname
+
+
+def is_llm_enrichment_enabled() -> bool:
+    raw = os.getenv("LLM_ENRICHMENT_ENABLED", "false").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def get_openai_api_key() -> str:
+    return os.getenv("OPENAI_API_KEY", "").strip()
+
+
+def get_openai_model() -> str:
+    return os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()

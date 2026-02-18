@@ -1,12 +1,12 @@
 # Stocktake - Current State
 
-Date: 2026-02-17
+Date: 2026-02-18
 
 ## Snapshot
-- Roadmap position: Milestone 5 in progress.
+- Roadmap position: Milestone 6 in progress.
 - Core engine status: operational (`run-cycle`, `start-scheduler`).
 - QA status: replay fixtures + quality metrics + source health analytics available.
-- Test status: 15 passing tests.
+- Test status: 20 passing tests.
 
 ## What Is Stable
 - Runtime config intake and validation.
@@ -16,10 +16,9 @@ Date: 2026-02-17
 - Alert output contract for downstream Moltis message formatting.
 
 ## What Still Needs Hardening
-- Feed-specific parser resilience for known unstable RSS sources.
-- Regression guardrails on quality metrics.
-- Broader fixture coverage for noisy/partial-failure scenarios.
-- Pilot KPI validation across consecutive scheduled cycles.
+- Final pilot evidence on active disaster windows with non-zero event counts.
+- Hardening gate confirmation as `pass` on live data.
+- Final sign-off packaging and operator runbook freeze.
 
 ## Definition of Readiness for Milestone 6
 - Replay tests cover normal + failure + noisy scenarios.

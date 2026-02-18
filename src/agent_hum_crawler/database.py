@@ -36,6 +36,8 @@ class EventRecord(SQLModel, table=True):
     severity: str
     confidence: str
     summary: str
+    llm_enriched: bool = False
+    citations_json: str = "[]"
     corroboration_sources: int = 1
     corroboration_connectors: int = 1
     corroboration_source_types: int = 1
@@ -97,6 +99,8 @@ def _ensure_eventrecord_columns(engine) -> None:
         "corroboration_sources": "INTEGER NOT NULL DEFAULT 1",
         "corroboration_connectors": "INTEGER NOT NULL DEFAULT 1",
         "corroboration_source_types": "INTEGER NOT NULL DEFAULT 1",
+        "llm_enriched": "INTEGER NOT NULL DEFAULT 0",
+        "citations_json": "TEXT NOT NULL DEFAULT '[]'",
     }
 
     with engine.connect() as conn:
@@ -154,6 +158,8 @@ def persist_cycle(
                     severity=event.severity,
                     confidence=event.confidence,
                     summary=event.summary,
+                    llm_enriched=event.llm_enriched,
+                    citations_json=json.dumps([c.model_dump(mode="json") for c in event.citations]),
                     corroboration_sources=event.corroboration_sources,
                     corroboration_connectors=event.corroboration_connectors,
                     corroboration_source_types=event.corroboration_source_types,

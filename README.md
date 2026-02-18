@@ -17,13 +17,16 @@ Dynamic disaster-intelligence monitoring assistant.
 Create `.env` with:
 
 ```env
-OPENAI_API_KEY=...
 RELIEFWEB_ENABLED=true
 RELIEFWEB_APPNAME=your_approved_reliefweb_appname
+LLM_ENRICHMENT_ENABLED=false
+OPENAI_API_KEY=... # required only when LLM_ENRICHMENT_ENABLED=true
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
 ReliefWeb appname request: https://apidoc.reliefweb.int/parameters#appname
 If approval is pending, set `RELIEFWEB_ENABLED=false` to run fallback connectors only.
+When `LLM_ENRICHMENT_ENABLED=true`, the pipeline attempts LLM summary/severity/confidence enrichment with citation locking (`url + quote`). On any LLM failure, it falls back to deterministic rules.
 
 ## Country Source Allowlists
 - Active file: `config/country_sources.json`
@@ -92,6 +95,18 @@ Evaluate hardening gate thresholds:
 
 ```powershell
 python -m agent_hum_crawler.main hardening-gate --limit 10
+```
+
+Run an automated pilot evidence pack (N cycles + quality + health + gate):
+
+```powershell
+python -m agent_hum_crawler.main pilot-run --countries "Madagascar" --disaster-types "cyclone/storm" --limit 10 --cycles 7 --sleep-seconds 0 --include-content
+```
+
+Run consolidated conformance report (hardening + Moltis checks):
+
+```powershell
+python -m agent_hum_crawler.main conformance-report --limit 7 --streaming-event-lifecycle pass --tool-registry-source-metadata pass --mcp-disable-builtin-fallback pass --auth-matrix-local-remote-proxy pending --proxy-hardening-configuration pending
 ```
 
 Run replay fixture for dry-run QA:

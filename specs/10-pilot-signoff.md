@@ -1,30 +1,32 @@
 # Pilot Sign-off - Milestone 6
 
-Date: 2026-02-17
+Date: 2026-02-18
 
 ## Pilot Scope
-- Executed 7 consecutive `run-cycle` pilot runs.
-- Runtime filters: countries=`Pakistan`, disaster_types=`flood,earthquake`, interval=`30`, limit=`1`.
-- ReliefWeb remained disabled (`RELIEFWEB_ENABLED=false`) during pilot.
+- Executed 7 consecutive cycles via `pilot-run`.
+- Runtime filters: countries=`Madagascar`, disaster_types=`cyclone/storm`, limit=`10`, cycles=`7`.
+- ReliefWeb enabled and returning matched items.
 
 ## KPI Snapshot
-From `quality-report --limit 7`:
+From `pilot-run` / `quality-report --limit 7`:
 - cycles_analyzed: 7
-- events_analyzed: 0
-- duplicate_rate_estimate: 0.0
+- events_analyzed: 21
+- duplicate_rate_estimate: 1.0
 - traceable_rate: 1.0
 
-From `source-health --limit 7`:
+From `pilot-run` / `source-health --limit 7`:
 - Connector failure rates:
-  - `ngo_feeds`: 1.0 (IFRC feed returned 403)
-  - `government_feeds`: 0.0 (GDACS recovered via parser fallback path)
+  - `reliefweb`: 0.0
+  - `ngo_feeds`: 0.0
+  - `government_feeds`: 0.0
   - `un_humanitarian_feeds`: 0.0
-  - `local_news_feeds`: 0.0
 
 From `hardening-gate --limit 7`:
-- status: `warning`
-- reason: no events analyzed yet (provisional gate)
-- connector_failure_ok: `false` (worst connector failure rate = 1.0)
+- status: `fail`
+- reason: duplicate rate threshold failed
+- duplicate_rate_ok: `false` (duplicate_rate = 1.0, threshold = 0.10)
+- traceable_rate_ok: `true`
+- connector_failure_ok: `true`
 
 ## Outcome
 - Engineering pipeline stability: **PASS**
@@ -32,15 +34,38 @@ From `hardening-gate --limit 7`:
   - Scheduler and cycle persistence remained stable.
   - Health and quality analytics reported correctly.
 
-- Data-quality sign-off: **PARTIAL / PROVISIONAL**
-  - No matched disaster events in this pilot window.
-  - Hardening gate remains provisional due zero-event sample and persistent NGO feed failure.
+- Data-quality sign-off: **FAIL**
+  - Events were collected and matched, but dedupe/change thresholds were not met.
+  - Hardening gate failed due duplicate-rate breach.
 
 ## Required Actions Before Final Production Sign-off
 1. Enable approved ReliefWeb appname and rerun pilot with live humanitarian coverage.
 2. Replace or disable failing NGO feed (`IFRC`) and onboard alternative NGO source.
-3. Execute another 7-cycle pilot targeting known active disaster windows or richer filters.
+3. Reduce duplicate-rate inflation in dedupe/change logic and re-run 7-cycle pilot.
 4. Re-run `quality-report`, `source-health`, and `hardening-gate` and confirm gate status `pass`.
+5. Capture verified Moltis conformance evidence (`streaming`, `tool registry`, `MCP disable fallback`, `auth/proxy matrix`) and flip failed checks to pass only after direct validation.
+
+## Moltis Conformance Evidence (Required)
+- Tool registry source metadata evidence:
+  - sample schemas show `source` and `mcpServer` fields.
+- Streaming lifecycle evidence:
+  - event sequence captured for one long run (`thinking`, `delta`, `tool_call_start`, `tool_call_end`, `thinking_done`).
+- MCP-disabled fallback evidence:
+  - session with MCP disabled still executes builtin-only workflow.
+- Auth/proxy matrix evidence:
+  - local/no-credential, remote/setup-required, and proxy-forced-remote checks documented.
+- Consolidated conformance status:
+  - `python -m agent_hum_crawler.main conformance-report ...` output attached.
+
+### Current Conformance Run (2026-02-18)
+- `moltis_conformance.status`: `fail`
+- Checks:
+  - `streaming_event_lifecycle`: `fail`
+  - `tool_registry_source_metadata`: `fail`
+  - `mcp_disable_builtin_fallback`: `fail`
+  - `auth_matrix_local_remote_proxy`: `fail`
+  - `proxy_hardening_configuration`: `fail`
+- Note: strict pass/fail mode used, with any unverified check marked `fail` (no pending values retained).
 
 ## Commands Used
 ```powershell
@@ -48,4 +73,6 @@ python -m agent_hum_crawler.main run-cycle --countries "Pakistan" --disaster-typ
 python -m agent_hum_crawler.main quality-report --limit 7
 python -m agent_hum_crawler.main source-health --limit 7
 python -m agent_hum_crawler.main hardening-gate --limit 7
+python -m agent_hum_crawler.main pilot-run --countries "Madagascar" --disaster-types "cyclone/storm" --limit 10 --cycles 7 --sleep-seconds 0 --include-content
+python -m agent_hum_crawler.main conformance-report --limit 7 --streaming-event-lifecycle fail --tool-registry-source-metadata fail --mcp-disable-builtin-fallback fail --auth-matrix-local-remote-proxy fail --proxy-hardening-configuration fail
 ```

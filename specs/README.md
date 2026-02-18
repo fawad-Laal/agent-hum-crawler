@@ -9,6 +9,11 @@
 - `08-country-source-onboarding.md`: country allowlist schema and onboarding workflow for government/local-news sources.
 - `09-stocktake.md`: current delivery snapshot, stability status, and remaining hardening work.
 - `10-pilot-signoff.md`: 7-cycle pilot outcome, KPI snapshot, hardening-gate status, and sign-off actions.
+- `11-moltis-ops-alignment.md`: Moltis-native prompt/streaming/metrics operating model and readiness checklist.
+- `12-moltis-advanced-operations.md`: skill self-extension, session branching, hooks, hardened config, and local-validate/e2e operating model.
+- `13-moltis-security-auth.md`: unified auth-gate model, scoped API key policy, proxy hardening, and third-party skills security controls.
+- `14-moltis-streaming-tool-registry.md`: streaming event lifecycle, runner/gateway event mapping, and source-aware tool registry controls.
+- `15-llm-intelligence-layer-v1.md`: optional LLM enrichment design for full-text summary, severity/confidence calibration, citation-locked outputs, and deterministic fallback.
 
 ## Source Inputs
 - `docs/research/03-personal-assistant-scope.md`
