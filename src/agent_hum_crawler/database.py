@@ -422,7 +422,7 @@ def build_source_health_report(limit_cycles: int = 10, path: Path | None = None)
                 },
             )
             bucket["runs"] += 1
-            if row.status != "ok":
+            if row.status in {"failed", "error"}:
                 bucket["failed_runs"] += 1
                 if row.error:
                     bucket["last_error"] = row.error

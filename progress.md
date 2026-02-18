@@ -64,7 +64,24 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - `source-health`
   - `hardening-gate`
 - Parser hardening and source-health telemetry validated in live cycles.
-- Current test status: `37 passed`.
+- Reporting stack upgraded to template-driven formatting with editable section/length controls:
+  - `config/report_template.json` (default)
+  - `config/report_template.brief.json` (short donor update)
+  - `config/report_template.detailed.json` (long analyst brief)
+- `write-report` now supports `--report-template` and loads `.env` before report generation.
+- AI report path hardened:
+  - true `llm_used` detection (actual AI use, not just flag),
+  - `AI Assisted: Yes` banner when AI drafting is used,
+  - OpenAI Responses structured output parsing fixed.
+- Citation + format consistency improved:
+  - numbered citation refs in body (`[1]`, `[2]`),
+  - numbered `## Citations` list at end,
+  - template-enforced section naming to keep AI and deterministic outputs aligned.
+- Source expansion/hardening updates:
+  - Added BBC, Al Jazeera English, AllAfrica, Africanews, ANA, The Guardian, Reuters feeds.
+  - Replaced failing ANA/Reuters URLs with stable working endpoints.
+  - Adjusted source-health aggregation so `recovered` parse status is not counted as feed failure.
+- Current test status: `40 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
@@ -84,8 +101,8 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 
 ## Next Action Queue
 1. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
-   - tighten LLM report drafting schema + citation grounding thresholds further.
-   - add measured quality thresholds for long-form report outputs from live pilot windows.
+   - add strict mode for filter-faithful reporting (no cross-country fallback when selected filters have zero evidence).
+   - add section alias support + stronger unsupported-claim checks for AI-generated narratives.
 2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 

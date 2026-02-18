@@ -1,0 +1,20 @@
+{
+  "name": "brief-donor-update-v1",
+  "sections": {
+    "executive_summary": "Situation At A Glance",
+    "incident_highlights": "Top Priority Updates",
+    "source_reliability": "Evidence Confidence Snapshot",
+    "risk_outlook": "72-Hour Risk Outlook",
+    "method": "Method Note",
+    "citations": "Source Links"
+  },
+  "limits": {
+    "max_incident_highlights": 5,
+    "executive_summary_max_words": 90,
+    "source_reliability_max_words": 70,
+    "risk_outlook_max_words": 90,
+    "method_max_words": 55,
+    "incident_summary_max_words": 40,
+    "incident_quote_max_chars": 260
+  }
+}

@@ -32,7 +32,18 @@ def _default_registry() -> SourceRegistry:
             ),
         ],
         ngo=[FeedSource("CARE News", "https://www.care.org/feed/")],
-        local_news=[],
+        local_news=[
+            FeedSource("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+            FeedSource("Al Jazeera English", "https://www.aljazeera.com/xml/rss/all.xml"),
+            FeedSource("AllAfrica Latest", "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf"),
+            FeedSource("Africanews", "https://www.africanews.com/feed/"),
+            FeedSource("Africa News Agency (ANA)", "https://www.africannewsagency.com/feed/"),
+            FeedSource("The Guardian World", "https://www.theguardian.com/world/rss"),
+            FeedSource(
+                "Reuters World",
+                "https://news.google.com/rss/search?q=site:reuters.com+world&hl=en-US&gl=US&ceid=US:en",
+            ),
+        ],
     )
 
 

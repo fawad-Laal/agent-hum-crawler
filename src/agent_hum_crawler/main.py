@@ -21,6 +21,7 @@ from .replay import run_replay_fixture
 from .reporting import (
     build_graph_context,
     evaluate_report_quality,
+    load_report_template,
     render_long_form_report,
     write_report_file,
 )
@@ -284,6 +285,17 @@ def cmd_conformance_report(args: argparse.Namespace) -> int:
 
 
 def cmd_write_report(args: argparse.Namespace) -> int:
+    load_environment()
+    template_path = Path(args.report_template) if args.report_template else None
+    template = load_report_template(template_path)
+    sections = template.get("sections", {})
+    required_sections = [
+        str(sections.get("executive_summary", "Executive Summary")),
+        str(sections.get("incident_highlights", "Incident Highlights")),
+        str(sections.get("source_reliability", "Source and Connector Reliability Snapshot")),
+        str(sections.get("risk_outlook", "Risk Outlook")),
+        str(sections.get("method", "Method")),
+    ]
     countries = [c.strip() for c in (args.countries or "").split(",") if c.strip()]
     disaster_types = [d.strip() for d in (args.disaster_types or "").split(",") if d.strip()]
     graph_context = build_graph_context(
@@ -296,17 +308,20 @@ def cmd_write_report(args: argparse.Namespace) -> int:
         graph_context=graph_context,
         title=args.title,
         use_llm=args.use_llm,
+        template_path=template_path,
     )
+    llm_used = "AI Assisted: Yes" in report
     quality = evaluate_report_quality(
         report_markdown=report,
         min_citation_density=args.min_citation_density,
+        required_sections=required_sections,
     )
     out = write_report_file(report_markdown=report, output_path=Path(args.output) if args.output else None)
     payload = {
         "status": "ok" if quality.get("status") == "pass" or not args.enforce_report_quality else "fail",
         "report_path": str(out),
         "meta": graph_context.get("meta", {}),
-        "llm_used": bool(args.use_llm),
+        "llm_used": llm_used,
         "report_quality": quality,
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -474,6 +489,11 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--limit-events", type=int, default=60)
     report_parser.add_argument("--title", default="Disaster Intelligence Report")
     report_parser.add_argument("--use-llm", action="store_true", help="Use optional LLM final drafting")
+    report_parser.add_argument(
+        "--report-template",
+        default="config/report_template.json",
+        help="Path to JSON report template (sections + length limits)",
+    )
     report_parser.add_argument("--output", help="Write markdown report to this path")
     report_parser.add_argument("--min-citation-density", type=float, default=0.005)
     report_parser.add_argument("--enforce-report-quality", action="store_true")

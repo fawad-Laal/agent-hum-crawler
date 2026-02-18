@@ -114,3 +114,40 @@ def test_persist_cycle(tmp_path: Path) -> None:
     assert "llm_attempted_events" in quality
     assert "llm_enriched_events" in quality
     assert "citation_coverage_rate" in quality
+
+
+def test_source_health_recovered_not_counted_as_failed(tmp_path: Path) -> None:
+    db_path = tmp_path / "monitoring.db"
+    init_db(db_path)
+    persist_cycle(
+        raw_items=[],
+        events=[],
+        connector_count=1,
+        summary="ok",
+        connector_metrics=[
+            {
+                "connector": "government_feeds",
+                "attempted_sources": 1,
+                "healthy_sources": 1,
+                "failed_sources": 0,
+                "fetched_count": 10,
+                "matched_count": 0,
+                "errors": [],
+                "source_results": [
+                    {
+                        "source_name": "GDACS",
+                        "source_url": "https://www.gdacs.org/xml/rss.xml",
+                        "status": "recovered",
+                        "error": "encoding recovered",
+                        "fetched_count": 10,
+                        "matched_count": 0,
+                    }
+                ],
+            }
+        ],
+        path=db_path,
+    )
+
+    health = build_source_health_report(limit_cycles=5, path=db_path)
+    assert health["sources"][0]["failed_runs"] == 0
+    assert health["sources"][0]["failure_rate"] == 0.0

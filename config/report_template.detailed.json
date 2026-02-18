@@ -1,0 +1,20 @@
+{
+  "name": "detailed-analyst-brief-v1",
+  "sections": {
+    "executive_summary": "Executive Summary",
+    "incident_highlights": "Incident Analysis",
+    "source_reliability": "Source and Connector Reliability Assessment",
+    "risk_outlook": "Forward Risk and Scenario Outlook",
+    "method": "Methodology and Scope",
+    "citations": "Citations"
+  },
+  "limits": {
+    "max_incident_highlights": 12,
+    "executive_summary_max_words": 240,
+    "source_reliability_max_words": 180,
+    "risk_outlook_max_words": 260,
+    "method_max_words": 150,
+    "incident_summary_max_words": 110,
+    "incident_quote_max_chars": 800
+  }
+}

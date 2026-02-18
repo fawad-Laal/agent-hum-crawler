@@ -82,3 +82,14 @@ Evidence:
 - Added report quality gates (citation density, section completeness, unsupported-claim checks).
 - Enforced report quality in E2E gate (`scripts/e2e_gate.py`).
 - Latest deterministic E2E run includes `report_quality_status=pass`.
+- Added template-driven report rendering with editable section and length controls:
+  - `config/report_template.json` (default),
+  - `config/report_template.brief.json`,
+  - `config/report_template.detailed.json`.
+- Added `write-report --report-template` for profile selection and format standardization.
+- AI drafting integration hardened:
+  - `.env` loading for report command,
+  - robust OpenAI Responses parsing (structured `output` support),
+  - explicit `AI Assisted: Yes` banner on true AI-generated outputs.
+- Citation format standardized across AI/deterministic outputs:
+  - numbered in-text citation refs and numbered end citation list.

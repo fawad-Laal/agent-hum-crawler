@@ -1,0 +1,20 @@
+{
+  "name": "default-v1",
+  "sections": {
+    "executive_summary": "Executive Summary",
+    "incident_highlights": "Incident Highlights",
+    "source_reliability": "Source and Connector Reliability Snapshot",
+    "risk_outlook": "Risk Outlook",
+    "method": "Method",
+    "citations": "Citations"
+  },
+  "limits": {
+    "max_incident_highlights": 10,
+    "executive_summary_max_words": 180,
+    "source_reliability_max_words": 140,
+    "risk_outlook_max_words": 180,
+    "method_max_words": 120,
+    "incident_summary_max_words": 80,
+    "incident_quote_max_chars": 600
+  }
+}

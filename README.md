@@ -137,6 +137,21 @@ Generate long-form GraphRAG report from persisted DB evidence (no vector DB requ
 python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit-cycles 20 --limit-events 60
 ```
 
+Default output path: `reports/report-<timestamp>.md` (project-local).
+
+Template-driven formatting and section-length limits can be customized in `config/report_template.json`
+or overridden with `--report-template`.
+
+Prebuilt templates:
+
+```powershell
+# Brief donor update
+python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm --report-template config/report_template.brief.json
+
+# Detailed analyst brief
+python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm --report-template config/report_template.detailed.json
+```
+
 Enforce report quality gate (section completeness + citation density + unsupported-claim checks):
 
 ```powershell

@@ -23,3 +23,7 @@ Thumbs.db
 
 # Local validation artifacts
 artifacts/e2e/
+
+# Generated reports (keep folder only)
+reports/*.md
+!reports/.gitkeep
