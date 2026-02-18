@@ -43,6 +43,10 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
     - `scripts/local-validate.sh`
   - Gate checks now include `pytest -q` and `compileall` for `src/tests`.
   - Usage documented in `README.md`.
+- Phase D extended to full deterministic E2E regression gate:
+  - Added `scripts/e2e_gate.py`.
+  - `local-validate` now runs replay/report/hardening/conformance E2E steps.
+  - Artifacts captured to `artifacts/e2e/<UTC timestamp>/`.
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
@@ -67,10 +71,9 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Extend Phase D from baseline to full E2E regression gate and artifact capture.
-2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
-3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
-4. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
+1. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+2. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
+3. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.

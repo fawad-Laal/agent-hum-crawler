@@ -161,6 +161,20 @@ Linux/macOS:
 ./scripts/local-validate.sh
 ```
 
+This now includes a deterministic E2E regression gate with artifact capture.
+Artifacts are written to:
+- `artifacts/e2e/<UTC timestamp>/`
+
+Skip E2E when needed:
+
+```powershell
+.\scripts\local-validate.ps1 -SkipE2E
+```
+
+```bash
+SKIP_E2E=1 ./scripts/local-validate.sh
+```
+
 ## Moltis Hook Pack (Post-MVP Phase A)
 Project-local hooks are provided under `.moltis/hooks/`:
 - `llm-tool-guard` (`BeforeLLMCall`, `AfterLLMCall`)

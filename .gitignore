@@ -20,3 +20,6 @@ Thumbs.db
 
 # Moltis hook runtime logs
 .moltis/logs/
+
+# Local validation artifacts
+artifacts/e2e/

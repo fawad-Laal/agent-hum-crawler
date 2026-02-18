@@ -84,14 +84,16 @@ Capture additional Moltis-native capabilities to harden operations after MVP sig
      - `parent_session_key=main`
      - `fork_point=0`
      - `label=incident-madagascar-cyclone-20260218-alt-severity`
-4. Phase D: Local-validate and E2E regression gate adoption. Status: Baseline implemented.
+4. Phase D: Local-validate and E2E regression gate adoption. Status: Extended to full deterministic E2E gate with artifacts.
    Evidence:
    - Added local validation scripts:
      - `scripts/local-validate.ps1`
      - `scripts/local-validate.sh`
-   - Local gate currently enforces:
+   - Local gate enforces:
      - `pytest -q`
      - `python -m compileall -q src tests`
+     - `python scripts/e2e_gate.py`
+   - Deterministic E2E artifacts captured under `artifacts/e2e/<UTC timestamp>/`.
    - Operator usage documented in `README.md`.
 
 ## 7. Acceptance Criteria
