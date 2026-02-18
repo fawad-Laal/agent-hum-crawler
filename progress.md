@@ -14,6 +14,7 @@ Status: In Progress (Milestone 6 pilot + conformance automation added, final sig
 - 7-cycle pilot executed for Milestone 6.
 - Added `pilot-run` command to automate multi-cycle evidence generation (`quality_report`, `source_health`, `hardening_gate`).
 - Added `conformance-report` command to combine hardening gate with Moltis integration checks.
+- Added LLM enrichment telemetry in cycle output and `quality-report` (enrichment rate, citation coverage, provider/validation failures).
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`

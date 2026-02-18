@@ -26,7 +26,8 @@ OPENAI_MODEL=gpt-4.1-mini
 
 ReliefWeb appname request: https://apidoc.reliefweb.int/parameters#appname
 If approval is pending, set `RELIEFWEB_ENABLED=false` to run fallback connectors only.
-When `LLM_ENRICHMENT_ENABLED=true`, the pipeline attempts LLM summary/severity/confidence enrichment with citation locking (`url + quote`). On any LLM failure, it falls back to deterministic rules.
+When `LLM_ENRICHMENT_ENABLED=true`, the pipeline attempts LLM summary/severity/confidence enrichment with citation locking (`url + quote + quote_start + quote_end`). On any LLM failure, it falls back to deterministic rules.
+Citation locking is strict: `quote` must exactly equal `source_text[quote_start:quote_end]`.
 
 ## Country Source Allowlists
 - Active file: `config/country_sources.json`
@@ -84,6 +85,13 @@ Show quality metrics from recent cycles:
 ```powershell
 python -m agent_hum_crawler.main quality-report --limit 10
 ```
+
+`quality-report` includes LLM metrics:
+- `llm_enriched_events`
+- `llm_enrichment_rate`
+- `citation_coverage_rate`
+- `llm_provider_error_count`
+- `llm_validation_fail_count`
 
 Show connector/feed health analytics:
 

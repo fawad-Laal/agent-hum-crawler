@@ -22,22 +22,30 @@ def enrich_events_with_llm(
     enriched: list[ProcessedEvent] = []
     enriched_count = 0
     fallback_count = 0
+    attempted_count = 0
+    provider_error_count = 0
+    validation_fail_count = 0
+    insufficient_text_count = 0
 
     for event in events:
         item = by_url.get(str(event.url))
         text = (item.text if item else "") or ""
         if len(text.strip()) < 80:
+            insufficient_text_count += 1
             fallback_count += 1
             enriched.append(event)
             continue
 
+        attempted_count += 1
         try:
             candidate = run_complete(event, text)
         except Exception:
+            provider_error_count += 1
             candidate = None
 
         validated = _validate_candidate(candidate, source_url=str(event.url), source_text=text)
         if not validated:
+            validation_fail_count += 1
             fallback_count += 1
             enriched.append(event)
             continue
@@ -56,7 +64,15 @@ def enrich_events_with_llm(
         )
         enriched_count += 1
 
-    return enriched, {"enabled": True, "enriched_count": enriched_count, "fallback_count": fallback_count}
+    return enriched, {
+        "enabled": True,
+        "attempted_count": attempted_count,
+        "enriched_count": enriched_count,
+        "fallback_count": fallback_count,
+        "provider_error_count": provider_error_count,
+        "validation_fail_count": validation_fail_count,
+        "insufficient_text_count": insufficient_text_count,
+    }
 
 
 def _default_complete(event: ProcessedEvent, source_text: str) -> dict | None:
@@ -78,10 +94,12 @@ def _default_complete(event: ProcessedEvent, source_text: str) -> dict | None:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["url", "quote"],
+                    "required": ["url", "quote", "quote_start", "quote_end"],
                     "properties": {
                         "url": {"type": "string"},
                         "quote": {"type": "string", "minLength": 8},
+                        "quote_start": {"type": "integer", "minimum": 0},
+                        "quote_end": {"type": "integer", "minimum": 1},
                     },
                 },
             },
@@ -91,7 +109,9 @@ def _default_complete(event: ProcessedEvent, source_text: str) -> dict | None:
     instructions = (
         "You are calibrating one disaster event from source text. "
         "Return JSON only. Summary must be factual and concise. "
-        "Citations must quote exact spans from the source text."
+        "Do not invent facts. Citations must include exact quote spans from source text "
+        "with zero-based quote_start and quote_end indexes, and quote must exactly match "
+        "source_text[quote_start:quote_end]."
     )
     user_payload = {
         "event": {
@@ -169,19 +189,32 @@ def _validate_candidate(
     if not isinstance(raw_citations, list) or not raw_citations:
         return None
 
-    normalized_text = " ".join(source_text.split()).lower()
     citations: list[EventCitation] = []
     for citation in raw_citations:
         if not isinstance(citation, dict):
             return None
         url = str(citation.get("url", "")).strip()
         quote = str(citation.get("quote", "")).strip()
+        quote_start = citation.get("quote_start")
+        quote_end = citation.get("quote_end")
         if not url or not quote:
             return None
         if url != source_url:
             return None
-        if " ".join(quote.split()).lower() not in normalized_text:
+        if not isinstance(quote_start, int) or not isinstance(quote_end, int):
             return None
-        citations.append(EventCitation(url=url, quote=quote))
+        if quote_start < 0 or quote_end <= quote_start or quote_end > len(source_text):
+            return None
+        exact_slice = source_text[quote_start:quote_end]
+        if exact_slice != quote:
+            return None
+        citations.append(
+            EventCitation(
+                url=url,
+                quote=quote,
+                quote_start=quote_start,
+                quote_end=quote_end,
+            )
+        )
 
     return summary, severity, confidence, citations

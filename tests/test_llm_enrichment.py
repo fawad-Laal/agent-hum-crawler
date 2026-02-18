@@ -49,6 +49,8 @@ def test_enrichment_success_with_valid_citation() -> None:
                 {
                     "url": "https://example.org/report/1",
                     "quote": "more than 12,000 people were displaced",
+                    "quote_start": 52,
+                    "quote_end": 90,
                 }
             ],
         }
@@ -73,6 +75,8 @@ def test_enrichment_fallback_when_quote_not_in_text() -> None:
                 {
                     "url": "https://example.org/report/1",
                     "quote": "this quote does not exist in source",
+                    "quote_start": 0,
+                    "quote_end": 12,
                 }
             ],
         }

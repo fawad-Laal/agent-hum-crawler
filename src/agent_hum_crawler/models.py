@@ -37,6 +37,8 @@ class FetchResult(BaseModel):
 class EventCitation(BaseModel):
     url: HttpUrl
     quote: str
+    quote_start: int
+    quote_end: int
 
 
 class ProcessedEvent(BaseModel):

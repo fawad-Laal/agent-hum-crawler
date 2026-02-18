@@ -129,7 +129,15 @@ def run_cycle_once(
     )
 
     events = dedupe.events
-    llm_stats = {"enabled": False, "enriched_count": 0, "fallback_count": len(events)}
+    llm_stats = {
+        "enabled": False,
+        "attempted_count": 0,
+        "enriched_count": 0,
+        "fallback_count": len(events),
+        "provider_error_count": 0,
+        "validation_fail_count": 0,
+        "insufficient_text_count": len(events),
+    }
     if is_llm_enrichment_enabled():
         events, llm_stats = enrich_events_with_llm(events, all_items)
 
@@ -147,6 +155,7 @@ def run_cycle_once(
         connector_count=connector_count,
         summary=summary,
         connector_metrics=connector_metrics,
+        llm_stats=llm_stats,
     )
 
     prior_state.touch()

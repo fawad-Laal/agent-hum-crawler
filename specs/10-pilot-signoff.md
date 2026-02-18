@@ -57,6 +57,22 @@ From `hardening-gate --limit 7`:
 - Consolidated conformance status:
   - `python -m agent_hum_crawler.main conformance-report ...` output attached.
 
+## LLM Evidence (Step 2 Upgrade)
+- `pilot-run` now emits per-cycle LLM metrics:
+  - `attempted_count`
+  - `enriched_count`
+  - `fallback_count`
+  - `provider_error_count`
+  - `validation_fail_count`
+  - `insufficient_text_count`
+- `quality-report` now emits aggregated LLM metrics:
+  - `llm_enriched_events`
+  - `llm_enrichment_rate`
+  - `citation_coverage_rate`
+  - `llm_provider_error_count`
+  - `llm_validation_fail_count`
+- Citation locking now requires exact quote spans (`quote_start`, `quote_end`) that match source text slices.
+
 ### Current Conformance Run (2026-02-18)
 - `moltis_conformance.status`: `fail`
 - Checks:

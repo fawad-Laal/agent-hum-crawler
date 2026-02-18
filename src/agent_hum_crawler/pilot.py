@@ -34,6 +34,7 @@ def run_pilot(
                 "summary": result.summary,
                 "raw_item_count": result.raw_item_count,
                 "event_count": result.event_count,
+                "llm_enrichment": result.llm_enrichment,
             }
         )
         if sleep_seconds > 0 and idx < (cycles - 1):

@@ -19,6 +19,13 @@ class CycleRun(SQLModel, table=True):
     raw_item_count: int
     event_count: int
     summary: str = ""
+    llm_enabled: bool = False
+    llm_attempted_count: int = 0
+    llm_enriched_count: int = 0
+    llm_fallback_count: int = 0
+    llm_provider_error_count: int = 0
+    llm_validation_fail_count: int = 0
+    llm_insufficient_text_count: int = 0
 
 
 class EventRecord(SQLModel, table=True):
@@ -91,6 +98,7 @@ def build_engine(path: Path | None = None):
 def init_db(path: Path | None = None) -> None:
     engine = build_engine(path)
     SQLModel.metadata.create_all(engine)
+    _ensure_cyclerun_columns(engine)
     _ensure_eventrecord_columns(engine)
 
 
@@ -115,17 +123,43 @@ def _ensure_eventrecord_columns(engine) -> None:
                 )
 
 
+def _ensure_cyclerun_columns(engine) -> None:
+    required = {
+        "llm_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "llm_attempted_count": "INTEGER NOT NULL DEFAULT 0",
+        "llm_enriched_count": "INTEGER NOT NULL DEFAULT 0",
+        "llm_fallback_count": "INTEGER NOT NULL DEFAULT 0",
+        "llm_provider_error_count": "INTEGER NOT NULL DEFAULT 0",
+        "llm_validation_fail_count": "INTEGER NOT NULL DEFAULT 0",
+        "llm_insufficient_text_count": "INTEGER NOT NULL DEFAULT 0",
+    }
+
+    with engine.connect() as conn:
+        existing = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(cyclerun)").fetchall()
+        }
+        for column, column_type in required.items():
+            if column not in existing:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE cyclerun ADD COLUMN {column} {column_type}"
+                )
+
+
 def persist_cycle(
     raw_items: List[RawSourceItem],
     events: List[ProcessedEvent],
     connector_count: int,
     summary: str,
     connector_metrics: list[dict] | None = None,
+    llm_stats: dict | None = None,
     path: Path | None = None,
 ) -> int:
     engine = build_engine(path)
     SQLModel.metadata.create_all(engine)
+    _ensure_cyclerun_columns(engine)
     _ensure_eventrecord_columns(engine)
+    llm_stats = llm_stats or {}
 
     now = datetime.now(timezone.utc).isoformat()
     cycle = CycleRun(
@@ -134,6 +168,13 @@ def persist_cycle(
         raw_item_count=len(raw_items),
         event_count=len(events),
         summary=summary,
+        llm_enabled=bool(llm_stats.get("enabled", False)),
+        llm_attempted_count=int(llm_stats.get("attempted_count", 0)),
+        llm_enriched_count=int(llm_stats.get("enriched_count", 0)),
+        llm_fallback_count=int(llm_stats.get("fallback_count", 0)),
+        llm_provider_error_count=int(llm_stats.get("provider_error_count", 0)),
+        llm_validation_fail_count=int(llm_stats.get("validation_fail_count", 0)),
+        llm_insufficient_text_count=int(llm_stats.get("insufficient_text_count", 0)),
     )
 
     with Session(engine) as session:
@@ -216,6 +257,7 @@ def persist_cycle(
 def get_recent_cycles(limit: int = 10, path: Path | None = None) -> list[CycleRun]:
     engine = build_engine(path)
     SQLModel.metadata.create_all(engine)
+    _ensure_cyclerun_columns(engine)
     with Session(engine) as session:
         statement = select(CycleRun).order_by(CycleRun.id.desc()).limit(limit)
         return list(session.exec(statement))
@@ -224,6 +266,7 @@ def get_recent_cycles(limit: int = 10, path: Path | None = None) -> list[CycleRu
 def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> dict:
     engine = build_engine(path)
     try:
+        _ensure_cyclerun_columns(engine)
         _ensure_eventrecord_columns(engine)
     except Exception:
         return {
@@ -233,6 +276,11 @@ def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> di
             "traceable_rate": 0.0,
             "high_critical_count": 0,
             "high_confidence_high_critical_count": 0,
+            "llm_enriched_events": 0,
+            "llm_enrichment_rate": 0.0,
+            "citation_coverage_rate": 0.0,
+            "llm_provider_error_count": 0,
+            "llm_validation_fail_count": 0,
         }
 
     with Session(engine) as session:
@@ -245,6 +293,11 @@ def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> di
                 "traceable_rate": 0.0,
                 "high_critical_count": 0,
                 "high_confidence_high_critical_count": 0,
+                "llm_enriched_events": 0,
+                "llm_enrichment_rate": 0.0,
+                "citation_coverage_rate": 0.0,
+                "llm_provider_error_count": 0,
+                "llm_validation_fail_count": 0,
             }
 
         cycle_ids = [c.id for c in cycles if c.id is not None]
@@ -259,12 +312,25 @@ def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> di
                 "traceable_rate": 1.0,
                 "high_critical_count": 0,
                 "high_confidence_high_critical_count": 0,
+                "llm_enriched_events": 0,
+                "llm_enrichment_rate": 0.0,
+                "citation_coverage_rate": 0.0,
+                "llm_provider_error_count": 0,
+                "llm_validation_fail_count": 0,
             }
 
         unchanged = sum(1 for e in events if e.status == "unchanged")
         traceable = sum(1 for e in events if bool(e.url and e.published_at))
+        llm_enriched = sum(1 for e in events if bool(e.llm_enriched))
+        cited = sum(
+            1
+            for e in events
+            if bool(e.citations_json and e.citations_json != "[]" and e.citations_json != "null")
+        )
         high_critical = [e for e in events if e.severity in {"high", "critical"}]
         high_conf_high_critical = sum(1 for e in high_critical if e.confidence == "high")
+        llm_provider_errors = sum(int(c.llm_provider_error_count) for c in cycles)
+        llm_validation_failures = sum(int(c.llm_validation_fail_count) for c in cycles)
 
         return {
             "cycles_analyzed": len(cycles),
@@ -273,6 +339,11 @@ def build_quality_report(limit_cycles: int = 10, path: Path | None = None) -> di
             "traceable_rate": round(traceable / total, 4),
             "high_critical_count": len(high_critical),
             "high_confidence_high_critical_count": high_conf_high_critical,
+            "llm_enriched_events": llm_enriched,
+            "llm_enrichment_rate": round(llm_enriched / total, 4),
+            "citation_coverage_rate": round(cited / total, 4),
+            "llm_provider_error_count": llm_provider_errors,
+            "llm_validation_fail_count": llm_validation_failures,
         }
 
 
