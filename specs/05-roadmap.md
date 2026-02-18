@@ -76,3 +76,9 @@ Evidence:
 5. Security/auth hardening rollout from `specs/13-moltis-security-auth.md` (auth matrix, proxy posture, scoped keys, third-party skills trust controls).
 6. Streaming/tool-registry conformance from `specs/14-moltis-streaming-tool-registry.md` (event lifecycle, websocket UX, MCP source filtering).
 7. LLM Intelligence Layer v1 from `specs/15-llm-intelligence-layer-v1.md` (full-text extraction/summary, LLM severity-confidence calibration, citation-locked outputs, deterministic fallback).
+Status: In progress (GraphRAG report layer + report quality gates implemented).
+Evidence:
+- Added GraphRAG report pipeline (`write-report`) over SQLite evidence.
+- Added report quality gates (citation density, section completeness, unsupported-claim checks).
+- Enforced report quality in E2E gate (`scripts/e2e_gate.py`).
+- Latest deterministic E2E run includes `report_quality_status=pass`.

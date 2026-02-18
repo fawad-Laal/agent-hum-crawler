@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -217,6 +218,15 @@ def render_long_form_report(
     lines.append(f"- Connectors: {_top_labels(meta.get('by_connector', {}), 6)}")
     lines.append(f"- Source types: {_top_labels(meta.get('by_source_type', {}), 6)}")
     lines.append("")
+    lines.append("## Risk Outlook")
+    high_count = sum(1 for ev in evidence if ev.get("severity") in {"high", "critical"})
+    lines.append(
+        f"- High/critical incident share in selected evidence: {high_count}/{len(evidence)}."
+    )
+    lines.append(
+        "- Operational recommendation: prioritize verification cadence on high-corroboration incidents."
+    )
+    lines.append("")
     lines.append("## Method")
     lines.append(
         "- Retrieval uses a graph-style relevance score over persisted event facets "
@@ -227,6 +237,58 @@ def render_long_form_report(
     )
     lines.append("")
     return "\n".join(lines) + "\n"
+
+
+def evaluate_report_quality(
+    *,
+    report_markdown: str,
+    min_citation_density: float = 0.005,
+    required_sections: list[str] | None = None,
+) -> dict[str, Any]:
+    required_sections = required_sections or [
+        "Executive Summary",
+        "Incident Highlights",
+        "Source and Connector Reliability Snapshot",
+        "Risk Outlook",
+        "Method",
+    ]
+
+    text = report_markdown or ""
+    words = len(re.findall(r"\b[\w/-]+\b", text))
+    urls = re.findall(r"https?://[^\s)]+", text)
+    citation_density = len(urls) / max(1, words)
+
+    missing_sections = [
+        s for s in required_sections if f"## {s}".lower() not in text.lower()
+    ]
+
+    unsupported_blocks = _find_unsupported_incident_blocks(text)
+    status = "pass"
+    reasons: list[str] = []
+    if citation_density < min_citation_density:
+        status = "fail"
+        reasons.append(
+            f"citation_density {citation_density:.4f} below threshold {min_citation_density:.4f}"
+        )
+    if missing_sections:
+        status = "fail"
+        reasons.append(f"missing required sections: {', '.join(missing_sections)}")
+    if unsupported_blocks:
+        status = "fail"
+        reasons.append(f"unsupported incident blocks: {len(unsupported_blocks)}")
+
+    return {
+        "status": status,
+        "reason": "; ".join(reasons) if reasons else "Report quality checks passed.",
+        "metrics": {
+            "word_count": words,
+            "url_count": len(urls),
+            "citation_density": round(citation_density, 6),
+            "min_citation_density": min_citation_density,
+            "missing_sections": missing_sections,
+            "unsupported_incident_blocks": unsupported_blocks,
+        },
+    }
 
 
 def write_report_file(
@@ -296,3 +358,18 @@ def _render_with_llm(*, graph_context: dict[str, Any], title: str) -> str | None
     if isinstance(text, str) and text.strip():
         return text.strip() + "\n"
     return None
+
+
+def _find_unsupported_incident_blocks(markdown: str) -> list[str]:
+    """Return incident blocks missing source URLs."""
+    lines = markdown.splitlines()
+    findings: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if re.match(r"^\d+\.\s+\*\*.+\*\*", line):
+            window = "\n".join(lines[i : min(i + 8, len(lines))]).lower()
+            if ("source:" not in window) or ("http://" not in window and "https://" not in window):
+                findings.append(line[:200])
+        i += 1
+    return findings

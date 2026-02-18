@@ -18,7 +18,12 @@ from .pilot import run_pilot
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
 from .replay import run_replay_fixture
-from .reporting import build_graph_context, render_long_form_report, write_report_file
+from .reporting import (
+    build_graph_context,
+    evaluate_report_quality,
+    render_long_form_report,
+    write_report_file,
+)
 from .state import RuntimeState, load_state, reset_state, save_state
 
 
@@ -292,14 +297,21 @@ def cmd_write_report(args: argparse.Namespace) -> int:
         title=args.title,
         use_llm=args.use_llm,
     )
+    quality = evaluate_report_quality(
+        report_markdown=report,
+        min_citation_density=args.min_citation_density,
+    )
     out = write_report_file(report_markdown=report, output_path=Path(args.output) if args.output else None)
     payload = {
-        "status": "ok",
+        "status": "ok" if quality.get("status") == "pass" or not args.enforce_report_quality else "fail",
         "report_path": str(out),
         "meta": graph_context.get("meta", {}),
         "llm_used": bool(args.use_llm),
+        "report_quality": quality,
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False))
+    if args.enforce_report_quality and quality.get("status") != "pass":
+        return 1
     return 0
 
 
@@ -463,6 +475,8 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--title", default="Disaster Intelligence Report")
     report_parser.add_argument("--use-llm", action="store_true", help="Use optional LLM final drafting")
     report_parser.add_argument("--output", help="Write markdown report to this path")
+    report_parser.add_argument("--min-citation-density", type=float, default=0.005)
+    report_parser.add_argument("--enforce-report-quality", action="store_true")
     report_parser.set_defaults(func=cmd_write_report)
 
     return parser

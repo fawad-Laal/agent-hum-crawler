@@ -47,17 +47,24 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - Added `scripts/e2e_gate.py`.
   - `local-validate` now runs replay/report/hardening/conformance E2E steps.
   - Artifacts captured to `artifacts/e2e/<UTC timestamp>/`.
+  - Report-quality enforcement verified in E2E (`report_quality_status=pass`).
 - LLM Intelligence Layer v1 expansion started with GraphRAG reporting:
   - Added graph-style retrieval from SQLite evidence (`src/agent_hum_crawler/reporting.py`).
   - Added long-form report generation command:
     - `python -m agent_hum_crawler.main write-report ...`
   - Added deterministic report test coverage (`tests/test_reporting.py`).
+  - Added report quality gates and enforcement:
+    - citation density threshold
+    - section completeness checks
+    - unsupported-claim checks (incident blocks must include source URL)
+    - CLI enforce mode: `--enforce-report-quality`
+  - E2E gate now enforces report quality via `write-report`.
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
   - `hardening-gate`
 - Parser hardening and source-health telemetry validated in live cycles.
-- Current test status: `33 passed`.
+- Current test status: `37 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
@@ -77,8 +84,8 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 
 ## Next Action Queue
 1. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
-   - tighten LLM report drafting schema + citation grounding thresholds.
-   - add measured quality thresholds for long-form report outputs.
+   - tighten LLM report drafting schema + citation grounding thresholds further.
+   - add measured quality thresholds for long-form report outputs from live pilot windows.
 2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 

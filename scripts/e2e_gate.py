@@ -95,6 +95,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     ensure("moltis_conformance" in conformance, "conformance-report missing moltis_conformance")
 
+    report = run_and_capture(
+        [
+            sys.executable,
+            "-m",
+            "agent_hum_crawler.main",
+            "write-report",
+            "--countries",
+            "Pakistan",
+            "--disaster-types",
+            "flood,earthquake",
+            "--limit-cycles",
+            "20",
+            "--limit-events",
+            "30",
+            "--min-citation-density",
+            "0.005",
+            "--enforce-report-quality",
+            "--output",
+            str(out_dir / "06_long_form_report.md"),
+        ],
+        out_dir / "06_report_result.json",
+    )
+    ensure(report.get("report_quality", {}).get("status") == "pass", "write-report quality gate failed")
+
     summary = {
         "status": "pass",
         "timestamp_utc": ts,
@@ -103,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
             "replay_event_count": replay.get("event_count", 0),
             "hardening_status": hardening.get("status"),
             "conformance_status": conformance.get("moltis_conformance", {}).get("status"),
+            "report_quality_status": report.get("report_quality", {}).get("status"),
         },
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

@@ -42,6 +42,19 @@ Implemented in this phase:
 - CLI command: `write-report`
 - test coverage: `tests/test_reporting.py`
 
+Added quality gates for long-form report production behavior:
+- Citation density threshold (`min_citation_density`).
+- Section completeness checks:
+  - Executive Summary
+  - Incident Highlights
+  - Source and Connector Reliability Snapshot
+  - Risk Outlook
+  - Method
+- Unsupported-claim checks for incident blocks missing source URLs.
+- Enforce mode in CLI:
+  - `write-report --enforce-report-quality`
+- E2E gate enforcement in `scripts/e2e_gate.py`.
+
 ## Non-Goals (v1)
 - Autonomous decision making without source-backed evidence.
 - Replacing deterministic dedupe/change detection logic.

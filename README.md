@@ -137,6 +137,12 @@ Generate long-form GraphRAG report from persisted DB evidence (no vector DB requ
 python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit-cycles 20 --limit-events 60
 ```
 
+Enforce report quality gate (section completeness + citation density + unsupported-claim checks):
+
+```powershell
+python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --enforce-report-quality --min-citation-density 0.005
+```
+
 Optional LLM final drafting:
 
 ```powershell

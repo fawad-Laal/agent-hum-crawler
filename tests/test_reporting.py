@@ -2,7 +2,11 @@ from pathlib import Path
 
 from agent_hum_crawler.database import init_db, persist_cycle
 from agent_hum_crawler.models import ProcessedEvent, RawSourceItem
-from agent_hum_crawler.reporting import build_graph_context, render_long_form_report
+from agent_hum_crawler.reporting import (
+    build_graph_context,
+    evaluate_report_quality,
+    render_long_form_report,
+)
 
 
 def test_graph_context_and_report_render(tmp_path: Path) -> None:
@@ -61,3 +65,12 @@ def test_graph_context_and_report_render(tmp_path: Path) -> None:
     assert "# Test Report" in md
     assert "Incident Highlights" in md
     assert "https://example.org/madagascar-cyclone-1" in md
+    quality = evaluate_report_quality(report_markdown=md, min_citation_density=0.001)
+    assert quality["status"] == "pass"
+
+
+def test_report_quality_fails_when_sections_missing() -> None:
+    bad_md = "# Report\n\n## Executive Summary\nNo links.\n"
+    quality = evaluate_report_quality(report_markdown=bad_md, min_citation_density=0.001)
+    assert quality["status"] == "fail"
+    assert quality["metrics"]["missing_sections"]
