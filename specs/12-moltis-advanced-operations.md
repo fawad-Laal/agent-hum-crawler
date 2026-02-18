@@ -1,7 +1,7 @@
 # Moltis Advanced Operations
 
 Date: 2026-02-18
-Status: Drafted for implementation
+Status: Phases A-B completed, Phases C-D pending
 
 ## Purpose
 Capture additional Moltis-native capabilities to harden operations after MVP sign-off.
@@ -55,8 +55,19 @@ Capture additional Moltis-native capabilities to harden operations after MVP sig
   - preserve artifacts on failure for root-cause analysis.
 
 ## 6. Implementation Phases (Post-MVP)
-1. Phase A: Hook safety baseline + audit logging.
-2. Phase B: Hardened `moltis.toml` profile + environment rollout.
+1. Phase A: Hook safety baseline + audit logging. Status: Completed.
+   Evidence:
+   - Active hooks: `ahc-llm-tool-guard`, `ahc-tool-safety-guard`, `ahc-audit-log`.
+   - Startup log: `7 hook(s) discovered (4 shell, 3 built-in), 6 registered`.
+   - Validation:
+     - `BeforeToolCall` blocked `rm -rf /`.
+     - `BeforeLLMCall` blocked injection-escalation test.
+     - Audit event persisted to `.moltis/logs/hook-audit.jsonl`.
+2. Phase B: Hardened `moltis.toml` profile + environment rollout. Status: Completed.
+   Evidence:
+   - Hardened profile template added at `config/moltis.hardened.example.toml`.
+   - Profile includes provider/model priorities, sandbox/network defaults, browser domain restrictions, hooks registration, metrics, and memory settings.
+   - Rollout procedure added in `README.md`.
 3. Phase C: Skill self-extension governance and branch workflow SOP.
 4. Phase D: Local-validate and E2E regression gate adoption.
 

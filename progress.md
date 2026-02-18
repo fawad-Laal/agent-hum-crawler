@@ -19,13 +19,21 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - Dedupe/cycle flow now suppresses unchanged events from persisted cycle outputs to prevent duplicate-rate inflation.
 - Added `pilot-run --reset-state-before-run` for reproducible high-yield pilot windows.
 - Final conformance verification completed (`conformance-report`: pass).
-- Post-MVP Phase A baseline implemented: project-local Moltis hooks for LLM/tool guardrails and audit logging (`.moltis/hooks/*`).
+- Post-MVP Phase A hook baseline now active in Moltis user hook registry (`~/.moltis/hooks/*`): `ahc-llm-tool-guard`, `ahc-tool-safety-guard`, `ahc-audit-log`.
+- Runtime confirmation captured from startup logs: `7 hook(s) discovered (4 shell, 3 built-in), 6 registered`.
+- Hook safety checks validated:
+  - `BeforeToolCall` blocks destructive command sample (`rm -rf /`).
+  - `BeforeLLMCall` blocks injection-escalation sample.
+  - `Command` audit event written to `.moltis/logs/hook-audit.jsonl`.
+- Post-MVP Phase B completed with hardened Moltis profile template:
+  - `config/moltis.hardened.example.toml`
+  - rollout steps documented in `README.md`
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
   - `hardening-gate`
 - Parser hardening and source-health telemetry validated in live cycles.
-- Current test status: `29 passed`.
+- Current test status: `33 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
@@ -44,7 +52,7 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Continue post-MVP hardening track from `specs/12-moltis-advanced-operations.md` (Phase A hook safety baseline + audit controls implemented).
+1. Start Phase C from `specs/12-moltis-advanced-operations.md` (skill self-extension governance + branch workflow SOP).
 2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 4. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.

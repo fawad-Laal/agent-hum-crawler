@@ -51,8 +51,16 @@ Final sign-off evidence:
 
 ## Post-MVP Hardening Track
 After Milestone 6 sign-off, execute `specs/12-moltis-advanced-operations.md` in this order:
-1. Hook safety and audit controls.
-2. Hardened Moltis configuration profile rollout.
+1. Hook safety and audit controls. Status: Completed.
+Evidence:
+- Startup registration includes shell hooks: `ahc-audit-log`, `ahc-llm-tool-guard`, `ahc-tool-safety-guard`.
+- Moltis log line: `7 hook(s) discovered (4 shell, 3 built-in), 6 registered`.
+- Guard hooks block known-dangerous test payloads; audit hook writes JSONL records.
+2. Hardened Moltis configuration profile rollout. Status: Completed.
+Evidence:
+- Hardened profile template created: `config/moltis.hardened.example.toml`.
+- Includes sandbox/network hardening, browser domain restrictions, hooks, metrics, and memory settings.
+- Rollout instructions documented in `README.md`.
 3. Skill self-extension governance and session branching SOP.
 4. Local-validation and e2e release gates.
 5. Security/auth hardening rollout from `specs/13-moltis-security-auth.md` (auth matrix, proxy posture, scoped keys, third-party skills trust controls).

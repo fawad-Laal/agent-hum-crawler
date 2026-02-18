@@ -1,0 +1,103 @@
+# Agent HUM Crawler - Hardened Moltis Profile (Phase B)
+# Copy to: ~/.config/moltis/moltis.toml (after backing up your current file)
+# Replace paths/placeholders for your environment.
+
+[server]
+bind = "127.0.0.1"
+port = 62073
+
+[auth]
+disabled = false
+
+[providers]
+offered = ["openai", "ollama", "local-llm"]
+
+[providers.openai]
+models = ["gpt-5.2", "gpt-5.1-codex-mini"]
+
+[providers.ollama]
+# base_url = "http://localhost:11434"
+
+[chat]
+priority_models = ["gpt-5.2", "gpt-5.1-codex-mini"]
+message_queue_mode = "followup"
+
+[tools]
+agent_timeout_secs = 600
+max_tool_result_bytes = 50000
+
+[tools.exec]
+default_timeout_secs = 30
+max_output_bytes = 204800
+approval_mode = "on-miss"
+security_level = "allowlist"
+
+[tools.exec.sandbox]
+mode = "all"
+scope = "session"
+workspace_mount = "ro"
+backend = "auto"
+no_network = true
+
+[tools.browser]
+enabled = true
+headless = true
+navigation_timeout_ms = 30000
+# Restrict navigation to trusted humanitarian/research domains.
+allowed_domains = [
+  "reliefweb.int",
+  "unocha.org",
+  "unicef.org",
+  "who.int",
+  "wfp.org",
+  "ifrc.org",
+  "acaps.org",
+  "gov.uk",
+  "gouvernement.fr",
+  "go.ke",
+  "go.tz",
+  "go.ug",
+  "go.mz",
+  "go.mg"
+]
+
+[tools.web.search]
+enabled = true
+provider = "brave"
+max_results = 5
+timeout_seconds = 30
+cache_ttl_minutes = 15
+duckduckgo_fallback = false
+
+[memory]
+# Prefer local embeddings in operations where possible.
+provider = "ollama"
+model = "nomic-embed-text"
+
+[metrics]
+enabled = true
+prometheus_endpoint = true
+
+[hooks]
+[[hooks.hooks]]
+name = "ahc-llm-tool-guard"
+command = "python C:/Users/Hussain/.moltis/hooks/ahc-llm-tool-guard/handler.py"
+events = ["BeforeLLMCall", "AfterLLMCall"]
+timeout = 5
+
+[[hooks.hooks]]
+name = "ahc-tool-safety-guard"
+command = "python C:/Users/Hussain/.moltis/hooks/ahc-tool-safety-guard/handler.py"
+events = ["BeforeToolCall"]
+timeout = 5
+
+[[hooks.hooks]]
+name = "ahc-audit-log"
+command = "python C:/Users/Hussain/.moltis/hooks/ahc-audit-log/handler.py"
+events = ["Command", "MessageSent", "AfterToolCall", "BeforeToolCall", "AfterLLMCall"]
+timeout = 5
+
+# Keep secrets out of this file. Use:
+# - provider key store (~/.config/moltis/provider_keys.json)
+# - host environment variables
+# - [env] block only for non-secret operational values

@@ -164,3 +164,21 @@ moltis hooks list --eligible
 
 Audit output default:
 - `.moltis/logs/hook-audit.jsonl`
+
+## Moltis Hardened Profile (Post-MVP Phase B)
+Use the hardened profile template:
+- `config/moltis.hardened.example.toml`
+
+Rollout steps:
+1. Back up current config:
+```powershell
+Copy-Item $HOME\.config\moltis\moltis.toml $HOME\.config\moltis\moltis.toml.bak
+```
+2. Copy template and adapt paths/models for your machine:
+```powershell
+Copy-Item .\config\moltis.hardened.example.toml $HOME\.config\moltis\moltis.toml
+```
+3. Restart Moltis and verify:
+```powershell
+moltis hooks list --eligible
+```
