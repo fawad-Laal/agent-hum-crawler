@@ -73,6 +73,34 @@ From `hardening-gate --limit 7`:
   - `llm_validation_fail_count`
 - Citation locking now requires exact quote spans (`quote_start`, `quote_end`) that match source text slices.
 
+### Controlled LLM Window (2026-02-18)
+Run config:
+- `LLM_ENRICHMENT_ENABLED=true` (temporary shell override for run window)
+- countries=`Madagascar`
+- disaster_types=`cyclone/storm`
+- cycles=`3`
+- limit=`5`
+- `--enforce-llm-quality`
+- thresholds: `min_llm_enrichment_rate=0.10`, `min_citation_coverage_rate=0.95`
+
+Measured outputs:
+- `llm_attempted_events`: 3
+- `llm_enriched_events`: 0
+- `llm_fallback_events`: 3
+- `llm_provider_error_count`: 0
+- `llm_validation_fail_count`: 3
+- `llm_enrichment_rate`: 0.0
+- `citation_coverage_rate`: 0.0
+
+LLM gate result (`llm-report --enforce-llm-quality`):
+- status: `fail`
+- `llm_enrichment_rate_ok`: `false`
+- `citation_coverage_ok`: `false`
+
+Hardening impact:
+- `hardening-gate` now includes LLM checks.
+- Current status remains `fail` with both classic dedupe and LLM quality checks failing.
+
 ### Current Conformance Run (2026-02-18)
 - `moltis_conformance.status`: `fail`
 - Checks:
