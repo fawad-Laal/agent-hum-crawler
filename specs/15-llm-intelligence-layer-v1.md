@@ -1,7 +1,7 @@
 # LLM Intelligence Layer v1
 
 Date: 2026-02-18
-Status: Planned
+Status: In progress (GraphRAG report layer implemented, thresholds expansion pending)
 
 ## Purpose
 Introduce an optional LLM layer to improve extraction quality and calibration, while keeping deterministic fallback behavior.
@@ -26,6 +26,21 @@ Introduce an optional LLM layer to improve extraction quality and calibration, w
   - skip LLM enrichment
   - use current deterministic rules (`dedupe.py`) and continue cycle
 - Mark cycle metadata with `llm_enrichment_used=false`.
+
+5. GraphRAG long-form reporting from persisted evidence (no vector store dependency)
+- Build graph-style retrieval context from SQLite events using shared facets:
+  - country
+  - disaster_type
+  - connector
+  - corroboration strength
+- Generate long-form report from retrieved evidence with deterministic rendering first.
+- Optionally apply LLM final drafting on top of graph-retrieved context.
+- Persist report outputs for operational review.
+
+Implemented in this phase:
+- `src/agent_hum_crawler/reporting.py`
+- CLI command: `write-report`
+- test coverage: `tests/test_reporting.py`
 
 ## Non-Goals (v1)
 - Autonomous decision making without source-backed evidence.

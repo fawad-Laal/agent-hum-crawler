@@ -18,6 +18,7 @@ from .pilot import run_pilot
 from .scheduler import SchedulerOptions, start_scheduler
 from .settings import is_reliefweb_enabled, load_environment
 from .replay import run_replay_fixture
+from .reporting import build_graph_context, render_long_form_report, write_report_file
 from .state import RuntimeState, load_state, reset_state, save_state
 
 
@@ -277,6 +278,31 @@ def cmd_conformance_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_write_report(args: argparse.Namespace) -> int:
+    countries = [c.strip() for c in (args.countries or "").split(",") if c.strip()]
+    disaster_types = [d.strip() for d in (args.disaster_types or "").split(",") if d.strip()]
+    graph_context = build_graph_context(
+        countries=countries,
+        disaster_types=disaster_types,
+        limit_cycles=args.limit_cycles,
+        limit_events=args.limit_events,
+    )
+    report = render_long_form_report(
+        graph_context=graph_context,
+        title=args.title,
+        use_llm=args.use_llm,
+    )
+    out = write_report_file(report_markdown=report, output_path=Path(args.output) if args.output else None)
+    payload = {
+        "status": "ok",
+        "report_path": str(out),
+        "meta": graph_context.get("meta", {}),
+        "llm_used": bool(args.use_llm),
+    }
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-hum-crawler")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -425,6 +451,19 @@ def build_parser() -> argparse.ArgumentParser:
         default="pending",
     )
     conformance_parser.set_defaults(func=cmd_conformance_report)
+
+    report_parser = subparsers.add_parser(
+        "write-report",
+        help="Generate long-form GraphRAG report from persisted monitoring database",
+    )
+    report_parser.add_argument("--countries", help="Comma-separated country filters")
+    report_parser.add_argument("--disaster-types", help="Comma-separated disaster type filters")
+    report_parser.add_argument("--limit-cycles", type=int, default=20)
+    report_parser.add_argument("--limit-events", type=int, default=60)
+    report_parser.add_argument("--title", default="Disaster Intelligence Report")
+    report_parser.add_argument("--use-llm", action="store_true", help="Use optional LLM final drafting")
+    report_parser.add_argument("--output", help="Write markdown report to this path")
+    report_parser.set_defaults(func=cmd_write_report)
 
     return parser
 

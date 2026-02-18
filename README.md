@@ -131,6 +131,18 @@ Run consolidated conformance report (hardening + Moltis checks):
 python -m agent_hum_crawler.main conformance-report --limit 7 --streaming-event-lifecycle pass --tool-registry-source-metadata pass --mcp-disable-builtin-fallback pass --auth-matrix-local-remote-proxy pending --proxy-hardening-configuration pending
 ```
 
+Generate long-form GraphRAG report from persisted DB evidence (no vector DB required):
+
+```powershell
+python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit-cycles 20 --limit-events 60
+```
+
+Optional LLM final drafting:
+
+```powershell
+python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm
+```
+
 Run replay fixture for dry-run QA:
 
 ```powershell

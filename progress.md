@@ -47,6 +47,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - Added `scripts/e2e_gate.py`.
   - `local-validate` now runs replay/report/hardening/conformance E2E steps.
   - Artifacts captured to `artifacts/e2e/<UTC timestamp>/`.
+- LLM Intelligence Layer v1 expansion started with GraphRAG reporting:
+  - Added graph-style retrieval from SQLite evidence (`src/agent_hum_crawler/reporting.py`).
+  - Added long-form report generation command:
+    - `python -m agent_hum_crawler.main write-report ...`
+  - Added deterministic report test coverage (`tests/test_reporting.py`).
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
@@ -71,9 +76,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
-2. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
-3. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.
+1. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
+   - tighten LLM report drafting schema + citation grounding thresholds.
+   - add measured quality thresholds for long-form report outputs.
+2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.
