@@ -68,12 +68,22 @@ Capture additional Moltis-native capabilities to harden operations after MVP sig
    - Hardened profile template added at `config/moltis.hardened.example.toml`.
    - Profile includes provider/model priorities, sandbox/network defaults, browser domain restrictions, hooks registration, metrics, and memory settings.
    - Rollout procedure added in `README.md`.
-3. Phase C: Skill self-extension governance and branch workflow SOP. Status: Baseline implemented.
+3. Phase C: Skill self-extension governance and branch workflow SOP. Status: Baseline implemented with live branch workflow evidence.
    Evidence:
    - Governance/SOP spec added: `specs/16-phase-c-skill-branch-sop.md`.
    - `delete_skill` safety enforcement added in `src/agent_hum_crawler/hook_policies.py`:
      - requires `confirm=true` and `confirm_phrase="DELETE_SKILL"`.
    - Policy tests added in `tests/test_hook_policies.py`.
+   - Live Moltis branch workflow executed on `2026-02-18` via WebSocket RPC:
+     - Parent session: `main`
+     - Fork RPC: `sessions.fork` with label `incident-madagascar-cyclone-20260218-alt-severity`
+     - Child session created: `session:86f57658-2647-4cea-9be7-8f219224f38c`
+     - Merge-back summary submitted to parent via `chat.send` after switching back to `main`.
+   - Database evidence (`~/.moltis/moltis.db`, `sessions` table):
+     - `key=session:86f57658-2647-4cea-9be7-8f219224f38c`
+     - `parent_session_key=main`
+     - `fork_point=0`
+     - `label=incident-madagascar-cyclone-20260218-alt-severity`
 4. Phase D: Local-validate and E2E regression gate adoption.
 
 ## 7. Acceptance Criteria
