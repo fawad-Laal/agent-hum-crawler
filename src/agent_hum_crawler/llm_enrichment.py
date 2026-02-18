@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable
 
 import httpx
@@ -203,18 +204,66 @@ def _validate_candidate(
             return None
         if not isinstance(quote_start, int) or not isinstance(quote_end, int):
             return None
-        if quote_start < 0 or quote_end <= quote_start or quote_end > len(source_text):
+        resolved = _resolve_quote_span(source_text, quote, quote_start, quote_end)
+        if not resolved:
             return None
-        exact_slice = source_text[quote_start:quote_end]
-        if exact_slice != quote:
-            return None
+        quote_start, quote_end, exact_slice = resolved
         citations.append(
             EventCitation(
                 url=url,
-                quote=quote,
+                quote=exact_slice,
                 quote_start=quote_start,
                 quote_end=quote_end,
             )
         )
 
     return summary, severity, confidence, citations
+
+
+def _resolve_quote_span(
+    source_text: str,
+    quote: str,
+    quote_start: int,
+    quote_end: int,
+) -> tuple[int, int, str] | None:
+    # 1) strict pass: provided indices are correct
+    if 0 <= quote_start < quote_end <= len(source_text):
+        slice_text = source_text[quote_start:quote_end]
+        if slice_text == quote:
+            return quote_start, quote_end, slice_text
+
+    # 2) exact lookup by quote content
+    idx = source_text.find(quote)
+    if idx >= 0:
+        end = idx + len(quote)
+        return idx, end, source_text[idx:end]
+
+    # 3) tolerant lookup: allow whitespace variations and smart-quote normalization
+    normalized_quote = _normalize_quotes(quote).strip()
+    if not normalized_quote:
+        return None
+    tokens = [t for t in normalized_quote.split() if t]
+    if not tokens:
+        return None
+    pattern = r"\s+".join(re.escape(tok) for tok in tokens)
+    for candidate_text in (source_text, _normalize_quotes(source_text)):
+        match = re.search(pattern, candidate_text)
+        if match:
+            if candidate_text is source_text:
+                start, end = match.start(), match.end()
+                return start, end, source_text[start:end]
+            # map normalized-text match back by replaying on original with token pattern
+            rematch = re.search(pattern, _normalize_quotes(source_text))
+            if rematch:
+                start, end = rematch.start(), rematch.end()
+                return start, end, source_text[start:end]
+    return None
+
+
+def _normalize_quotes(text: str) -> str:
+    return (
+        text.replace("\u2018", "'")
+        .replace("\u2019", "'")
+        .replace("\u201c", '"')
+        .replace("\u201d", '"')
+    )

@@ -62,6 +62,35 @@ def test_enrichment_success_with_valid_citation() -> None:
     assert len(enriched[0].citations) == 1
 
 
+def test_enrichment_recovers_when_indices_wrong_but_quote_valid() -> None:
+    event = _sample_event()
+    raw_item = _sample_raw_item()
+
+    def fake_complete(_, __):
+        return {
+            "summary": "Flooding displaced over 12,000 people in Toamasina.",
+            "severity": "high",
+            "confidence": "high",
+            "citations": [
+                {
+                    "url": "https://example.org/report/1",
+                    "quote": "more than 12,000 people were displaced",
+                    "quote_start": 0,
+                    "quote_end": 10,
+                }
+            ],
+        }
+
+    enriched, stats = enrich_events_with_llm([event], [raw_item], complete_fn=fake_complete)
+    assert stats["enriched_count"] == 1
+    assert stats["validation_fail_count"] == 0
+    assert enriched[0].llm_enriched is True
+    citation = enriched[0].citations[0]
+    assert citation.quote == "more than 12,000 people were displaced"
+    assert citation.quote_start == 52
+    assert citation.quote_end == 90
+
+
 def test_enrichment_fallback_when_quote_not_in_text() -> None:
     event = _sample_event()
     raw_item = _sample_raw_item()
@@ -83,5 +112,6 @@ def test_enrichment_fallback_when_quote_not_in_text() -> None:
 
     enriched, stats = enrich_events_with_llm([event], [raw_item], complete_fn=fake_complete)
     assert stats["fallback_count"] == 1
+    assert stats["validation_fail_count"] == 1
     assert enriched[0].llm_enriched is False
     assert enriched[0].summary == "Initial summary"

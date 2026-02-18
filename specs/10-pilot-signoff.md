@@ -101,6 +101,37 @@ Hardening impact:
 - `hardening-gate` now includes LLM checks.
 - Current status remains `fail` with both classic dedupe and LLM quality checks failing.
 
+### Controlled LLM Window After Span-Normalization Update (2026-02-18)
+Adjustment:
+- Citation span validation now resolves index mismatches by deriving spans from quote text with minor normalization, then stores exact source slices.
+
+Run config:
+- `LLM_ENRICHMENT_ENABLED=true` (temporary shell override for run window)
+- countries=`Madagascar`
+- disaster_types=`cyclone/storm`
+- cycles=`3`
+- limit=`5`
+- `--enforce-llm-quality`
+- thresholds: `min_llm_enrichment_rate=0.10`, `min_citation_coverage_rate=0.95`
+
+Measured outputs:
+- `llm_attempted_events`: 3
+- `llm_enriched_events`: 3
+- `llm_fallback_events`: 0
+- `llm_provider_error_count`: 0
+- `llm_validation_fail_count`: 0
+- `llm_enrichment_rate`: 1.0
+- `citation_coverage_rate`: 1.0
+
+LLM gate result (`llm-report --enforce-llm-quality`):
+- status: `pass`
+- `llm_enrichment_rate_ok`: `true`
+- `citation_coverage_ok`: `true`
+
+Hardening impact:
+- LLM checks are now passing.
+- Overall `hardening-gate` still `fail` due duplicate-rate check (`duplicate_rate_ok=false`).
+
 ### Current Conformance Run (2026-02-18)
 - `moltis_conformance.status`: `fail`
 - Checks:
