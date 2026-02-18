@@ -1,7 +1,7 @@
 # Moltis Advanced Operations
 
 Date: 2026-02-18
-Status: Phases A-B completed, Phase C baseline implemented, Phase D pending
+Status: Phases A-B completed, Phase C evidence captured, Phase D baseline implemented
 
 ## Purpose
 Capture additional Moltis-native capabilities to harden operations after MVP sign-off.
@@ -84,7 +84,15 @@ Capture additional Moltis-native capabilities to harden operations after MVP sig
      - `parent_session_key=main`
      - `fork_point=0`
      - `label=incident-madagascar-cyclone-20260218-alt-severity`
-4. Phase D: Local-validate and E2E regression gate adoption.
+4. Phase D: Local-validate and E2E regression gate adoption. Status: Baseline implemented.
+   Evidence:
+   - Added local validation scripts:
+     - `scripts/local-validate.ps1`
+     - `scripts/local-validate.sh`
+   - Local gate currently enforces:
+     - `pytest -q`
+     - `python -m compileall -q src tests`
+   - Operator usage documented in `README.md`.
 
 ## 7. Acceptance Criteria
 - Hook policies block known dangerous tool calls in test scenarios.

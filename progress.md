@@ -37,6 +37,12 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
     - Child session key: `session:86f57658-2647-4cea-9be7-8f219224f38c`.
     - Merge-back summary message sent in parent session (`chat.send` after switching back to `main`).
     - Persisted fork evidence verified in `~/.moltis/moltis.db` (`sessions.parent_session_key=main`, `fork_point=0`).
+- Post-MVP Phase D baseline implemented:
+  - Added local validation gate scripts:
+    - `scripts/local-validate.ps1`
+    - `scripts/local-validate.sh`
+  - Gate checks now include `pytest -q` and `compileall` for `src/tests`.
+  - Usage documented in `README.md`.
 - KPI commands operational and validated:
   - `quality-report`
   - `source-health`
@@ -61,7 +67,7 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Start Phase D from `specs/12-moltis-advanced-operations.md` (local-validate + E2E gate adoption).
+1. Extend Phase D from baseline to full E2E regression gate and artifact capture.
 2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 4. Continue implementation from `specs/15-llm-intelligence-layer-v1.md`.

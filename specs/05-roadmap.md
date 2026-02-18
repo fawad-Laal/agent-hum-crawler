@@ -66,7 +66,11 @@ Evidence:
 - Governance/SOP documented in `specs/16-phase-c-skill-branch-sop.md`.
 - `delete_skill` explicit-confirmation policy enforced in hook policy layer.
 - Tests added to guard against unconfirmed skill deletion.
-4. Local-validation and e2e release gates.
+4. Local-validation and e2e release gates. Status: Baseline implemented.
+Evidence:
+- `scripts/local-validate.ps1` and `scripts/local-validate.sh` added.
+- README includes local gate execution commands.
+- Gate now runs deterministic test + compile checks for release readiness.
 5. Security/auth hardening rollout from `specs/13-moltis-security-auth.md` (auth matrix, proxy posture, scoped keys, third-party skills trust controls).
 6. Streaming/tool-registry conformance from `specs/14-moltis-streaming-tool-registry.md` (event lifecycle, websocket UX, MCP source filtering).
 7. LLM Intelligence Layer v1 from `specs/15-llm-intelligence-layer-v1.md` (full-text extraction/summary, LLM severity-confidence calibration, citation-locked outputs, deterministic fallback).

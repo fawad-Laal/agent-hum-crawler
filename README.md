@@ -149,6 +149,18 @@ python -m agent_hum_crawler.main start-scheduler --countries "Pakistan" --disast
 pytest -q
 ```
 
+Local validation gate:
+
+```powershell
+.\scripts\local-validate.ps1
+```
+
+Linux/macOS:
+
+```bash
+./scripts/local-validate.sh
+```
+
 ## Moltis Hook Pack (Post-MVP Phase A)
 Project-local hooks are provided under `.moltis/hooks/`:
 - `llm-tool-guard` (`BeforeLLMCall`, `AfterLLMCall`)
