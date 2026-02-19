@@ -105,6 +105,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - hardening threshold panel (actual vs threshold),
   - conformance/security snapshot from latest E2E artifacts,
   - source-health hotspot table (highest failure rates first).
+- Frontend Phase 2 (report quality workbench) started:
+  - one-click deterministic vs AI report compare (`/api/report-workbench`),
+  - side-by-side quality metric diagnostics in UI,
+  - section word-budget usage table from template limits,
+  - side-by-side markdown preview for quick editorial review.
 - Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
@@ -131,8 +136,8 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
    - tighten AI narrative conformance around section aliases and unsupported-claim checks in live windows.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 4. Expand dashboard from minimal view to operator-grade UI:
-   - historical trend charts for duplicate rate / traceability / source failures
-   - report quality gate drill-down and connector-level diagnostics.
+   - connector-level diagnostics (latency/error classes) and root-cause drill-down
+   - report quality gate retry profiles and reusable compare presets.
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.

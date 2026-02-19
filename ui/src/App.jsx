@@ -45,7 +45,9 @@ export default function App() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [busy, setBusy] = useState(false);
+  const [workbenchBusy, setWorkbenchBusy] = useState(false);
   const [actionOutput, setActionOutput] = useState(null);
+  const [workbench, setWorkbench] = useState(null);
   const [error, setError] = useState("");
 
   async function fetchOverview() {
@@ -152,6 +154,32 @@ export default function App() {
       setError(String(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleRunWorkbench() {
+    setWorkbenchBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/report-workbench", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countries: form.countries,
+          disaster_types: form.disaster_types,
+          limit_cycles: form.limit_cycles,
+          limit_events: form.limit_events,
+          report_template: form.report_template,
+        }),
+      });
+      const data = await r.json();
+      setWorkbench(data);
+      await fetchReports();
+      await fetchOverview();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setWorkbenchBusy(false);
     }
   }
 
@@ -396,12 +424,122 @@ export default function App() {
             <button disabled={busy} className="accent" onClick={() => void handleWriteReport()}>
               Write Report
             </button>
+            <button disabled={workbenchBusy} onClick={() => void handleRunWorkbench()}>
+              {workbenchBusy ? "Comparing..." : "Compare AI vs Deterministic"}
+            </button>
           </div>
         </article>
 
         <article className="card">
           <h2>Last Action Output</h2>
           <pre>{JSON.stringify(actionOutput, null, 2)}</pre>
+        </article>
+      </section>
+
+      <section className="grid two">
+        <article className="card">
+          <h2>Report Quality Workbench (Phase 2)</h2>
+          {!workbench ? (
+            <div className="muted">
+              Run "Compare AI vs Deterministic" to populate side-by-side quality diagnostics.
+            </div>
+          ) : (
+            <>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Deterministic</th>
+                    <th>AI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Status</td>
+                    <td>{workbench?.deterministic?.report_quality?.status || "-"}</td>
+                    <td>{workbench?.ai?.report_quality?.status || "-"}</td>
+                  </tr>
+                  <tr>
+                    <td>Citation Density</td>
+                    <td>{fmtNumber(workbench?.deterministic?.report_quality?.metrics?.citation_density)}</td>
+                    <td>{fmtNumber(workbench?.ai?.report_quality?.metrics?.citation_density)}</td>
+                  </tr>
+                  <tr>
+                    <td>Word Count</td>
+                    <td>{fmtNumber(workbench?.deterministic?.report_quality?.metrics?.word_count, 0)}</td>
+                    <td>{fmtNumber(workbench?.ai?.report_quality?.metrics?.word_count, 0)}</td>
+                  </tr>
+                  <tr>
+                    <td>Missing Sections</td>
+                    <td>{(workbench?.deterministic?.report_quality?.metrics?.missing_sections || []).length}</td>
+                    <td>{(workbench?.ai?.report_quality?.metrics?.missing_sections || []).length}</td>
+                  </tr>
+                  <tr>
+                    <td>Unsupported Incident Blocks</td>
+                    <td>
+                      {(workbench?.deterministic?.report_quality?.metrics?.unsupported_incident_blocks || [])
+                        .length}
+                    </td>
+                    <td>
+                      {(workbench?.ai?.report_quality?.metrics?.unsupported_incident_blocks || []).length}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Invalid Citation Refs</td>
+                    <td>{(workbench?.deterministic?.report_quality?.metrics?.invalid_citation_refs || []).length}</td>
+                    <td>{(workbench?.ai?.report_quality?.metrics?.invalid_citation_refs || []).length}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
+        </article>
+        <article className="card">
+          <h2>Section Budget Usage</h2>
+          {!workbench ? (
+            <div className="muted">No workbench run yet.</div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Section</th>
+                  <th>Limit</th>
+                  <th>Det</th>
+                  <th>AI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["executive_summary", "executive_summary_max_words"],
+                  ["source_reliability", "source_reliability_max_words"],
+                  ["risk_outlook", "risk_outlook_max_words"],
+                  ["method", "method_max_words"],
+                ].map(([sectionKey, limitKey]) => {
+                  const sectionTitle =
+                    workbench?.template?.sections?.[sectionKey] || sectionKey.replaceAll("_", " ");
+                  return (
+                    <tr key={sectionKey}>
+                      <td>{sectionTitle}</td>
+                      <td>{fmtNumber(workbench?.template?.limits?.[limitKey], 0)}</td>
+                      <td>{fmtNumber(workbench?.deterministic?.section_word_usage?.[sectionTitle], 0)}</td>
+                      <td>{fmtNumber(workbench?.ai?.section_word_usage?.[sectionTitle], 0)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </article>
+      </section>
+
+      <section className="grid two">
+        <article className="card">
+          <h2>Deterministic Markdown</h2>
+          <pre>{workbench?.deterministic?.markdown || "No workbench output yet."}</pre>
+        </article>
+        <article className="card">
+          <h2>AI Markdown</h2>
+          <pre>{workbench?.ai?.markdown || "No workbench output yet."}</pre>
         </article>
       </section>
 

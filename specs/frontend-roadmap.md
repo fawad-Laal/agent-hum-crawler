@@ -59,7 +59,7 @@ Current implementation status:
   - rolling quality trend snapshots
   - latest E2E summary context
 
-## Phase 2 - Report Quality Workbench
+## Phase 2 - Report Quality Workbench (In Progress)
 Goal:
 Improve long-form report quality through structured diagnostics.
 
@@ -75,6 +75,21 @@ Work items:
 
 Acceptance:
 - Failed report quality gates are explainable without leaving the UI.
+
+Current implementation status:
+- Added one-click report workbench compare flow:
+  - deterministic run
+  - AI-assisted run
+- Added side-by-side quality diagnostics:
+  - status
+  - citation density
+  - word count
+  - missing sections
+  - unsupported incident blocks
+  - invalid citation refs
+- Added section budget usage table from template section titles/limits.
+- Added side-by-side markdown preview panel (deterministic vs AI).
+- API endpoint added: `POST /api/report-workbench` in `scripts/dashboard_api.py`.
 
 ## Phase 3 - Agent Improvement Console
 Goal:

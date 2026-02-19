@@ -264,6 +264,11 @@ Current dashboard features:
   - hardening threshold matrix
   - conformance/security snapshot from latest E2E artifact
   - source failure hotspots
+- View Phase 2 report quality workbench:
+  - one-click deterministic vs AI compare
+  - side-by-side report quality metrics
+  - section budget usage (template limits vs generated content)
+  - side-by-side markdown outputs for editorial review
 
 ## Tests
 

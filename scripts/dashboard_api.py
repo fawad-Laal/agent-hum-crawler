@@ -12,6 +12,7 @@ import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import re
 from urllib.parse import urlparse
 
 
@@ -116,6 +117,75 @@ def _safe_report_path(name: str) -> Path | None:
     return p
 
 
+def _load_template(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _section_word_usage(markdown: str, section_titles: list[str]) -> dict[str, int]:
+    lines = markdown.splitlines()
+    sections: dict[str, list[str]] = {title: [] for title in section_titles}
+    current: str | None = None
+    title_set = {f"## {t}": t for t in section_titles}
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            current = title_set.get(stripped, None)
+            continue
+        if current:
+            sections[current].append(line)
+    usage: dict[str, int] = {}
+    for title, content in sections.items():
+        text = "\n".join(content)
+        usage[title] = len(re.findall(r"\b[\w/-]+\b", text))
+    return usage
+
+
+def _build_workbench_report(
+    *,
+    countries: str,
+    disaster_types: str,
+    limit_cycles: int,
+    limit_events: int,
+    template_path: str,
+    use_llm: bool,
+) -> dict:
+    ts = subprocess.run(
+        [sys.executable, "-c", "from datetime import datetime, UTC; print(datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ'))"],
+        text=True,
+        capture_output=True,
+        cwd=ROOT,
+        check=False,
+    ).stdout.strip()
+    suffix = "ai" if use_llm else "det"
+    out_path = REPORTS_DIR / f"workbench-{ts}-{suffix}.md"
+    cmd = [
+        "write-report",
+        "--countries",
+        countries,
+        "--disaster-types",
+        disaster_types,
+        "--limit-cycles",
+        str(limit_cycles),
+        "--limit-events",
+        str(limit_events),
+        "--report-template",
+        template_path,
+        "--output",
+        str(out_path),
+    ]
+    if use_llm:
+        cmd.append("--use-llm")
+    payload = _run_cli(cmd)
+    markdown = ""
+    if out_path.exists():
+        markdown = out_path.read_text(encoding="utf-8")
+    payload["markdown"] = markdown
+    return payload
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
     server_version = "AHCDashboard/1.0"
 
@@ -207,6 +277,64 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
             self._send_json(_run_cli(cmd))
+            return
+        if parsed.path == "/api/report-workbench":
+            body = _json_body(self)
+            countries = str(body.get("countries", "Madagascar,Mozambique"))
+            disaster_types = str(body.get("disaster_types", "cyclone/storm,flood"))
+            limit_cycles = int(body.get("limit_cycles", 20))
+            limit_events = int(body.get("limit_events", 30))
+            template_path = str(body.get("report_template", "config/report_template.brief.json"))
+            tpl = _load_template(ROOT / template_path)
+            section_map = tpl.get("sections", {}) if isinstance(tpl.get("sections"), dict) else {}
+            limits = tpl.get("limits", {}) if isinstance(tpl.get("limits"), dict) else {}
+            section_titles = [
+                str(section_map.get("executive_summary", "Executive Summary")),
+                str(section_map.get("incident_highlights", "Incident Highlights")),
+                str(section_map.get("source_reliability", "Source and Connector Reliability Snapshot")),
+                str(section_map.get("risk_outlook", "Risk Outlook")),
+                str(section_map.get("method", "Method")),
+            ]
+
+            deterministic = _build_workbench_report(
+                countries=countries,
+                disaster_types=disaster_types,
+                limit_cycles=limit_cycles,
+                limit_events=limit_events,
+                template_path=template_path,
+                use_llm=False,
+            )
+            ai = _build_workbench_report(
+                countries=countries,
+                disaster_types=disaster_types,
+                limit_cycles=limit_cycles,
+                limit_events=limit_events,
+                template_path=template_path,
+                use_llm=True,
+            )
+
+            payload = {
+                "template": {
+                    "path": template_path,
+                    "sections": section_map,
+                    "limits": limits,
+                },
+                "deterministic": {
+                    **deterministic,
+                    "section_word_usage": _section_word_usage(
+                        str(deterministic.get("markdown", "")),
+                        section_titles,
+                    ),
+                },
+                "ai": {
+                    **ai,
+                    "section_word_usage": _section_word_usage(
+                        str(ai.get("markdown", "")),
+                        section_titles,
+                    ),
+                },
+            }
+            self._send_json(payload)
             return
         self._send_json({"error": "not found"}, status=404)
 
