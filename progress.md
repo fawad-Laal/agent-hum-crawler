@@ -94,6 +94,10 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - Added BBC, Al Jazeera English, AllAfrica, Africanews, ANA, The Guardian, Reuters feeds.
   - Replaced failing ANA/Reuters URLs with stable working endpoints.
   - Adjusted source-health aggregation so `recovered` parse status is not counted as feed failure.
+- Added minimal local observability UI for crawler/report iteration:
+  - API bridge: `scripts/dashboard_api.py`
+  - React dashboard scaffold: `ui/` (Vite + React)
+  - Supports run-cycle, write-report, KPI snapshot, and report preview flows.
 - Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
@@ -119,6 +123,9 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 2. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
    - tighten AI narrative conformance around section aliases and unsupported-claim checks in live windows.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
+4. Expand dashboard from minimal view to operator-grade UI:
+   - historical trend charts for duplicate rate / traceability / source failures
+   - report quality gate drill-down and connector-level diagnostics.
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.

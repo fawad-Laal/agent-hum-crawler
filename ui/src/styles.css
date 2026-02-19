@@ -1,0 +1,188 @@
+:root {
+  --bg: #071321;
+  --panel: #0d1e30;
+  --line: #1f3952;
+  --text: #dce8f2;
+  --muted: #8da8bc;
+  --accent: #1ec97e;
+  --accent-2: #1591d4;
+  --error: #ff6565;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #113556 0%, var(--bg) 60%);
+  color: var(--text);
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.top p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.kpis {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.kpi-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.kpi-value {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+input,
+select {
+  width: 100%;
+  margin-top: 4px;
+  background: #0b1828;
+  border: 1px solid #254863;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toggle input {
+  width: auto;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  background: #244965;
+  color: white;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.1);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.accent {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+button.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #89c8ff;
+  text-decoration: underline;
+}
+
+.report-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 420px;
+  overflow: auto;
+  background: #081220;
+  border: 1px solid #183048;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.error {
+  background: rgba(255, 101, 101, 0.12);
+  border: 1px solid rgba(255, 101, 101, 0.5);
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 900px) {
+  .two,
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+

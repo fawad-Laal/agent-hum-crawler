@@ -233,6 +233,32 @@ Start scheduled monitoring (example: one test run and stop):
 python -m agent_hum_crawler.main start-scheduler --countries "Pakistan" --disaster-types "flood,earthquake" --interval 30 --limit 10 --max-runs 1
 ```
 
+## Minimal React Dashboard
+Use the local dashboard to run cycles/reports and inspect quality/hardening trends.
+
+1. Start the local API bridge (wraps existing CLI commands):
+
+```powershell
+python scripts/dashboard_api.py --host 127.0.0.1 --port 8788
+```
+
+2. Start React frontend:
+
+```powershell
+cd ui
+npm install
+npm run dev
+```
+
+3. Open:
+- `http://localhost:5174`
+
+Current dashboard features:
+- Run `run-cycle` with country/disaster filters
+- Generate `write-report` outputs (brief/default/detailed template)
+- View recent report files and markdown preview
+- View KPI snapshot from `quality-report`, `source-health`, `hardening-gate`
+
 ## Tests
 
 ```powershell

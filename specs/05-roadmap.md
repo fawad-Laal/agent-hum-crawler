@@ -115,3 +115,6 @@ Evidence:
   - explicit `AI Assisted: Yes` banner on true AI-generated outputs.
 - Citation format standardized across AI/deterministic outputs:
   - numbered in-text citation refs and numbered end citation list.
+- Added minimal operator UI baseline for rapid quality iteration:
+  - local API bridge (`scripts/dashboard_api.py`) wrapping existing CLI commands
+  - React dashboard scaffold (`ui/`) for run-cycle, write-report, KPI snapshot, and report preview
