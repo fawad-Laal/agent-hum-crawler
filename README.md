@@ -254,6 +254,8 @@ Linux/macOS:
 This now includes a deterministic E2E regression gate with artifact capture.
 Artifacts are written to:
 - `artifacts/e2e/<UTC timestamp>/`
+- Includes Moltis security/auth evidence artifact:
+  - `06_moltis_security_check.json` (auth baseline, auth/proxy matrix, scoped API-key checks)
 
 Skip E2E when needed:
 
@@ -280,6 +282,23 @@ moltis hooks list --eligible
 
 Audit output default:
 - `.moltis/logs/hook-audit.jsonl`
+
+## Moltis Security Baseline Check
+Run security/auth baseline and evidence checks:
+
+```powershell
+python scripts/moltis_security_check.py
+```
+
+Optional strict rollout flags:
+
+```powershell
+# Enforce proxy posture expectation
+python scripts/moltis_security_check.py --expect-behind-proxy true
+
+# Require at least one active scoped API key
+python scripts/moltis_security_check.py --require-api-keys
+```
 
 ## Moltis Hardened Profile (Post-MVP Phase B)
 Use the hardened profile template:

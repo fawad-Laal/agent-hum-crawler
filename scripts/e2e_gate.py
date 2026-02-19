@@ -95,6 +95,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     ensure("moltis_conformance" in conformance, "conformance-report missing moltis_conformance")
 
+    security = run_and_capture(
+        [sys.executable, "scripts/moltis_security_check.py"],
+        out_dir / "06_moltis_security_check.json",
+    )
+    ensure(security.get("status") == "pass", "moltis security baseline check failed")
+
     report = run_and_capture(
         [
             sys.executable,
@@ -113,9 +119,9 @@ def main(argv: list[str] | None = None) -> int:
             "0.005",
             "--enforce-report-quality",
             "--output",
-            str(out_dir / "06_long_form_report.md"),
+            str(out_dir / "07_long_form_report.md"),
         ],
-        out_dir / "06_report_result.json",
+        out_dir / "07_report_result.json",
     )
     ensure(report.get("report_quality", {}).get("status") == "pass", "write-report quality gate failed")
 
@@ -127,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             "replay_event_count": replay.get("event_count", 0),
             "hardening_status": hardening.get("status"),
             "conformance_status": conformance.get("moltis_conformance", {}).get("status"),
+            "security_status": security.get("status"),
             "report_quality_status": report.get("report_quality", {}).get("status"),
         },
     }

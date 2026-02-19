@@ -84,6 +84,18 @@ Evidence:
   - `metrics.enabled=true`
   - `metrics.prometheus_endpoint=true`
   - hooks present (`>=1`)
+- Added auth/proxy matrix evidence output:
+  - scenario evidence for local/remote credentialed and no-credential modes
+  - proxy expectation checks with `--expect-behind-proxy true|false|auto`
+- Added scoped API-key verification checks:
+  - active keys required (optional strict mode)
+  - unscoped active keys fail
+  - unknown scope values fail
+  - `operator.admin` usage surfaced as warning telemetry
+- Wired security checks into deterministic E2E gate:
+  - artifact: `06_moltis_security_check.json`
+  - summary includes `security_status`
+  - latest run: `status=pass`
 6. Streaming/tool-registry conformance from `specs/14-moltis-streaming-tool-registry.md` (event lifecycle, websocket UX, MCP source filtering).
 7. LLM Intelligence Layer v1 from `specs/15-llm-intelligence-layer-v1.md` (full-text extraction/summary, LLM severity-confidence calibration, citation-locked outputs, deterministic fallback).
 Status: In progress (GraphRAG report layer + report quality gates implemented).

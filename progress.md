@@ -79,13 +79,22 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - template-enforced section naming to keep AI and deterministic outputs aligned.
 - Security/auth hardening rollout started (item 1):
   - Added automated baseline verifier: `scripts/moltis_security_check.py`.
-  - Validates live Moltis config for auth enabled, non-`never` approval mode, hardened sandbox mode, metrics/prometheus on, and hooks present.
-  - Latest run result: `status=pass` against `C:\Users\Hussain\.config\moltis\moltis.toml`.
+  - Extended to capture auth/proxy matrix evidence and scoped API-key verification from `~/.moltis/moltis.db`.
+  - Validates live Moltis config for auth enabled, non-`never` approval mode, hardened sandbox mode, metrics/prometheus on, hooks present, and credentials configured.
+  - Supports strict rollout flags:
+    - `--expect-behind-proxy true|false|auto`
+    - `--require-api-keys`
+  - Latest run result: `status=pass` against:
+    - `C:\Users\Hussain\.config\moltis\moltis.toml`
+    - `C:\Users\Hussain\.moltis\moltis.db`
+  - Wired into deterministic E2E gate artifacts:
+    - `artifacts/e2e/<timestamp>/06_moltis_security_check.json`
+    - summary now includes `security_status`
 - Source expansion/hardening updates:
   - Added BBC, Al Jazeera English, AllAfrica, Africanews, ANA, The Guardian, Reuters feeds.
   - Replaced failing ANA/Reuters URLs with stable working endpoints.
   - Adjusted source-health aggregation so `recovered` parse status is not counted as feed failure.
-- Current test status: `43 passed`.
+- Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
@@ -105,8 +114,8 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 
 ## Next Action Queue
 1. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`:
-   - expand from baseline config checks to auth/proxy matrix evidence capture and scoped-key validation checks.
-   - wire security check output into repeatable gate artifacts.
+   - add runtime auth-path probes (local/remote/proxy simulation) for direct behavioral validation.
+   - add optional strict requirement for at least one non-admin scoped automation key in production profiles.
 2. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
    - tighten AI narrative conformance around section aliases and unsupported-claim checks in live windows.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
