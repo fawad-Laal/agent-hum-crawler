@@ -90,6 +90,15 @@ Current implementation status:
 - Added section budget usage table from template section titles/limits.
 - Added side-by-side markdown preview panel (deterministic vs AI).
 - API endpoint added: `POST /api/report-workbench` in `scripts/dashboard_api.py`.
+- Added reusable compare presets and one-click repeatability:
+  - persisted preset store (`config/dashboard_workbench_profiles.json`)
+  - UI preset save/load/delete controls
+  - one-click `Rerun Last Profile` action
+  - API endpoints:
+    - `GET /api/workbench-profiles`
+    - `POST /api/workbench-profiles/save`
+    - `POST /api/workbench-profiles/delete`
+    - `POST /api/report-workbench/rerun-last`
 
 ## Phase 3 - Agent Improvement Console
 Goal:

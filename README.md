@@ -269,6 +269,8 @@ Current dashboard features:
   - side-by-side report quality metrics
   - section budget usage (template limits vs generated content)
   - side-by-side markdown outputs for editorial review
+  - reusable compare presets (save/load/delete)
+  - one-click rerun of last compare profile
 
 ## Tests
 

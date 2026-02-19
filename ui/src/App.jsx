@@ -48,6 +48,9 @@ export default function App() {
   const [workbenchBusy, setWorkbenchBusy] = useState(false);
   const [actionOutput, setActionOutput] = useState(null);
   const [workbench, setWorkbench] = useState(null);
+  const [profileStore, setProfileStore] = useState({ presets: {}, last_profile: null });
+  const [presetName, setPresetName] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState("");
   const [error, setError] = useState("");
 
   async function fetchOverview() {
@@ -69,9 +72,16 @@ export default function App() {
     setSelectedReport(data);
   }
 
+  async function fetchWorkbenchProfiles() {
+    const r = await fetch("/api/workbench-profiles");
+    const data = await r.json();
+    setProfileStore(data || { presets: {}, last_profile: null });
+  }
+
   useEffect(() => {
     void fetchOverview().catch((e) => setError(String(e)));
     void fetchReports().catch((e) => setError(String(e)));
+    void fetchWorkbenchProfiles().catch((e) => setError(String(e)));
   }, []);
 
   const quality = overview?.quality || {};
@@ -174,6 +184,85 @@ export default function App() {
       });
       const data = await r.json();
       setWorkbench(data);
+      await fetchWorkbenchProfiles();
+      await fetchReports();
+      await fetchOverview();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setWorkbenchBusy(false);
+    }
+  }
+
+  function currentProfileFromForm() {
+    return {
+      countries: form.countries,
+      disaster_types: form.disaster_types,
+      limit_cycles: form.limit_cycles,
+      limit_events: form.limit_events,
+      report_template: form.report_template,
+    };
+  }
+
+  function applyProfile(profile) {
+    if (!profile) return;
+    setForm((s) => ({
+      ...s,
+      countries: profile.countries ?? s.countries,
+      disaster_types: profile.disaster_types ?? s.disaster_types,
+      limit_cycles: Number(profile.limit_cycles ?? s.limit_cycles),
+      limit_events: Number(profile.limit_events ?? s.limit_events),
+      report_template: profile.report_template ?? s.report_template,
+    }));
+  }
+
+  async function handleSavePreset() {
+    const name = presetName.trim();
+    if (!name) {
+      setError("Preset name is required.");
+      return;
+    }
+    setError("");
+    const r = await fetch("/api/workbench-profiles/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, profile: currentProfileFromForm() }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      setError(data.error || "Failed to save preset.");
+      return;
+    }
+    setProfileStore(data.store || { presets: {}, last_profile: null });
+    setSelectedPreset(name);
+  }
+
+  async function handleDeletePreset() {
+    if (!selectedPreset) return;
+    setError("");
+    const r = await fetch("/api/workbench-profiles/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: selectedPreset }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      setError(data.error || "Failed to delete preset.");
+      return;
+    }
+    setProfileStore(data.store || { presets: {}, last_profile: null });
+    setSelectedPreset("");
+  }
+
+  async function handleRerunLastProfile() {
+    setWorkbenchBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/report-workbench/rerun-last", { method: "POST" });
+      const data = await r.json();
+      setWorkbench(data);
+      applyProfile(data.profile);
+      await fetchWorkbenchProfiles();
       await fetchReports();
       await fetchOverview();
     } catch (e) {
@@ -417,6 +506,46 @@ export default function App() {
             />
             Use LLM for report drafting
           </label>
+          <label>
+            Saved Compare Presets
+            <select
+              value={selectedPreset}
+              onChange={(e) => {
+                const name = e.target.value;
+                setSelectedPreset(name);
+                if (name && profileStore?.presets?.[name]) {
+                  applyProfile(profileStore.presets[name]);
+                }
+              }}
+            >
+              <option value="">Select preset...</option>
+              {Object.keys(profileStore?.presets || {})
+                .sort()
+                .map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="row">
+            <label>
+              Preset Name
+              <input
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="e.g. madagascar-brief-cyclone"
+              />
+            </label>
+            <div className="preset-buttons">
+              <button type="button" onClick={() => void handleSavePreset()}>
+                Save Preset
+              </button>
+              <button type="button" className="ghost" disabled={!selectedPreset} onClick={() => void handleDeletePreset()}>
+                Delete Preset
+              </button>
+            </div>
+          </div>
           <div className="actions">
             <button disabled={busy} onClick={() => void handleRunCycle()}>
               Run Cycle
@@ -426,6 +555,9 @@ export default function App() {
             </button>
             <button disabled={workbenchBusy} onClick={() => void handleRunWorkbench()}>
               {workbenchBusy ? "Comparing..." : "Compare AI vs Deterministic"}
+            </button>
+            <button disabled={workbenchBusy} className="ghost" onClick={() => void handleRerunLastProfile()}>
+              {workbenchBusy ? "Running..." : "Rerun Last Profile"}
             </button>
           </div>
         </article>

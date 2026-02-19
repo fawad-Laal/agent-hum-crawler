@@ -110,6 +110,8 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - side-by-side quality metric diagnostics in UI,
   - section word-budget usage table from template limits,
   - side-by-side markdown preview for quick editorial review.
+  - reusable compare presets (save/load/delete) with persisted store.
+  - one-click `Rerun Last Profile` for repeatable QA/report iteration.
 - Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)

@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
 E2E_DIR = ROOT / "artifacts" / "e2e"
+PROFILE_FILE = ROOT / "config" / "dashboard_workbench_profiles.json"
 
 
 def _json_body(handler: BaseHTTPRequestHandler) -> dict:
@@ -117,6 +118,64 @@ def _safe_report_path(name: str) -> Path | None:
     return p
 
 
+def _default_workbench_profile() -> dict:
+    return {
+        "countries": "Madagascar,Mozambique",
+        "disaster_types": "cyclone/storm,flood",
+        "limit_cycles": 20,
+        "limit_events": 30,
+        "report_template": "config/report_template.brief.json",
+    }
+
+
+def _normalize_profile(payload: dict | None) -> dict:
+    src = payload or {}
+    base = _default_workbench_profile()
+    base["countries"] = str(src.get("countries", base["countries"]))
+    base["disaster_types"] = str(src.get("disaster_types", base["disaster_types"]))
+    try:
+        base["limit_cycles"] = int(src.get("limit_cycles", base["limit_cycles"]))
+    except Exception:
+        pass
+    try:
+        base["limit_events"] = int(src.get("limit_events", base["limit_events"]))
+    except Exception:
+        pass
+    base["limit_cycles"] = max(1, min(base["limit_cycles"], 200))
+    base["limit_events"] = max(1, min(base["limit_events"], 500))
+    template = str(src.get("report_template", base["report_template"]))
+    if template.startswith("config/") and template.endswith(".json"):
+        base["report_template"] = template
+    return base
+
+
+def _load_profile_store() -> dict:
+    if not PROFILE_FILE.exists():
+        return {"presets": {}, "last_profile": _default_workbench_profile()}
+    try:
+        payload = json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"presets": {}, "last_profile": _default_workbench_profile()}
+    presets = payload.get("presets", {})
+    if not isinstance(presets, dict):
+        presets = {}
+    clean_presets: dict[str, dict] = {}
+    for k, v in presets.items():
+        name = str(k).strip()
+        if not name:
+            continue
+        clean_presets[name] = _normalize_profile(v if isinstance(v, dict) else {})
+    last_profile = payload.get("last_profile", {})
+    if not isinstance(last_profile, dict):
+        last_profile = {}
+    return {"presets": clean_presets, "last_profile": _normalize_profile(last_profile)}
+
+
+def _save_profile_store(store: dict) -> None:
+    PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROFILE_FILE.write_text(json.dumps(store, indent=2), encoding="utf-8")
+
+
 def _load_template(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -186,6 +245,66 @@ def _build_workbench_report(
     return payload
 
 
+def _run_workbench(profile: dict) -> dict:
+    profile = _normalize_profile(profile)
+    countries = profile["countries"]
+    disaster_types = profile["disaster_types"]
+    limit_cycles = profile["limit_cycles"]
+    limit_events = profile["limit_events"]
+    template_path = profile["report_template"]
+
+    tpl = _load_template(ROOT / template_path)
+    section_map = tpl.get("sections", {}) if isinstance(tpl.get("sections"), dict) else {}
+    limits = tpl.get("limits", {}) if isinstance(tpl.get("limits"), dict) else {}
+    section_titles = [
+        str(section_map.get("executive_summary", "Executive Summary")),
+        str(section_map.get("incident_highlights", "Incident Highlights")),
+        str(section_map.get("source_reliability", "Source and Connector Reliability Snapshot")),
+        str(section_map.get("risk_outlook", "Risk Outlook")),
+        str(section_map.get("method", "Method")),
+    ]
+
+    deterministic = _build_workbench_report(
+        countries=countries,
+        disaster_types=disaster_types,
+        limit_cycles=limit_cycles,
+        limit_events=limit_events,
+        template_path=template_path,
+        use_llm=False,
+    )
+    ai = _build_workbench_report(
+        countries=countries,
+        disaster_types=disaster_types,
+        limit_cycles=limit_cycles,
+        limit_events=limit_events,
+        template_path=template_path,
+        use_llm=True,
+    )
+
+    return {
+        "profile": profile,
+        "template": {
+            "path": template_path,
+            "sections": section_map,
+            "limits": limits,
+        },
+        "deterministic": {
+            **deterministic,
+            "section_word_usage": _section_word_usage(
+                str(deterministic.get("markdown", "")),
+                section_titles,
+            ),
+        },
+        "ai": {
+            **ai,
+            "section_word_usage": _section_word_usage(
+                str(ai.get("markdown", "")),
+                section_titles,
+            ),
+        },
+    }
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
     server_version = "AHCDashboard/1.0"
 
@@ -231,6 +350,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/reports":
             self._send_json({"reports": _list_reports()})
+            return
+        if parsed.path == "/api/workbench-profiles":
+            self._send_json(_load_profile_store())
             return
         if parsed.path.startswith("/api/reports/"):
             name = parsed.path.split("/api/reports/", 1)[1]
@@ -280,61 +402,42 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/report-workbench":
             body = _json_body(self)
-            countries = str(body.get("countries", "Madagascar,Mozambique"))
-            disaster_types = str(body.get("disaster_types", "cyclone/storm,flood"))
-            limit_cycles = int(body.get("limit_cycles", 20))
-            limit_events = int(body.get("limit_events", 30))
-            template_path = str(body.get("report_template", "config/report_template.brief.json"))
-            tpl = _load_template(ROOT / template_path)
-            section_map = tpl.get("sections", {}) if isinstance(tpl.get("sections"), dict) else {}
-            limits = tpl.get("limits", {}) if isinstance(tpl.get("limits"), dict) else {}
-            section_titles = [
-                str(section_map.get("executive_summary", "Executive Summary")),
-                str(section_map.get("incident_highlights", "Incident Highlights")),
-                str(section_map.get("source_reliability", "Source and Connector Reliability Snapshot")),
-                str(section_map.get("risk_outlook", "Risk Outlook")),
-                str(section_map.get("method", "Method")),
-            ]
-
-            deterministic = _build_workbench_report(
-                countries=countries,
-                disaster_types=disaster_types,
-                limit_cycles=limit_cycles,
-                limit_events=limit_events,
-                template_path=template_path,
-                use_llm=False,
-            )
-            ai = _build_workbench_report(
-                countries=countries,
-                disaster_types=disaster_types,
-                limit_cycles=limit_cycles,
-                limit_events=limit_events,
-                template_path=template_path,
-                use_llm=True,
-            )
-
-            payload = {
-                "template": {
-                    "path": template_path,
-                    "sections": section_map,
-                    "limits": limits,
-                },
-                "deterministic": {
-                    **deterministic,
-                    "section_word_usage": _section_word_usage(
-                        str(deterministic.get("markdown", "")),
-                        section_titles,
-                    ),
-                },
-                "ai": {
-                    **ai,
-                    "section_word_usage": _section_word_usage(
-                        str(ai.get("markdown", "")),
-                        section_titles,
-                    ),
-                },
-            }
-            self._send_json(payload)
+            profile = _normalize_profile(body)
+            store = _load_profile_store()
+            store["last_profile"] = profile
+            _save_profile_store(store)
+            self._send_json(_run_workbench(profile))
+            return
+        if parsed.path == "/api/report-workbench/rerun-last":
+            store = _load_profile_store()
+            profile = _normalize_profile(store.get("last_profile", {}))
+            store["last_profile"] = profile
+            _save_profile_store(store)
+            self._send_json(_run_workbench(profile))
+            return
+        if parsed.path == "/api/workbench-profiles/save":
+            body = _json_body(self)
+            name = str(body.get("name", "")).strip()
+            if not name:
+                self._send_json({"error": "preset name is required"}, status=400)
+                return
+            profile = _normalize_profile(body.get("profile", {}))
+            store = _load_profile_store()
+            store["presets"][name] = profile
+            store["last_profile"] = profile
+            _save_profile_store(store)
+            self._send_json({"status": "ok", "store": store})
+            return
+        if parsed.path == "/api/workbench-profiles/delete":
+            body = _json_body(self)
+            name = str(body.get("name", "")).strip()
+            if not name:
+                self._send_json({"error": "preset name is required"}, status=400)
+                return
+            store = _load_profile_store()
+            store["presets"].pop(name, None)
+            _save_profile_store(store)
+            self._send_json({"status": "ok", "store": store})
             return
         self._send_json({"error": "not found"}, status=404)
 
