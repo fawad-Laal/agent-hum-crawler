@@ -77,11 +77,15 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - numbered citation refs in body (`[1]`, `[2]`),
   - numbered `## Citations` list at end,
   - template-enforced section naming to keep AI and deterministic outputs aligned.
+- Security/auth hardening rollout started (item 1):
+  - Added automated baseline verifier: `scripts/moltis_security_check.py`.
+  - Validates live Moltis config for auth enabled, non-`never` approval mode, hardened sandbox mode, metrics/prometheus on, and hooks present.
+  - Latest run result: `status=pass` against `C:\Users\Hussain\.config\moltis\moltis.toml`.
 - Source expansion/hardening updates:
   - Added BBC, Al Jazeera English, AllAfrica, Africanews, ANA, The Guardian, Reuters feeds.
   - Replaced failing ANA/Reuters URLs with stable working endpoints.
   - Adjusted source-health aggregation so `recovered` parse status is not counted as feed failure.
-- Current test status: `40 passed`.
+- Current test status: `43 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
@@ -100,10 +104,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
 - `conformance-report` status: `pass`
 
 ## Next Action Queue
-1. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
-   - add strict mode for filter-faithful reporting (no cross-country fallback when selected filters have zero evidence).
-   - add section alias support + stronger unsupported-claim checks for AI-generated narratives.
-2. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+1. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`:
+   - expand from baseline config checks to auth/proxy matrix evidence capture and scoped-key validation checks.
+   - wire security check output into repeatable gate artifacts.
+2. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
+   - tighten AI narrative conformance around section aliases and unsupported-claim checks in live windows.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 
 ## Risks / Blockers

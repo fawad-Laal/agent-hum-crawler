@@ -74,6 +74,16 @@ Evidence:
 - Added full deterministic E2E gate with artifact capture (`scripts/e2e_gate.py`).
 - E2E evidence outputs are stored in `artifacts/e2e/<UTC timestamp>/`.
 5. Security/auth hardening rollout from `specs/13-moltis-security-auth.md` (auth matrix, proxy posture, scoped keys, third-party skills trust controls).
+Status: In progress.
+Evidence:
+- Added automated baseline verifier: `scripts/moltis_security_check.py`.
+- Live config validation pass captured against local Moltis runtime config:
+  - `auth.disabled=false`
+  - `tools.exec.approval_mode=on-miss`
+  - `tools.exec.sandbox.mode=all`
+  - `metrics.enabled=true`
+  - `metrics.prometheus_endpoint=true`
+  - hooks present (`>=1`)
 6. Streaming/tool-registry conformance from `specs/14-moltis-streaming-tool-registry.md` (event lifecycle, websocket UX, MCP source filtering).
 7. LLM Intelligence Layer v1 from `specs/15-llm-intelligence-layer-v1.md` (full-text extraction/summary, LLM severity-confidence calibration, citation-locked outputs, deterministic fallback).
 Status: In progress (GraphRAG report layer + report quality gates implemented).
