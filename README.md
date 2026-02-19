@@ -2,6 +2,14 @@
 
 Dynamic disaster-intelligence monitoring assistant.
 
+## Current Highlights
+- Dynamic multi-source monitoring with country/disaster filters.
+- SQLite persistence for cycle, event, and source-health evidence.
+- GraphRAG-style long-form reporting from persisted evidence (no vector DB required).
+- Template-driven report formatting (`default`, `brief`, `detailed`).
+- AI-assisted report drafting with deterministic fallback when LLM is unavailable.
+- Deterministic quality gates for reports, LLM enrichment, hardening, and conformance.
+
 ## Stack
 - Python 3.11+
 - `pydantic` for schema validation
@@ -29,11 +37,26 @@ If approval is pending, set `RELIEFWEB_ENABLED=false` to run fallback connectors
 When `LLM_ENRICHMENT_ENABLED=true`, the pipeline attempts LLM summary/severity/confidence enrichment with citation locking (`url + quote + quote_start + quote_end`). On any LLM failure, it falls back to deterministic rules.
 Citation locking is strict: `quote` must exactly equal `source_text[quote_start:quote_end]`.
 
+Report drafting uses `OPENAI_API_KEY` when `write-report --use-llm` is requested. If the key/model call fails, report generation falls back to deterministic rendering.
+
 ## Country Source Allowlists
 - Active file: `config/country_sources.json`
 - Template: `config/country_sources.example.json`
 
 Per-country feeds from this file are merged into connector selection for `run-cycle` and `start-scheduler`.
+
+Current global local-news set includes:
+- BBC World
+- Al Jazeera English
+- AllAfrica Latest
+- Africanews
+- Africa News Agency (ANA)
+- The Guardian World
+- Reuters World (Google News Reuters query feed)
+
+Government connectors include:
+- USGS Earthquakes
+- GDACS
 
 ## Install
 
@@ -137,10 +160,20 @@ Generate long-form GraphRAG report from persisted DB evidence (no vector DB requ
 python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit-cycles 20 --limit-events 60
 ```
 
+Strict filter mode is enabled by default for reports. If selected filters return zero matches, the report stays filter-faithful and emits a structured "no evidence" report (quality-gate compatible) instead of falling back to another country/disaster window.
+
 Default output path: `reports/report-<timestamp>.md` (project-local).
+Generated reports are local artifacts and not committed (`reports/*.md` is ignored; `reports/.gitkeep` is tracked).
 
 Template-driven formatting and section-length limits can be customized in `config/report_template.json`
 or overridden with `--report-template`.
+
+`write-report` output includes:
+- `llm_used`: `true` only when AI actually produced report sections.
+- `report_quality`: pass/fail with citation density, missing section checks, and unsupported-claim checks.
+
+When AI is used, report header includes:
+- `AI Assisted: Yes`
 
 Prebuilt templates:
 
@@ -152,6 +185,17 @@ python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaste
 python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm --report-template config/report_template.detailed.json
 ```
 
+Template files:
+- `config/report_template.json` (default profile)
+- `config/report_template.brief.json` (short donor update)
+- `config/report_template.detailed.json` (long analyst brief)
+
+Template controls:
+- section headings
+- section word limits
+- max incident highlights
+- incident summary/quote length
+
 Enforce report quality gate (section completeness + citation density + unsupported-claim checks):
 
 ```powershell
@@ -162,6 +206,19 @@ Optional LLM final drafting:
 
 ```powershell
 python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm
+```
+
+Recommended live run flow:
+
+```powershell
+# 1) Collect fresh cycle evidence
+python -m agent_hum_crawler.main run-cycle --countries "Madagascar" --disaster-types "cyclone/storm" --limit 15 --include-content
+
+# 2) Generate AI-assisted brief donor report
+python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --limit-cycles 25 --limit-events 20 --use-llm --report-template config/report_template.brief.json
+
+# 3) Generate AI-assisted detailed analyst report
+python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --limit-cycles 25 --limit-events 20 --use-llm --report-template config/report_template.detailed.json
 ```
 
 Run replay fixture for dry-run QA:

@@ -84,6 +84,7 @@ def build_graph_context(
     limit_cycles: int = 20,
     limit_events: int = 60,
     path: Path | None = None,
+    strict_filters: bool = True,
 ) -> dict[str, Any]:
     countries = [c.strip().lower() for c in (countries or []) if c.strip()]
     disaster_types = [d.strip().lower() for d in (disaster_types or []) if d.strip()]
@@ -162,7 +163,7 @@ def build_graph_context(
             )
         )
 
-    if not evidence and events:
+    if not strict_filters and not evidence and events:
         # If filters are too narrow, return recent events for resilience.
         for e in events[:limit_events]:
             evidence.append(
@@ -198,6 +199,9 @@ def build_graph_context(
             "cycles_analyzed": len(cycle_ids),
             "events_considered": len(events),
             "events_selected": len(evidence),
+            "strict_filters": strict_filters,
+            "filter_countries": countries,
+            "filter_disaster_types": disaster_types,
             "by_country": dict(by_country),
             "by_disaster_type": dict(by_disaster),
             "by_connector": dict(by_connector),
@@ -218,10 +222,11 @@ def render_long_form_report(
     generated_at = datetime.now(UTC).isoformat()
     template = load_report_template(template_path)
     if not evidence:
-        return (
-            f"# {title}\n\n"
-            f"Generated at: {generated_at}\n\n"
-            "No evidence found for selected filters and cycles.\n"
+        return _render_no_evidence_report(
+            title=title,
+            generated_at=generated_at,
+            template=template,
+            meta=meta,
         )
 
     citation_numbers = _build_citation_numbers(evidence)
@@ -257,6 +262,7 @@ def evaluate_report_quality(
     report_markdown: str,
     min_citation_density: float = 0.005,
     required_sections: list[str] | None = None,
+    section_aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     required_sections = required_sections or [
         "Executive Summary",
@@ -265,20 +271,31 @@ def evaluate_report_quality(
         "Risk Outlook",
         "Method",
     ]
+    section_aliases = section_aliases or {
+        "Executive Summary": ["Situation At A Glance"],
+        "Incident Highlights": ["Incident Analysis", "Top Priority Updates"],
+        "Source and Connector Reliability Snapshot": [
+            "Source Reliability",
+            "Source and Connector Reliability Assessment",
+            "Evidence Confidence Snapshot",
+        ],
+        "Risk Outlook": ["72-Hour Risk Outlook", "Forward Risk and Scenario Outlook"],
+        "Method": ["Method Note", "Methodology and Scope"],
+    }
 
     text = report_markdown or ""
     words = len(re.findall(r"\b[\w/-]+\b", text))
     urls = re.findall(r"https?://[^\s)]+", text)
     citation_density = len(urls) / max(1, words)
+    no_evidence_mode = "No evidence found for selected filters and cycles." in text
 
-    missing_sections = [
-        s for s in required_sections if f"## {s}".lower() not in text.lower()
-    ]
+    missing_sections = [s for s in required_sections if not _has_required_section(text, s, section_aliases)]
 
     unsupported_blocks = _find_unsupported_incident_blocks(text)
+    invalid_citation_refs = _find_invalid_citation_refs(text)
     status = "pass"
     reasons: list[str] = []
-    if citation_density < min_citation_density:
+    if not no_evidence_mode and citation_density < min_citation_density:
         status = "fail"
         reasons.append(
             f"citation_density {citation_density:.4f} below threshold {min_citation_density:.4f}"
@@ -289,6 +306,9 @@ def evaluate_report_quality(
     if unsupported_blocks:
         status = "fail"
         reasons.append(f"unsupported incident blocks: {len(unsupported_blocks)}")
+    if invalid_citation_refs:
+        status = "fail"
+        reasons.append(f"invalid citation refs: {len(invalid_citation_refs)}")
 
     return {
         "status": status,
@@ -300,6 +320,8 @@ def evaluate_report_quality(
             "min_citation_density": min_citation_density,
             "missing_sections": missing_sections,
             "unsupported_incident_blocks": unsupported_blocks,
+            "invalid_citation_refs": invalid_citation_refs,
+            "no_evidence_mode": no_evidence_mode,
         },
     }
 
@@ -613,6 +635,51 @@ def _render_report_template(
     return "\n".join(lines) + "\n"
 
 
+def _render_no_evidence_report(
+    *,
+    title: str,
+    generated_at: str,
+    template: dict[str, Any],
+    meta: dict[str, Any],
+) -> str:
+    sections = template.get("sections", {})
+    countries = meta.get("filter_countries", []) or []
+    disasters = meta.get("filter_disaster_types", []) or []
+    lines: list[str] = []
+    lines.append(f"# {title}")
+    lines.append("")
+    lines.append(f"Generated at: {generated_at}")
+    lines.append("")
+    lines.append(f"## {sections.get('executive_summary', 'Executive Summary')}")
+    lines.append("No evidence found for selected filters and cycles.")
+    lines.append(
+        f"- Cycles analyzed: {meta.get('cycles_analyzed', 0)}; "
+        f"events considered: {meta.get('events_considered', 0)}; "
+        f"events selected: {meta.get('events_selected', 0)}."
+    )
+    lines.append(f"- Country filters: {', '.join(countries) if countries else 'none'}")
+    lines.append(f"- Disaster filters: {', '.join(disasters) if disasters else 'none'}")
+    lines.append("")
+    lines.append(f"## {sections.get('incident_highlights', 'Incident Highlights')}")
+    lines.append("- No qualifying incidents matched the selected filters in the analyzed cycle window.")
+    lines.append("")
+    lines.append(f"## {sections.get('source_reliability', 'Source and Connector Reliability Snapshot')}")
+    lines.append("- No matched records available to evaluate source reliability for this filter window.")
+    lines.append("")
+    lines.append(f"## {sections.get('risk_outlook', 'Risk Outlook')}")
+    lines.append("- Risk outlook cannot be confidently assessed from matched evidence in this window.")
+    lines.append("- Recommendation: broaden countries/disaster types or increase `--limit-cycles` and rerun.")
+    lines.append("")
+    lines.append(f"## {sections.get('method', 'Method')}")
+    lines.append("- Strict filter mode was applied for report retrieval.")
+    lines.append("- Quality gates were evaluated in no-evidence mode for this report.")
+    lines.append("")
+    lines.append(f"## {sections.get('citations', 'Citations')}")
+    lines.append("No source citations available for this filter window.")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def _build_citation_numbers(evidence: list[dict[str, Any]]) -> dict[str, int]:
     citations: dict[str, int] = {}
     for ev in evidence:
@@ -667,3 +734,22 @@ def _clip_words(value: str, max_words: int) -> str:
     if len(words) <= max_words:
         return clean
     return " ".join(words[:max_words]).rstrip() + "..."
+
+
+def _has_required_section(text: str, section: str, aliases: dict[str, list[str]]) -> bool:
+    candidates = [section] + aliases.get(section, [])
+    lowered = text.lower()
+    for name in candidates:
+        if f"## {name}".lower() in lowered:
+            return True
+    return False
+
+
+def _find_invalid_citation_refs(markdown: str) -> list[int]:
+    refs = {int(m.group(1)) for m in re.finditer(r"\[(\d+)\]", markdown)}
+    citation_lines = {
+        int(m.group(1))
+        for m in re.finditer(r"(?m)^\s*(\d+)\.\s+https?://\S+\s*$", markdown)
+    }
+    invalid = sorted(n for n in refs if n not in citation_lines)
+    return invalid

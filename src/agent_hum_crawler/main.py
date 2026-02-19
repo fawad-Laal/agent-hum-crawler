@@ -303,6 +303,7 @@ def cmd_write_report(args: argparse.Namespace) -> int:
         disaster_types=disaster_types,
         limit_cycles=args.limit_cycles,
         limit_events=args.limit_events,
+        strict_filters=args.strict_filters,
     )
     report = render_long_form_report(
         graph_context=graph_context,
@@ -487,6 +488,12 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--disaster-types", help="Comma-separated disaster type filters")
     report_parser.add_argument("--limit-cycles", type=int, default=20)
     report_parser.add_argument("--limit-events", type=int, default=60)
+    report_parser.add_argument(
+        "--strict-filters",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="When true, do not fallback to cross-filter evidence if selected filters return zero events.",
+    )
     report_parser.add_argument("--title", default="Disaster Intelligence Report")
     report_parser.add_argument("--use-llm", action="store_true", help="Use optional LLM final drafting")
     report_parser.add_argument(

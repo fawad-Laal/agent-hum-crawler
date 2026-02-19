@@ -139,3 +139,100 @@ def test_render_uses_template_section_names(tmp_path: Path) -> None:
     )
     md = render_long_form_report(graph_context=ctx, use_llm=False, template_path=template_path)
     assert "## Source Reliability" in md
+
+
+def test_strict_filters_prevents_cross_filter_fallback(tmp_path: Path) -> None:
+    db_path = tmp_path / "monitoring.db"
+    init_db(db_path)
+    raw_items = [
+        RawSourceItem(
+            connector="government_feeds",
+            source_type="official",
+            url="https://example.org/event-madagascar",
+            title="Sample Madagascar event",
+            published_at="2026-02-18T10:00:00Z",
+            country_candidates=["Madagascar"],
+            text="Sample long text for event.",
+            language="en",
+            content_mode="content-level",
+        )
+    ]
+    events = [
+        ProcessedEvent(
+            event_id="evt-strict-1",
+            status="new",
+            connector="government_feeds",
+            source_type="official",
+            url="https://example.org/event-madagascar",
+            title="Sample Madagascar event",
+            country="Madagascar",
+            disaster_type="cyclone/storm",
+            published_at="2026-02-18T10:00:00Z",
+            severity="high",
+            confidence="high",
+            summary="Sample summary.",
+            corroboration_sources=1,
+            corroboration_connectors=1,
+            corroboration_source_types=1,
+        )
+    ]
+    persist_cycle(raw_items=raw_items, events=events, connector_count=1, summary="ok", path=db_path)
+
+    strict_ctx = build_graph_context(
+        countries=["Mozambique"],
+        disaster_types=["flood"],
+        limit_cycles=3,
+        limit_events=5,
+        path=db_path,
+        strict_filters=True,
+    )
+    relaxed_ctx = build_graph_context(
+        countries=["Mozambique"],
+        disaster_types=["flood"],
+        limit_cycles=3,
+        limit_events=5,
+        path=db_path,
+        strict_filters=False,
+    )
+    assert int(strict_ctx["meta"]["events_selected"]) == 0
+    assert int(relaxed_ctx["meta"]["events_selected"]) >= 1
+
+
+def test_report_quality_fails_on_invalid_citation_ref() -> None:
+    bad_md = (
+        "# Report\n\n"
+        "## Executive Summary\nok\n\n"
+        "## Incident Highlights\n"
+        "1. **Item**\n"
+        "   - Summary: Example.\n"
+        "   - Citation: [9]\n\n"
+        "## Source and Connector Reliability Snapshot\nok\n\n"
+        "## Risk Outlook\nok\n\n"
+        "## Method\nok\n\n"
+        "## Citations\n"
+        "1. https://example.org/a\n"
+    )
+    quality = evaluate_report_quality(report_markdown=bad_md, min_citation_density=0.001)
+    assert quality["status"] == "fail"
+    assert quality["metrics"]["invalid_citation_refs"] == [9]
+
+
+def test_no_evidence_report_passes_quality_gate() -> None:
+    md = render_long_form_report(
+        graph_context={
+            "evidence": [],
+            "meta": {
+                "cycles_analyzed": 5,
+                "events_considered": 100,
+                "events_selected": 0,
+                "filter_countries": ["mozambique"],
+                "filter_disaster_types": ["flood"],
+            },
+        },
+        title="No Evidence Test",
+        use_llm=False,
+    )
+    assert "No evidence found for selected filters and cycles." in md
+    quality = evaluate_report_quality(report_markdown=md, min_citation_density=0.005)
+    assert quality["status"] == "pass"
+    assert quality["metrics"]["no_evidence_mode"] is True
