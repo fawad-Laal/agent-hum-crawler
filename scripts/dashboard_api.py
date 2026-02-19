@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
+E2E_DIR = ROOT / "artifacts" / "e2e"
 
 
 def _json_body(handler: BaseHTTPRequestHandler) -> dict:
@@ -67,6 +68,41 @@ def _list_reports() -> list[dict]:
     return out
 
 
+def _latest_e2e_summary() -> dict:
+    if not E2E_DIR.exists():
+        return {}
+    candidates = sorted([p for p in E2E_DIR.iterdir() if p.is_dir()], reverse=True)
+    for d in candidates:
+        summary = d / "summary.json"
+        if summary.exists():
+            try:
+                payload = json.loads(summary.read_text(encoding="utf-8"))
+                payload["artifact_dir"] = str(d)
+                return payload
+            except json.JSONDecodeError:
+                continue
+    return {}
+
+
+def _quality_trend(window: int = 10) -> list[dict]:
+    out: list[dict] = []
+    for i in range(1, max(window, 1) + 1):
+        q = _run_cli(["quality-report", "--limit", str(i)])
+        if not isinstance(q, dict) or "duplicate_rate_estimate" not in q:
+            continue
+        out.append(
+            {
+                "limit": i,
+                "duplicate_rate_estimate": q.get("duplicate_rate_estimate", 0.0),
+                "traceable_rate": q.get("traceable_rate", 0.0),
+                "llm_enrichment_rate": q.get("llm_enrichment_rate", 0.0),
+                "citation_coverage_rate": q.get("citation_coverage_rate", 0.0),
+                "events_analyzed": q.get("events_analyzed", 0),
+            }
+        )
+    return out
+
+
 def _safe_report_path(name: str) -> Path | None:
     if not name or "/" in name or "\\" in name:
         return None
@@ -110,7 +146,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
             quality = _run_cli(["quality-report", "--limit", "10"])
             source_health = _run_cli(["source-health", "--limit", "10"])
             hardening = _run_cli(["hardening-gate", "--limit", "10"])
-            payload = {"quality": quality, "source_health": source_health, "hardening": hardening}
+            cycles = _run_cli(["show-cycles", "--limit", "20"])
+            e2e_summary = _latest_e2e_summary()
+            quality_trend = _quality_trend(window=10)
+            payload = {
+                "quality": quality,
+                "source_health": source_health,
+                "hardening": hardening,
+                "cycles": cycles if isinstance(cycles, list) else [],
+                "quality_trend": quality_trend,
+                "latest_e2e_summary": e2e_summary,
+            }
             self._send_json(payload)
             return
         if parsed.path == "/api/reports":
@@ -184,4 +230,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

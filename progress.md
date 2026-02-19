@@ -100,6 +100,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - Supports run-cycle, write-report, KPI snapshot, and report preview flows.
 - Added dedicated frontend roadmap:
   - `specs/frontend-roadmap.md` (phased UI plan from baseline dashboard to operator-grade console).
+- Frontend Phase 1 (operator monitoring) started:
+  - trend charts for cycle/LLM and rolling quality rates,
+  - hardening threshold panel (actual vs threshold),
+  - conformance/security snapshot from latest E2E artifacts,
+  - source-health hotspot table (highest failure rates first).
 - Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)

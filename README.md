@@ -258,6 +258,12 @@ Current dashboard features:
 - Generate `write-report` outputs (brief/default/detailed template)
 - View recent report files and markdown preview
 - View KPI snapshot from `quality-report`, `source-health`, `hardening-gate`
+- View Phase 1 monitoring panels:
+  - cycle + LLM trends
+  - rolling quality-rate trends
+  - hardening threshold matrix
+  - conformance/security snapshot from latest E2E artifact
+  - source failure hotspots
 
 ## Tests
 

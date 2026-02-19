@@ -29,7 +29,7 @@ Evidence:
 - `ui/` created and integrated with local API proxy.
 - `scripts/dashboard_api.py` exposes dashboard endpoints.
 
-## Phase 1 - Operator Monitoring (Next)
+## Phase 1 - Operator Monitoring (In Progress)
 Goal:
 Make quality regressions obvious within one screen.
 
@@ -45,6 +45,19 @@ Work items:
 
 Acceptance:
 - Operator can identify top 3 degradations in less than 2 minutes.
+
+Current implementation status:
+- Added trend charts in UI for:
+  - cycle events
+  - LLM enriched/fallback/validation failures
+  - rolling quality rates (duplicate, traceable, LLM enrichment, citation coverage)
+- Added hardening threshold panel (actual vs threshold with check status).
+- Added conformance/security snapshot from latest E2E summary artifacts.
+- Added source-health hotspot table ranked by failure rate.
+- API upgraded to provide:
+  - cycle history (`show-cycles`)
+  - rolling quality trend snapshots
+  - latest E2E summary context
 
 ## Phase 2 - Report Quality Workbench
 Goal:
@@ -124,4 +137,3 @@ Acceptance:
 - Time-to-diagnose quality drop < 2 minutes.
 - Report rework cycles reduced by >30%.
 - Conformance/hardening regressions detected in UI before release gate failures.
-
