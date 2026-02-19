@@ -15,6 +15,7 @@
 - `14-moltis-streaming-tool-registry.md`: streaming event lifecycle, runner/gateway event mapping, and source-aware tool registry controls.
 - `15-llm-intelligence-layer-v1.md`: optional LLM enrichment design for full-text summary, severity/confidence calibration, citation-locked outputs, and deterministic fallback.
 - `16-phase-c-skill-branch-sop.md`: Phase C governance policy for skill lifecycle safety and incident session branching workflow.
+- `frontend-roadmap.md`: phased plan for the React operator dashboard (monitoring, report quality workbench, and agent improvement console).
 
 ## Source Inputs
 - `docs/research/03-personal-assistant-scope.md`

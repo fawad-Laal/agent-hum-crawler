@@ -98,6 +98,8 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - API bridge: `scripts/dashboard_api.py`
   - React dashboard scaffold: `ui/` (Vite + React)
   - Supports run-cycle, write-report, KPI snapshot, and report preview flows.
+- Added dedicated frontend roadmap:
+  - `specs/frontend-roadmap.md` (phased UI plan from baseline dashboard to operator-grade console).
 - Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
