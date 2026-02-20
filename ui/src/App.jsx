@@ -19,6 +19,7 @@ const defaultForm = {
   sa_period: "",
   sa_template: "config/report_template.situation_analysis.json",
   sa_limit_events: 80,
+  sa_quality_gate: false,
   // Pipeline fields
   pipeline_report_title: "Disaster Intelligence Report",
   pipeline_sa_title: "Situation Analysis",
@@ -459,6 +460,7 @@ export default function App() {
           limit_events: form.sa_limit_events,
           max_age_days: form.max_age_days,
           use_llm: form.use_llm,
+          quality_gate: form.sa_quality_gate,
         }),
       });
       const data = await r.json();
@@ -919,6 +921,14 @@ export default function App() {
                     </select>
                   </label>
                 </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={form.sa_quality_gate}
+                    onChange={(e) => setForm((s) => ({ ...s, sa_quality_gate: e.target.checked }))}
+                  />
+                  Enable SA Quality Gate
+                </label>
               </div>
             </details>
 
@@ -1199,6 +1209,45 @@ export default function App() {
           )}
         </article>
       </section>
+
+      {/* ── Source Credibility Distribution ──────────────────────── */}
+      {overview?.credibility_distribution && Object.keys(overview.credibility_distribution).length > 1 && (
+        <section className="grid">
+          <article className="card">
+            <h2>Source Credibility Distribution</h2>
+            <div className="credibility-meta">
+              From: <span className="chip">{overview.credibility_distribution.source || "N/A"}</span>
+            </div>
+            <div className="credibility-bars">
+              {[
+                { key: "tier_1", label: "Tier 1 — UN/OCHA", color: "#1ec97e" },
+                { key: "tier_2", label: "Tier 2 — NGO/Gov", color: "#63b3ff" },
+                { key: "tier_3", label: "Tier 3 — News", color: "#f4c542" },
+                { key: "tier_4", label: "Tier 4 — Other", color: "#ff6565" },
+              ].map(({ key, label, color }) => {
+                const count = Number(overview.credibility_distribution[key] || 0);
+                const total = [1, 2, 3, 4].reduce(
+                  (sum, t) => sum + Number(overview.credibility_distribution[`tier_${t}`] || 0),
+                  0
+                );
+                const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+                return (
+                  <div key={key} className="credibility-bar-row">
+                    <div className="credibility-bar-label">{label}</div>
+                    <div className="credibility-bar-track">
+                      <div
+                        className="credibility-bar-fill"
+                        style={{ width: `${pct}%`, background: color }}
+                      />
+                    </div>
+                    <div className="credibility-bar-value">{count} ({pct}%)</div>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        </section>
+      )}
 
       {/* ── Action Output (unified — replaces both "Last Action Output" */}
       {/*    and separate "Pipeline Output" cards) ─────────────────────── */}
@@ -1672,6 +1721,48 @@ export default function App() {
           <article className="card">
             <h2>Situation Analysis</h2>
             <div className="timing-line">{saOutput.output_file || ""}</div>
+
+            {/* SA Quality Gate scores (when available) */}
+            {saOutput?.quality_gate && Object.keys(saOutput.quality_gate).length > 0 && (
+              <div className="sa-quality-gate">
+                <h3>
+                  Quality Gate:{" "}
+                  <span className={saOutput.quality_gate.passed ? "status-pass" : "status-fail"}>
+                    {saOutput.quality_gate.passed ? "PASS" : "FAIL"}
+                  </span>
+                  <span className="quality-score">
+                    {" "}({fmtNumber(saOutput.quality_gate.overall_score, 3)})
+                  </span>
+                </h3>
+                <div className="quality-dims">
+                  {[
+                    { key: "section_completeness", label: "Section Completeness" },
+                    { key: "key_figure_coverage", label: "Key Figure Coverage" },
+                    { key: "citation_accuracy", label: "Citation Accuracy" },
+                    { key: "citation_density", label: "Citation Density" },
+                    { key: "admin_coverage", label: "Admin Coverage" },
+                    { key: "date_attribution", label: "Date Attribution" },
+                  ].map(({ key, label }) => {
+                    const score = Number(saOutput.quality_gate[key] || 0);
+                    const pct = (score * 100).toFixed(0);
+                    const tone = score >= 0.7 ? "#1ec97e" : score >= 0.4 ? "#f4c542" : "#ff6565";
+                    return (
+                      <div key={key} className="quality-dim-row">
+                        <div className="quality-dim-label">{label}</div>
+                        <div className="credibility-bar-track">
+                          <div
+                            className="credibility-bar-fill"
+                            style={{ width: `${pct}%`, background: tone }}
+                          />
+                        </div>
+                        <div className="quality-dim-value">{fmtNumber(score, 2)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <pre style={{ whiteSpace: "pre-wrap", maxHeight: "60vh", overflow: "auto" }}>
               {saOutput.markdown}
             </pre>

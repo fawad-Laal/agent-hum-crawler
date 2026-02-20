@@ -237,6 +237,12 @@ Active roadmap: `docs/roadmap/project-clarity-roadmap.md`
    - ✅ SA quality gate (`sa_quality_gate.py` — 6-dimension scoring: section completeness, key figure coverage, citation accuracy/density, admin coverage, date attribution; configurable thresholds).
    - ✅ Agent abstraction layer (`agents.py` — `Agent` base class with retry/validate/fallback lifecycle; `EnrichmentAgent`, `SANarrativeAgent`, `GazetteerAgent`, `BatchEnrichmentAgent`, `ReportNarrativeAgent`).
    - ✅ Provider abstraction (`llm_provider.py` — `LLMProvider` ABC, `OpenAIResponsesProvider` implementation, `get_provider()` singleton with `LLM_PROVIDER` env selection, `register_provider()` extension point).
+   - ✅ Dashboard UI update for Phase 3 features:
+     - Source Credibility Distribution panel with tier 1-4 horizontal bar chart (overview API via `credibility_distribution`).
+     - SA Quality Gate scores panel (6-dimension bar visualization after SA generation).
+     - Quality Gate toggle checkbox in SA Parameters form.
+     - `--quality-gate` CLI flag wired through `write_situation_analysis()` → `render_situation_analysis()`.
+     - New CSS: `.credibility-bars`, `.sa-quality-gate`, `.quality-dims` layouts.
 4. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 5. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 6. Continue frontend roadmap execution (archived: `docs/roadmap/archive/frontend-roadmap.md`).

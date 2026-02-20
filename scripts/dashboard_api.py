@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 from agent_hum_crawler.feature_flags import load_feature_flags
 from agent_hum_crawler.config import ALLOWED_DISASTER_TYPES
+from agent_hum_crawler.source_credibility import tier_label
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,26 @@ REPORTS_DIR = ROOT / "reports"
 E2E_DIR = ROOT / "artifacts" / "e2e"
 PROFILE_FILE = ROOT / "config" / "dashboard_workbench_profiles.json"
 COUNTRY_SOURCES_FILE = ROOT / "config" / "country_sources.json"
+
+
+def _latest_credibility_distribution() -> dict:
+    """Parse the most recent report for by_credibility_tier data."""
+    candidates = sorted(REPORTS_DIR.glob("report-*.md"), reverse=True)
+    for f in candidates[:5]:
+        try:
+            text = f.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        dist: dict[str, int] = {}
+        for tier_num in range(1, 5):
+            label = tier_label(tier_num)
+            pattern = rf"\b{re.escape(label)}\b.*?(\d+)"
+            m = re.search(pattern, text, re.IGNORECASE)
+            if m:
+                dist[f"tier_{tier_num}"] = int(m.group(1))
+        if dist:
+            return {"source": f.name, **dist}
+    return {}
 
 
 def _json_body(handler: BaseHTTPRequestHandler) -> dict:
@@ -411,6 +432,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             cycles = _run_cli(["show-cycles", "--limit", "20"])
             e2e_summary = _latest_e2e_summary()
             quality_trend = _quality_trend(window=10)
+            credibility = _latest_credibility_distribution()
             payload = {
                 "quality": quality,
                 "source_health": source_health,
@@ -419,6 +441,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "quality_trend": quality_trend,
                 "latest_e2e_summary": e2e_summary,
                 "feature_flags": flags,
+                "credibility_distribution": credibility,
             }
             self._send_json(payload)
             return
@@ -625,6 +648,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 cmd.extend(["--max-age-days", str(int(max_age))])
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
+            if bool(body.get("quality_gate", False)):
+                cmd.append("--quality-gate")
             payload = _run_cli(cmd)
             markdown = ""
             if out_path.exists():

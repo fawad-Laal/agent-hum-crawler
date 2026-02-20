@@ -1366,6 +1366,7 @@ def write_situation_analysis(
     max_age_days: int | None = None,
     output_path: Path | None = None,
     path: Path | None = None,
+    quality_gate: bool = False,
 ) -> dict[str, Any]:
     """Top-level function: gather evidence → build ontology → render SA.
 
@@ -1390,6 +1391,7 @@ def write_situation_analysis(
         admin_hierarchy=admin_hierarchy,
         template_path=template_path,
         use_llm=use_llm,
+        quality_gate=quality_gate,
     )
 
     out_path = write_report_file(
@@ -1397,10 +1399,31 @@ def write_situation_analysis(
         output_path=output_path,
     )
 
+    # ── Parse quality gate scores from rendered markdown (if enabled) ──
+    sa_quality: dict[str, Any] = {}
+    if quality_gate:
+        try:
+            from .sa_quality_gate import score_situation_analysis as _score_sa
+            qa = _score_sa(report_md)
+            sa_quality = {
+                "overall_score": qa.overall_score,
+                "passed": qa.passed,
+                "section_completeness": qa.section_completeness,
+                "key_figure_coverage": qa.key_figure_coverage,
+                "citation_accuracy": qa.citation_accuracy,
+                "citation_density": qa.citation_density,
+                "admin_coverage": qa.admin_coverage,
+                "date_attribution": qa.date_attribution,
+                "details": qa.details,
+            }
+        except Exception:
+            pass
+
     return {
         "status": "ok",
         "report_path": str(out_path),
         "meta": graph_context.get("meta", {}),
         "llm_used": use_llm,
         "report_type": "situation_analysis",
+        "quality_gate": sa_quality,
     }

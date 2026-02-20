@@ -400,6 +400,7 @@ def cmd_write_situation_analysis(args: argparse.Namespace) -> int:
         limit_events=args.limit_events,
         max_age_days=args.max_age_days,
         output_path=Path(args.output) if args.output else None,
+        quality_gate=getattr(args, "quality_gate", False),
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
@@ -690,6 +691,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_parser.add_argument("--limit-events", type=int, default=80)
     sa_parser.add_argument("--max-age-days", type=int, help="Only include events published within N days")
     sa_parser.add_argument("--output", help="Write markdown report to this path")
+    sa_parser.add_argument("--quality-gate", action="store_true", help="Run SA quality gate scoring")
     sa_parser.set_defaults(func=cmd_write_situation_analysis)
 
     # ── run-pipeline (coordinated report + SA) ───────────────────────

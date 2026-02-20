@@ -569,3 +569,80 @@ button.pipeline-btn {
     flex-wrap: wrap;
   }
 }
+
+/* ── Source Credibility Distribution ─────────────────────────── */
+
+.credibility-meta {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.credibility-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.credibility-bar-row,
+.quality-dim-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 80px;
+  align-items: center;
+  gap: 8px;
+}
+
+.credibility-bar-label,
+.quality-dim-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.credibility-bar-track {
+  height: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.credibility-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+
+.credibility-bar-value,
+.quality-dim-value {
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── SA Quality Gate ────────────────────────────────────────── */
+
+.sa-quality-gate {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sa-quality-gate h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.quality-score {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.quality-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
