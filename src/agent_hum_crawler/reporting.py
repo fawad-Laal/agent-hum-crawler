@@ -7,14 +7,17 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from sqlmodel import Session, select
 
+from .config import normalize_disaster_types
 from .database import EventRecord, RawItemRecord, build_engine, get_recent_cycles
 from .settings import get_openai_api_key, get_openai_model
+from .time_utils import parse_published_datetime
 
 
 @dataclass
@@ -29,10 +32,12 @@ class ReportEvidence:
     confidence: str
     summary: str
     url: str
+    canonical_url: str | None
     published_at: str | None
     text: str
     corroboration_sources: int
     graph_score: float
+    source_label: str
 
 
 def default_report_template() -> dict[str, Any]:
@@ -83,11 +88,15 @@ def build_graph_context(
     disaster_types: list[str] | None = None,
     limit_cycles: int = 20,
     limit_events: int = 60,
+    max_age_days: int | None = None,
     path: Path | None = None,
     strict_filters: bool = True,
+    country_min_events: int = 0,
+    max_per_connector: int = 0,
+    max_per_source: int = 0,
 ) -> dict[str, Any]:
     countries = [c.strip().lower() for c in (countries or []) if c.strip()]
-    disaster_types = [d.strip().lower() for d in (disaster_types or []) if d.strip()]
+    disaster_types = normalize_disaster_types(disaster_types or [], strict=False)
 
     cycles = get_recent_cycles(limit=limit_cycles, path=path)
     if not cycles:
@@ -124,6 +133,10 @@ def build_graph_context(
     for e in events:
         country_l = e.country.lower()
         disaster_l = e.disaster_type.lower()
+        if max_age_days:
+            published_dt = parse_published_datetime(e.published_at)
+            if published_dt and published_dt <= datetime.now(UTC) - timedelta(days=max_age_days):
+                continue
         if countries and country_l not in countries:
             continue
         if disaster_types and disaster_l not in disaster_types:
@@ -144,6 +157,10 @@ def build_graph_context(
             + facet_disaster[disaster_l]
             + 0.5 * facet_connector[e.connector.lower()]
         )
+        graph_score *= _connector_weight(
+            connector=e.connector,
+            disaster_types=disaster_types,
+        )
         evidence.append(
             ReportEvidence(
                 event_id=e.event_id,
@@ -156,10 +173,12 @@ def build_graph_context(
                 confidence=e.confidence,
                 summary=e.summary,
                 url=e.url,
+                canonical_url=e.canonical_url,
                 published_at=e.published_at,
                 text=text,
                 corroboration_sources=int(e.corroboration_sources),
                 graph_score=round(graph_score, 3),
+                source_label=_source_label_from_title(e.title),
             )
         )
 
@@ -178,15 +197,24 @@ def build_graph_context(
                     confidence=e.confidence,
                     summary=e.summary,
                     url=e.url,
+                    canonical_url=e.canonical_url,
                     published_at=e.published_at,
                     text="",
                     corroboration_sources=int(e.corroboration_sources),
                     graph_score=float(e.corroboration_sources),
+                    source_label=_source_label_from_title(e.title),
                 )
             )
 
     evidence.sort(key=lambda x: (x.graph_score, x.severity, x.published_at or ""), reverse=True)
-    evidence = evidence[:limit_events]
+    evidence = _select_balanced_evidence(
+        evidence=evidence,
+        limit_events=limit_events,
+        countries=countries,
+        country_min_events=max(0, int(country_min_events or 0)),
+        max_per_connector=max(0, int(max_per_connector or 0)),
+        max_per_source=max(0, int(max_per_source or 0)),
+    )
 
     by_country = Counter(e.country for e in evidence)
     by_disaster = Counter(e.disaster_type for e in evidence)
@@ -200,6 +228,9 @@ def build_graph_context(
             "events_considered": len(events),
             "events_selected": len(evidence),
             "strict_filters": strict_filters,
+            "country_min_events": int(country_min_events or 0),
+            "max_per_connector": int(max_per_connector or 0),
+            "max_per_source": int(max_per_source or 0),
             "filter_countries": countries,
             "filter_disaster_types": disaster_types,
             "by_country": dict(by_country),
@@ -288,6 +319,11 @@ def evaluate_report_quality(
     urls = re.findall(r"https?://[^\s)]+", text)
     citation_density = len(urls) / max(1, words)
     no_evidence_mode = "No evidence found for selected filters and cycles." in text
+    incident_blocks = len(re.findall(r"(?m)^\s*\d+\.\s+\*\*.+\*\*", text))
+    effective_min_citation_density = min(
+        min_citation_density,
+        _adaptive_min_citation_density(min_citation_density, incident_blocks),
+    )
 
     missing_sections = [s for s in required_sections if not _has_required_section(text, s, section_aliases)]
 
@@ -295,10 +331,10 @@ def evaluate_report_quality(
     invalid_citation_refs = _find_invalid_citation_refs(text)
     status = "pass"
     reasons: list[str] = []
-    if not no_evidence_mode and citation_density < min_citation_density:
+    if not no_evidence_mode and citation_density < effective_min_citation_density:
         status = "fail"
         reasons.append(
-            f"citation_density {citation_density:.4f} below threshold {min_citation_density:.4f}"
+            f"citation_density {citation_density:.4f} below threshold {effective_min_citation_density:.4f}"
         )
     if missing_sections:
         status = "fail"
@@ -318,12 +354,29 @@ def evaluate_report_quality(
             "url_count": len(urls),
             "citation_density": round(citation_density, 6),
             "min_citation_density": min_citation_density,
+            "effective_min_citation_density": round(effective_min_citation_density, 6),
+            "incident_blocks_detected": incident_blocks,
             "missing_sections": missing_sections,
             "unsupported_incident_blocks": unsupported_blocks,
             "invalid_citation_refs": invalid_citation_refs,
             "no_evidence_mode": no_evidence_mode,
         },
     }
+
+
+def _adaptive_min_citation_density(base_min_citation_density: float, incident_blocks: int) -> float:
+    """Relax citation-density floor for very low-incident windows.
+
+    This preserves strictness for normal reports while avoiding false fails
+    when a filter-matched window has only 1-2 incidents.
+    """
+    if incident_blocks <= 0:
+        return base_min_citation_density
+    if incident_blocks == 1:
+        return min(base_min_citation_density, 0.002)
+    if incident_blocks == 2:
+        return min(base_min_citation_density, 0.004)
+    return base_min_citation_density
 
 
 def write_report_file(
@@ -391,7 +444,7 @@ def _render_with_llm_sections(
     )
     evidence_rows = []
     for ev in graph_context.get("evidence", []) or []:
-        ev_url = str(ev.get("url", ""))
+        ev_url = str(ev.get("canonical_url") or ev.get("url", ""))
         evidence_rows.append(
             {
                 "title": ev.get("title"),
@@ -400,6 +453,8 @@ def _render_with_llm_sections(
                 "severity": ev.get("severity"),
                 "confidence": ev.get("confidence"),
                 "summary": ev.get("summary"),
+                "url": ev.get("url"),
+                "canonical_url": ev.get("canonical_url"),
                 "citation_number": citation_numbers.get(ev_url),
             }
         )
@@ -573,7 +628,11 @@ def _render_report_template(
                 str(ev.get("summary", "")),
                 int(limits.get("incident_summary_max_words", 80)),
             )
-            citation_ref = _citation_ref(citation_numbers, str(ev.get("url", "")))
+            citation_ref = _citation_ref(
+                citation_numbers,
+                str(ev.get("canonical_url", "") or ""),
+                str(ev.get("url", "")),
+            )
             lines.append(
                 f"{i}. **{ev.get('title')}** "
                 f"({ev.get('country')} | {ev.get('disaster_type')} | "
@@ -683,7 +742,7 @@ def _render_no_evidence_report(
 def _build_citation_numbers(evidence: list[dict[str, Any]]) -> dict[str, int]:
     citations: dict[str, int] = {}
     for ev in evidence:
-        url = str(ev.get("url", "")).strip()
+        url = str(ev.get("canonical_url") or ev.get("url", "")).strip()
         if not url:
             continue
         if url not in citations:
@@ -691,19 +750,112 @@ def _build_citation_numbers(evidence: list[dict[str, Any]]) -> dict[str, int]:
     return citations
 
 
-def _citation_ref(citation_numbers: dict[str, int], url: str) -> str:
-    n = citation_numbers.get(url)
+def _citation_ref(citation_numbers: dict[str, int], canonical_url: str | None, url: str) -> str:
+    n = citation_numbers.get(canonical_url or url)
     return f"[{n}]" if n else "[unavailable]"
 
 
 def _domain_counter(evidence: list[dict[str, Any]]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for ev in evidence:
-        raw_url = str(ev.get("url", "")).strip()
+        raw_url = str(ev.get("canonical_url") or ev.get("url", "")).strip()
         host = urlparse(raw_url).netloc.lower()
         if host:
             counts[host] += 1
     return dict(counts)
+
+
+def _source_label_from_title(title: str) -> str:
+    m = re.match(r"^\[(.+?)\]\s+", title or "")
+    if m:
+        return m.group(1).strip()
+    return "unknown"
+
+
+def _connector_weight(*, connector: str, disaster_types: list[str]) -> float:
+    base = {
+        "reliefweb": 1.35,
+        "un_humanitarian_feeds": 1.30,
+        "government_feeds": 1.15,
+        "ngo_feeds": 1.10,
+        "local_news_feeds": 0.95,
+    }.get((connector or "").lower(), 1.0)
+    humanitarian_focus = any(
+        d in {"conflict emergency", "cyclone/storm", "flood", "landslide", "heatwave", "wildfire"}
+        for d in disaster_types
+    )
+    if humanitarian_focus and (connector or "").lower() in {"reliefweb", "un_humanitarian_feeds"}:
+        return base + 0.1
+    return base
+
+
+def _select_balanced_evidence(
+    *,
+    evidence: list[ReportEvidence],
+    limit_events: int,
+    countries: list[str],
+    country_min_events: int,
+    max_per_connector: int,
+    max_per_source: int,
+) -> list[ReportEvidence]:
+    if not evidence:
+        return []
+
+    by_id = {e.event_id: e for e in evidence}
+    selected: list[ReportEvidence] = []
+    used: set[str] = set()
+    connector_counts: Counter[str] = Counter()
+    source_counts: Counter[str] = Counter()
+    country_counts: Counter[str] = Counter()
+
+    def source_key(ev: ReportEvidence) -> str:
+        if ev.source_label and ev.source_label.lower() != "unknown":
+            return ev.source_label
+        return urlparse(ev.canonical_url or ev.url).netloc.lower() or "unknown"
+
+    def can_take(ev: ReportEvidence) -> bool:
+        if max_per_connector > 0 and connector_counts[ev.connector] >= max_per_connector:
+            return False
+        if max_per_source > 0 and source_counts[source_key(ev)] >= max_per_source:
+            return False
+        return True
+
+    def take(ev: ReportEvidence) -> None:
+        selected.append(ev)
+        used.add(ev.event_id)
+        connector_counts[ev.connector] += 1
+        source_counts[source_key(ev)] += 1
+        country_counts[ev.country.lower()] += 1
+
+    if country_min_events > 0 and countries:
+        for country in countries:
+            needed = country_min_events
+            for ev in evidence:
+                if len(selected) >= limit_events:
+                    break
+                if ev.event_id in used:
+                    continue
+                if ev.country.lower() != country:
+                    continue
+                if not can_take(ev):
+                    continue
+                take(ev)
+                needed -= 1
+                if needed <= 0:
+                    break
+
+    for ev in evidence:
+        if len(selected) >= limit_events:
+            break
+        if ev.event_id in used:
+            continue
+        if not can_take(ev):
+            continue
+        take(ev)
+
+    # Stable order by score after constrained selection.
+    selected.sort(key=lambda x: (x.graph_score, x.severity, x.published_at or ""), reverse=True)
+    return selected
 
 
 def _diversity_hhi(domain_counts: dict[str, int]) -> float:

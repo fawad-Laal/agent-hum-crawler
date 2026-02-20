@@ -22,7 +22,9 @@ def _default_registry() -> SourceRegistry:
     return SourceRegistry(
         government=[
             FeedSource("USGS Earthquakes", "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom"),
-            FeedSource("GDACS", "https://www.gdacs.org/xml/rss.xml"),
+            FeedSource("GDACS All 7d", "https://www.gdacs.org/xml/rss_7d.xml"),
+            FeedSource("GDACS Floods 7d", "https://www.gdacs.org/xml/rss_fl_7d.xml"),
+            FeedSource("GDACS Cyclones 7d", "https://www.gdacs.org/xml/rss_tc_7d.xml"),
         ],
         un=[
             FeedSource("UN News Climate", "https://news.un.org/feed/subscribe/en/news/topic/climate-change/feed/rss.xml"),
@@ -31,7 +33,11 @@ def _default_registry() -> SourceRegistry:
                 "https://news.un.org/feed/subscribe/en/news/topic/humanitarian-aid/feed/rss.xml",
             ),
         ],
-        ngo=[FeedSource("CARE News", "https://www.care.org/feed/")],
+        ngo=[
+            FeedSource("CARE News", "https://www.care.org/feed/"),
+            FeedSource("FEWS NET Analysis Note", "https://fews.net/taxonomy/term/652/feed"),
+            FeedSource("FEWS NET Weather and Agriculture Outlook", "https://fews.net/taxonomy/term/638/feed"),
+        ],
         local_news=[
             FeedSource("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
             FeedSource("Al Jazeera English", "https://www.aljazeera.com/xml/rss/all.xml"),
@@ -43,6 +49,8 @@ def _default_registry() -> SourceRegistry:
                 "Reuters World",
                 "https://news.google.com/rss/search?q=site:reuters.com+world&hl=en-US&gl=US&ceid=US:en",
             ),
+            FeedSource("NYT World", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"),
+            FeedSource("NPR World", "https://feeds.npr.org/1004/rss.xml"),
         ],
     )
 

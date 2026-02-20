@@ -15,6 +15,8 @@ from pathlib import Path
 import re
 from urllib.parse import urlparse
 
+from agent_hum_crawler.feature_flags import load_feature_flags
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
@@ -30,6 +32,24 @@ def _json_body(handler: BaseHTTPRequestHandler) -> dict:
     if not raw.strip():
         return {}
     return json.loads(raw)
+
+
+def _parse_json_payload(text: str) -> tuple[dict | list | None, str]:
+    """Parse JSON even when CLI prepends warning lines before payload."""
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(text):
+        if ch not in "{[":
+            continue
+        try:
+            payload, end = decoder.raw_decode(text[i:])
+        except json.JSONDecodeError:
+            continue
+        trailing = text[i + end :].strip()
+        if trailing:
+            continue
+        leading = text[:i].strip()
+        return payload, leading
+    return None, text.strip()
 
 
 def _run_cli(args: list[str]) -> dict:
@@ -48,10 +68,14 @@ def _run_cli(args: list[str]) -> dict:
             "stdout": proc.stdout,
             "stderr": proc.stderr,
         }
-    try:
-        return json.loads(proc.stdout)
-    except json.JSONDecodeError:
+    payload, leading = _parse_json_payload(proc.stdout)
+    if payload is None:
         return {"status": "error", "command": args, "stdout": proc.stdout, "stderr": proc.stderr}
+    if isinstance(payload, dict) and leading:
+        warnings = [line.strip() for line in leading.splitlines() if line.strip()]
+        if warnings:
+            payload["warnings"] = warnings
+    return payload
 
 
 def _list_reports() -> list[dict]:
@@ -119,12 +143,17 @@ def _safe_report_path(name: str) -> Path | None:
 
 
 def _default_workbench_profile() -> dict:
+    flags = load_feature_flags()
     return {
         "countries": "Madagascar,Mozambique",
         "disaster_types": "cyclone/storm,flood",
+        "max_age_days": int(flags.get("max_item_age_days_default", 30) or 30),
         "limit_cycles": 20,
         "limit_events": 30,
         "report_template": "config/report_template.brief.json",
+        "country_min_events": 1,
+        "max_per_connector": 8,
+        "max_per_source": 4,
     }
 
 
@@ -141,8 +170,25 @@ def _normalize_profile(payload: dict | None) -> dict:
         base["limit_events"] = int(src.get("limit_events", base["limit_events"]))
     except Exception:
         pass
+    try:
+        base["max_age_days"] = int(src.get("max_age_days", base["max_age_days"]))
+    except Exception:
+        pass
     base["limit_cycles"] = max(1, min(base["limit_cycles"], 200))
     base["limit_events"] = max(1, min(base["limit_events"], 500))
+    base["max_age_days"] = max(1, min(int(base["max_age_days"]), 3650))
+    try:
+        base["country_min_events"] = max(0, int(src.get("country_min_events", base.get("country_min_events", 1))))
+    except Exception:
+        base["country_min_events"] = 1
+    try:
+        base["max_per_connector"] = max(0, int(src.get("max_per_connector", base.get("max_per_connector", 8))))
+    except Exception:
+        base["max_per_connector"] = 8
+    try:
+        base["max_per_source"] = max(0, int(src.get("max_per_source", base.get("max_per_source", 4))))
+    except Exception:
+        base["max_per_source"] = 4
     template = str(src.get("report_template", base["report_template"]))
     if template.startswith("config/") and template.endswith(".json"):
         base["report_template"] = template
@@ -208,6 +254,10 @@ def _build_workbench_report(
     disaster_types: str,
     limit_cycles: int,
     limit_events: int,
+    max_age_days: int,
+    country_min_events: int,
+    max_per_connector: int,
+    max_per_source: int,
     template_path: str,
     use_llm: bool,
 ) -> dict:
@@ -230,6 +280,14 @@ def _build_workbench_report(
         str(limit_cycles),
         "--limit-events",
         str(limit_events),
+        "--max-age-days",
+        str(max_age_days),
+        "--country-min-events",
+        str(country_min_events),
+        "--max-per-connector",
+        str(max_per_connector),
+        "--max-per-source",
+        str(max_per_source),
         "--report-template",
         template_path,
         "--output",
@@ -251,6 +309,10 @@ def _run_workbench(profile: dict) -> dict:
     disaster_types = profile["disaster_types"]
     limit_cycles = profile["limit_cycles"]
     limit_events = profile["limit_events"]
+    max_age_days = profile["max_age_days"]
+    country_min_events = profile["country_min_events"]
+    max_per_connector = profile["max_per_connector"]
+    max_per_source = profile["max_per_source"]
     template_path = profile["report_template"]
 
     tpl = _load_template(ROOT / template_path)
@@ -269,6 +331,10 @@ def _run_workbench(profile: dict) -> dict:
         disaster_types=disaster_types,
         limit_cycles=limit_cycles,
         limit_events=limit_events,
+        max_age_days=max_age_days,
+        country_min_events=country_min_events,
+        max_per_connector=max_per_connector,
+        max_per_source=max_per_source,
         template_path=template_path,
         use_llm=False,
     )
@@ -277,6 +343,10 @@ def _run_workbench(profile: dict) -> dict:
         disaster_types=disaster_types,
         limit_cycles=limit_cycles,
         limit_events=limit_events,
+        max_age_days=max_age_days,
+        country_min_events=country_min_events,
+        max_per_connector=max_per_connector,
+        max_per_source=max_per_source,
         template_path=template_path,
         use_llm=True,
     )
@@ -332,6 +402,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
         if parsed.path == "/api/overview":
+            flags = load_feature_flags()
             quality = _run_cli(["quality-report", "--limit", "10"])
             source_health = _run_cli(["source-health", "--limit", "10"])
             hardening = _run_cli(["hardening-gate", "--limit", "10"])
@@ -345,6 +416,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "cycles": cycles if isinstance(cycles, list) else [],
                 "quality_trend": quality_trend,
                 "latest_e2e_summary": e2e_summary,
+                "feature_flags": flags,
             }
             self._send_json(payload)
             return
@@ -376,6 +448,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 str(body.get("disaster_types", "cyclone/storm,flood")),
                 "--limit",
                 str(int(body.get("limit", 10))),
+                "--max-age-days",
+                str(int(body.get("max_age_days", 30))),
                 "--include-content",
             ]
             self._send_json(_run_cli(cmd))
@@ -392,12 +466,39 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 str(int(body.get("limit_cycles", 20))),
                 "--limit-events",
                 str(int(body.get("limit_events", 30))),
+                "--max-age-days",
+                str(int(body.get("max_age_days", 30))),
+                "--country-min-events",
+                str(int(body.get("country_min_events", 1))),
+                "--max-per-connector",
+                str(int(body.get("max_per_connector", 8))),
+                "--max-per-source",
+                str(int(body.get("max_per_source", 4))),
                 "--report-template",
                 str(body.get("report_template", "config/report_template.brief.json")),
                 "--enforce-report-quality",
             ]
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
+            self._send_json(_run_cli(cmd))
+            return
+        if parsed.path == "/api/source-check":
+            flags = load_feature_flags()
+            if not bool(flags.get("source_check_endpoint_enabled", True)):
+                self._send_json({"status": "error", "error": "source-check endpoint disabled by feature flag"}, status=403)
+                return
+            body = _json_body(self)
+            cmd = [
+                "source-check",
+                "--countries",
+                str(body.get("countries", "Madagascar,Mozambique")),
+                "--disaster-types",
+                str(body.get("disaster_types", "cyclone/storm,flood")),
+                "--limit",
+                str(int(body.get("limit", 20))),
+                "--max-age-days",
+                str(int(body.get("max_age_days", 30))),
+            ]
             self._send_json(_run_cli(cmd))
             return
         if parsed.path == "/api/report-workbench":

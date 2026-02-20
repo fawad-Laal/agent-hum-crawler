@@ -36,6 +36,15 @@ def test_invalid_disaster_type() -> None:
         assert "Invalid disaster type" in str(exc)
 
 
+def test_disaster_type_aliases_are_normalized() -> None:
+    cfg = RuntimeConfig(
+        countries=["Mozambique"],
+        disaster_types=["Floods", "Cyclones", "Heat Waves"],
+        check_interval_minutes=30,
+    )
+    assert cfg.disaster_types == ["flood", "cyclone/storm", "heatwave"]
+
+
 def test_missing_country() -> None:
     try:
         RuntimeConfig(

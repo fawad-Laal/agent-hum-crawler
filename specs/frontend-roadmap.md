@@ -1,7 +1,7 @@
 # Frontend Roadmap - Agent HUM Crawler Dashboard
 
-Date: 2026-02-19  
-Status: Active
+Date: 2026-02-20  
+Status: Active (Phase 2 advanced, Phase 3 started)
 
 ## Purpose
 Define a focused frontend roadmap for the custom operator interface that monitors crawler quality, report quality, and agent behavior improvements.
@@ -99,6 +99,27 @@ Current implementation status:
     - `POST /api/workbench-profiles/save`
     - `POST /api/workbench-profiles/delete`
     - `POST /api/report-workbench/rerun-last`
+- Added operator feedback and input robustness refinements:
+  - explicit last-action status indicator (success/fail) above raw output payload,
+  - clearer in-flight action labels for run/report buttons,
+  - disaster-type alias normalization support in backend path used by UI (`Floods`, `Cyclones`, etc.).
+- Added explicit data recency + source audit controls:
+  - `max_age_days` control wired to cycle and report runs (filters stale items/events),
+  - one-click `Source Check` action in UI and API (`POST /api/source-check`),
+  - per-source verification table (connector, status, fetched, matched, working).
+- Added centralized runtime flag visibility:
+  - `feature_flags` now exposed in dashboard overview,
+  - UI `Feature Flags` panel for operator awareness of active toggles.
+- Added explainability + freshness diagnostics in Per-Source Check:
+  - freshness status badge (`fresh` / `stale` / `unknown`) with age-in-days,
+  - stale action visibility (`warn` / `demote`) from backend stale-policy state,
+  - match-reason diagnostics per source (`country_miss`, `hazard_miss`, `age_filtered`),
+  - source-check summary now includes stale/demoted source counts.
+- Added retrieval tuning controls for report relevance:
+  - `Country Min Events` (cross-country balance floor),
+  - `Max / Connector` cap,
+  - `Max / Source` cap,
+  - wired through dashboard API into write-report and workbench compare runs.
 
 ## Phase 3 - Agent Improvement Console
 Goal:
@@ -121,6 +142,15 @@ Work items:
 
 Acceptance:
 - UI can explain why quality dropped and what to tune next.
+
+Current implementation status:
+- Started per-source explainability and operational diagnostics:
+  - source freshness badges (`fresh` / `stale` / `unknown`),
+  - stale action surfacing (`warn` / `demote`),
+  - match-reason diagnostics (`country_miss`, `hazard_miss`, `age_filtered`).
+- Added retrieval tuning controls for better report relevance:
+  - country-balance floor (`Country Min Events`),
+  - max-per-connector and max-per-source caps in report/workbench flows.
 
 ## Phase 4 - Multi-Session Operations
 Goal:

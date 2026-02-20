@@ -18,6 +18,7 @@ class RawSourceItem(BaseModel):
     connector: str
     source_type: Literal["official", "humanitarian", "news", "social"]
     url: HttpUrl
+    canonical_url: HttpUrl | None = None
     title: str
     published_at: str | None = None
     country_candidates: List[str] = Field(default_factory=list)
@@ -47,6 +48,7 @@ class ProcessedEvent(BaseModel):
     connector: str
     source_type: Literal["official", "humanitarian", "news", "social"]
     url: HttpUrl
+    canonical_url: HttpUrl | None = None
     title: str
     country: str
     disaster_type: str

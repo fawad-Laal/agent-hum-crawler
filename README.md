@@ -36,6 +36,7 @@ ReliefWeb appname request: https://apidoc.reliefweb.int/parameters#appname
 If approval is pending, set `RELIEFWEB_ENABLED=false` to run fallback connectors only.
 When `LLM_ENRICHMENT_ENABLED=true`, the pipeline attempts LLM summary/severity/confidence enrichment with citation locking (`url + quote + quote_start + quote_end`). On any LLM failure, it falls back to deterministic rules.
 Citation locking is strict: `quote` must exactly equal `source_text[quote_start:quote_end]`.
+ReliefWeb connector uses API v2 (`https://api.reliefweb.int/v2/reports`) with preset+query payloads derived from selected country/disaster filters.
 
 Report drafting uses `OPENAI_API_KEY` when `write-report --use-llm` is requested. If the key/model call fails, report generation falls back to deterministic rendering.
 
@@ -53,10 +54,26 @@ Current global local-news set includes:
 - Africa News Agency (ANA)
 - The Guardian World
 - Reuters World (Google News Reuters query feed)
+- NYT World
+- NPR World
+
+Country-specific disaster feeds (configured in `config/country_sources.json`) now include targeted query streams for:
+- Madagascar
+- Mozambique
+- Pakistan
+- Bangladesh
+- Ethiopia
 
 Government connectors include:
 - USGS Earthquakes
-- GDACS
+- GDACS All 7d
+- GDACS Floods 7d
+- GDACS Cyclones 7d
+
+NGO/humanitarian connectors include:
+- CARE News
+- FEWS NET Analysis Note
+- FEWS NET Weather and Agriculture Outlook
 
 ## Install
 
@@ -82,6 +99,12 @@ Run one full monitoring cycle (ReliefWeb + government + UN + NGO + local-news fe
 
 ```powershell
 python -m agent_hum_crawler.main run-cycle --countries "Pakistan,Bangladesh" --disaster-types "flood,cyclone/storm,earthquake" --interval 30 --limit 10 --include-content --local-news-feeds "https://example.com/rss.xml"
+```
+
+Optional recency filter for cycle/report windows:
+
+```powershell
+python -m agent_hum_crawler.main run-cycle --countries "Pakistan" --disaster-types "flood" --limit 10 --max-age-days 30 --include-content
 ```
 
 `run-cycle` returns an alert contract with these sections:
@@ -130,6 +153,12 @@ Show connector/feed health analytics:
 python -m agent_hum_crawler.main source-health --limit 10
 ```
 
+Run one-by-one source connectivity/data checks (no persistence side effects):
+
+```powershell
+python -m agent_hum_crawler.main source-check --countries "Pakistan" --disaster-types "flood" --limit 10 --max-age-days 30
+```
+
 Evaluate hardening gate thresholds:
 
 ```powershell
@@ -171,6 +200,7 @@ or overridden with `--report-template`.
 `write-report` output includes:
 - `llm_used`: `true` only when AI actually produced report sections.
 - `report_quality`: pass/fail with citation density, missing section checks, and unsupported-claim checks.
+- retrieval-balance metadata (`country_min_events`, connector/source caps) in report `meta`.
 
 When AI is used, report header includes:
 - `AI Assisted: Yes`
@@ -202,11 +232,48 @@ Enforce report quality gate (section completeness + citation density + unsupport
 python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --enforce-report-quality --min-citation-density 0.005
 ```
 
+Retrieval balancing controls (reduce country/source bias):
+
+```powershell
+python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --country-min-events 1 --max-per-connector 8 --max-per-source 4
+```
+
+Citation canonicalization:
+- stores both `url` (original) and `canonical_url` per raw item/event
+- citations prefer `canonical_url` (publisher URL) when available
+
 Optional LLM final drafting:
 
 ```powershell
 python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm
 ```
+
+Recency filter for reports:
+
+```powershell
+python -m agent_hum_crawler.main write-report --countries "Pakistan" --disaster-types "flood" --max-age-days 30 --use-llm
+```
+
+## Feature Flags
+Centralized runtime flags are stored in:
+- `config/feature_flags.json`
+- template: `config/feature_flags.example.json`
+
+Current flags:
+- `reliefweb_enabled`
+- `llm_enrichment_enabled`
+- `report_strict_filters_default`
+- `dashboard_auto_source_check_default`
+- `source_check_endpoint_enabled`
+- `max_item_age_days_default`
+- `stale_feed_auto_warn_enabled`
+- `stale_feed_auto_demote_enabled`
+- `stale_feed_warn_after_checks`
+- `stale_feed_demote_after_checks`
+
+Environment override format:
+- `AHC_FLAG_<FLAG_NAME_UPPER>=...`
+Example: `AHC_FLAG_LLM_ENRICHMENT_ENABLED=true`
 
 Recommended live run flow:
 
@@ -258,6 +325,13 @@ Current dashboard features:
 - Generate `write-report` outputs (brief/default/detailed template)
 - View recent report files and markdown preview
 - View KPI snapshot from `quality-report`, `source-health`, `hardening-gate`
+- Explain zero-match cycles with per-source match reason diagnostics (`country_miss`, `hazard_miss`, `age_filtered`)
+- View per-source freshness status (`fresh` / `stale` / `unknown`) against `Max Age Days`
+- See stale-feed streak actions (`warn` / `demote`) from centralized stale policy flags
+- Tune report retrieval balance from UI:
+  - `Country Min Events`
+  - `Max / Connector`
+  - `Max / Source`
 - View Phase 1 monitoring panels:
   - cycle + LLM trends
   - rolling quality-rate trends

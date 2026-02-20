@@ -1,13 +1,13 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
-Date: 2026-02-18
-Last Updated: 2026-02-18
-Status: Milestone 6 Completed (MVP sign-off achieved)
+Date: 2026-02-20
+Last Updated: 2026-02-20
+Status: Post-MVP Hardening + Frontend Operator Console In Progress
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
-- Implementation phase (MVP milestones): 100% complete
-- Estimated overall MVP progress: 100%
+- MVP implementation phase: 100% complete
+- Post-MVP hardening and operator tooling: in active rollout
 
 ## Completed
 - Milestones 1-5 completed.
@@ -112,6 +112,39 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
   - side-by-side markdown preview for quick editorial review.
   - reusable compare presets (save/load/delete) with persisted store.
   - one-click `Rerun Last Profile` for repeatable QA/report iteration.
+- Input robustness and operator clarity improvements:
+  - disaster-type alias normalization added across runtime config and reporting filters (e.g. `Floods` -> `flood`, `Cyclones` -> `cyclone/storm`).
+  - UI now shows explicit last-action status (success/fail) and clearer in-flight button states during cycle/report runs.
+- Added date-range and source-by-source verification controls:
+  - runtime/report `max_age_days` support to suppress stale evidence windows,
+  - new `source-check` CLI command for one-by-one feed diagnostics,
+  - dashboard API/UI support for source checks (`/api/source-check`) with working/non-working status per source.
+- Added centralized feature-flag system:
+  - `src/agent_hum_crawler/feature_flags.py`
+  - `config/feature_flags.json` (+ example template)
+  - runtime toggles now read from centralized flags (with env overrides)
+  - dashboard now surfaces active flags in overview.
+- Source diagnostics and freshness hardening added:
+  - per-source freshness status (`fresh` / `stale` / `unknown`) computed against `max_age_days`,
+  - per-source match reason diagnostics (`country_miss`, `hazard_miss`, `age_filtered`),
+  - stale source streak tracking with policy-based warn/demote actions,
+  - source-check/run-cycle payloads now expose warnings + stale/demoted source counts.
+- Report retrieval quality controls added:
+  - canonical citation URL pipeline (`url` + `canonical_url`) across raw items and events,
+  - citations/domain diversity now prefer canonical publisher URLs when available,
+  - country-balance selector in GraphRAG retrieval (`country_min_events`),
+  - connector/source caps (`max_per_connector`, `max_per_source`) to reduce local-feed dominance,
+  - connector weighting boost for humanitarian connectors (UN/ReliefWeb) in scoring.
+- Source integration improvements completed:
+  - ReliefWeb upgraded to API v2 reports endpoint with preset/query payload generation from runtime filters.
+  - GDACS upgraded from generic feed to hazard-specific feeds (`all_7d`, `floods_7d`, `cyclones_7d`) from feed reference docs.
+  - FEWS NET RSS integration added (`Analysis Note`, `Weather and Agriculture Outlook`) from `fews.net/feeds`.
+- Dashboard/operator controls extended for retrieval tuning:
+  - `Country Min Events`, `Max / Connector`, `Max / Source` wired into write-report/workbench flows.
+- Local/news source set refined for relevance:
+  - removed stale CNN World default feed,
+  - added country-targeted disaster query feeds for Madagascar, Mozambique, Pakistan, Bangladesh, Ethiopia,
+  - retained BBC, Reuters World, NYT World, NPR World, Al Jazeera, AllAfrica, Africanews, ANA, Guardian.
 - Current test status: `46 passed`.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
@@ -136,10 +169,11 @@ Status: Milestone 6 Completed (MVP sign-off achieved)
    - add optional strict requirement for at least one non-admin scoped automation key in production profiles.
 2. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
    - tighten AI narrative conformance around section aliases and unsupported-claim checks in live windows.
+   - improve source ranking/selection quality for cross-country filter balance in sparse windows.
 3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
-4. Expand dashboard from minimal view to operator-grade UI:
-   - connector-level diagnostics (latency/error classes) and root-cause drill-down
-   - report quality gate retry profiles and reusable compare presets.
+4. Continue frontend roadmap execution (`specs/frontend-roadmap.md`):
+   - complete Phase 3 diagnostics (connector latency/error classes, outcome diff views),
+   - add operator run-history with artifact linking for repeatable QA loops.
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.

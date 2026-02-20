@@ -152,7 +152,9 @@ def detect_changes(
     for item in items:
         combined_text = " ".join([item.title, item.text, " ".join(item.country_candidates)])
         country = next((c for c in countries if matches_country(combined_text, [c])), countries[0])
-        disaster_type = infer_disaster_type(combined_text, disaster_types) or disaster_types[0]
+        disaster_type = infer_disaster_type(combined_text, disaster_types)
+        if not disaster_type:
+            continue
         candidates.append(CandidateItem(item=item, country=country, disaster_type=disaster_type))
 
     clusters = _cluster_candidates(candidates)
@@ -190,6 +192,7 @@ def detect_changes(
             connector=primary.item.connector,
             source_type=primary.item.source_type,
             url=primary.item.url,
+            canonical_url=primary.item.canonical_url,
             title=primary.item.title,
             country=primary.country,
             disaster_type=primary.disaster_type,

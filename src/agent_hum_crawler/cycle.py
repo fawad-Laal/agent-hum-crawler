@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from .config import RuntimeConfig
 from .connectors import (
@@ -19,6 +20,7 @@ from .models import ProcessedEvent, RawSourceItem
 from .settings import get_reliefweb_appname, is_llm_enrichment_enabled, is_reliefweb_enabled
 from .source_registry import load_registry
 from .state import RuntimeState, load_state, save_state
+from .time_utils import parse_published_datetime
 
 
 @dataclass
@@ -33,11 +35,31 @@ class CycleResult:
     llm_enrichment: dict
 
 
-def run_cycle_once(
+@dataclass
+class SourceCheckResult:
+    connector_count: int
+    raw_item_count: int
+    connector_metrics: list[dict]
+    source_checks: list[dict]
+
+
+def _is_within_max_age_days(published_at: str | None, max_age_days: int | None) -> bool:
+    if not max_age_days:
+        return True
+    dt = parse_published_datetime(published_at)
+    if dt is None:
+        return True
+    if dt > datetime.now(UTC):
+        return True
+    return (datetime.now(UTC) - dt) <= timedelta(days=max_age_days)
+
+
+def _collect_raw_items(
+    *,
     config: RuntimeConfig,
     limit: int,
     include_content: bool,
-) -> CycleResult:
+) -> tuple[list[RawSourceItem], int, list[dict]]:
     all_items: list[RawSourceItem] = []
     connector_count = 0
     connector_metrics: list[dict] = []
@@ -116,6 +138,71 @@ def run_cycle_once(
                     ],
                 }
             )
+    return all_items, connector_count, connector_metrics
+
+
+def run_source_check(
+    *,
+    config: RuntimeConfig,
+    limit: int,
+    include_content: bool = False,
+) -> SourceCheckResult:
+    all_items, connector_count, connector_metrics = _collect_raw_items(
+        config=config,
+        limit=limit,
+        include_content=include_content,
+    )
+    checks: list[dict] = []
+    for metric in connector_metrics:
+        connector_name = str(metric.get("connector", "unknown"))
+        for source in metric.get("source_results", []) or []:
+            fetched = int(source.get("fetched_count", 0) or 0)
+            status = str(source.get("status", "unknown"))
+            checks.append(
+                {
+                    "connector": connector_name,
+                    "source_name": str(source.get("source_name", "")),
+                    "source_url": str(source.get("source_url", "")),
+                    "status": status,
+                    "fetched_count": fetched,
+                    "matched_count": int(source.get("matched_count", 0) or 0),
+                    "latest_published_at": source.get("latest_published_at"),
+                    "latest_age_days": source.get("latest_age_days"),
+                    "freshness_status": str(source.get("freshness_status", "unknown")),
+                    "stale_streak": int(source.get("stale_streak", 0) or 0),
+                    "stale_action": source.get("stale_action"),
+                    "match_reasons": source.get("match_reasons", {}),
+                    "error": str(source.get("error", "")),
+                    "working": status in {"ok", "recovered"} and fetched > 0,
+                }
+            )
+    return SourceCheckResult(
+        connector_count=connector_count,
+        raw_item_count=len(all_items),
+        connector_metrics=connector_metrics,
+        source_checks=checks,
+    )
+
+
+def run_cycle_once(
+    config: RuntimeConfig,
+    limit: int,
+    include_content: bool,
+) -> CycleResult:
+    all_items, connector_count, connector_metrics = _collect_raw_items(
+        config=config,
+        limit=limit,
+        include_content=include_content,
+    )
+    age_filtered_out = 0
+    if config.max_item_age_days:
+        kept: list[RawSourceItem] = []
+        for item in all_items:
+            if _is_within_max_age_days(item.published_at, config.max_item_age_days):
+                kept.append(item)
+            else:
+                age_filtered_out += 1
+        all_items = kept
 
     prior_state = load_state()
     if not isinstance(prior_state, RuntimeState):
@@ -147,7 +234,8 @@ def run_cycle_once(
         f"new={sum(1 for e in dedupe.events if e.status == 'new')}, "
         f"updated={sum(1 for e in dedupe.events if e.status == 'updated')}, "
         f"llm_enrichment_used={str(llm_stats['enabled']).lower()}, "
-        f"llm_enriched={llm_stats['enriched_count']}, llm_fallback={llm_stats['fallback_count']}"
+        f"llm_enriched={llm_stats['enriched_count']}, llm_fallback={llm_stats['fallback_count']}, "
+        f"age_filtered_out={age_filtered_out}"
     )
 
     cycle_id = persist_cycle(

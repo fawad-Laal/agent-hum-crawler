@@ -6,8 +6,16 @@
         "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom"
       },
       {
-        "name": "GDACS",
-        "url": "https://www.gdacs.org/xml/rss.xml"
+        "name": "GDACS All 7d",
+        "url": "https://www.gdacs.org/xml/rss_7d.xml"
+      },
+      {
+        "name": "GDACS Floods 7d",
+        "url": "https://www.gdacs.org/xml/rss_fl_7d.xml"
+      },
+      {
+        "name": "GDACS Cyclones 7d",
+        "url": "https://www.gdacs.org/xml/rss_tc_7d.xml"
       }
     ],
     "un": [
@@ -22,8 +30,16 @@
     ],
     "ngo": [
       {
-        "name": "IFRC News",
-        "url": "https://www.ifrc.org/rss.xml"
+        "name": "CARE News",
+        "url": "https://www.care.org/feed/"
+      },
+      {
+        "name": "FEWS NET Analysis Note",
+        "url": "https://fews.net/taxonomy/term/652/feed"
+      },
+      {
+        "name": "FEWS NET Weather and Agriculture Outlook",
+        "url": "https://fews.net/taxonomy/term/638/feed"
       }
     ],
     "local_news": [
@@ -54,6 +70,14 @@
       {
         "name": "Reuters World",
         "url": "https://news.google.com/rss/search?q=site:reuters.com+world&hl=en-US&gl=US&ceid=US:en"
+      },
+      {
+        "name": "NYT World",
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+      },
+      {
+        "name": "NPR World",
+        "url": "https://feeds.npr.org/1004/rss.xml"
       }
     ]
   },
@@ -66,6 +90,10 @@
         {
           "name": "Dawn Pakistan",
           "url": "https://www.dawn.com/feeds/home"
+        },
+        {
+          "name": "Pakistan Flood Monitor (Google News)",
+          "url": "https://news.google.com/rss/search?q=Pakistan+flood+disaster&hl=en-US&gl=US&ceid=US:en"
         }
       ]
     },
@@ -73,7 +101,45 @@
       "government": [],
       "un": [],
       "ngo": [],
-      "local_news": []
+      "local_news": [
+        {
+          "name": "Bangladesh Flood & Cyclone (Google News)",
+          "url": "https://news.google.com/rss/search?q=Bangladesh+flood+cyclone&hl=en-US&gl=US&ceid=US:en"
+        }
+      ]
+    },
+    "Madagascar": {
+      "government": [],
+      "un": [],
+      "ngo": [],
+      "local_news": [
+        {
+          "name": "Madagascar Cyclone Watch (Google News)",
+          "url": "https://news.google.com/rss/search?q=Madagascar+cyclone+flood&hl=en-US&gl=US&ceid=US:en"
+        }
+      ]
+    },
+    "Mozambique": {
+      "government": [],
+      "un": [],
+      "ngo": [],
+      "local_news": [
+        {
+          "name": "Mozambique Flood & Cyclone (Google News)",
+          "url": "https://news.google.com/rss/search?q=Mozambique+flood+cyclone&hl=en-US&gl=US&ceid=US:en"
+        }
+      ]
+    },
+    "Ethiopia": {
+      "government": [],
+      "un": [],
+      "ngo": [],
+      "local_news": [
+        {
+          "name": "Ethiopia Humanitarian Crisis (Google News)",
+          "url": "https://news.google.com/rss/search?q=Ethiopia+humanitarian+crisis+flood+conflict&hl=en-US&gl=US&ceid=US:en"
+        }
+      ]
     }
   }
 }

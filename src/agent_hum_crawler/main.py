@@ -9,7 +9,8 @@ from typing import List
 
 from .config import RuntimeConfig
 from .conformance import evaluate_moltis_conformance
-from .cycle import run_cycle_once
+from .cycle import run_cycle_once, run_source_check
+from .feature_flags import get_feature_flag
 from .alerts import build_alert_contract
 from .database import build_quality_report, build_source_health_report, get_recent_cycles, init_db
 from .hardening import evaluate_hardening_gate, evaluate_llm_quality_gate
@@ -55,6 +56,7 @@ def build_runtime_config_from_args(args: argparse.Namespace) -> RuntimeConfig:
         disaster_types=disaster_types,
         check_interval_minutes=interval,
         priority_sources=[u.strip() for u in local_news_feeds.split(",") if u.strip()],
+        max_item_age_days=getattr(args, "max_age_days", None),
     )
 
 
@@ -120,6 +122,11 @@ def cmd_run_cycle(args: argparse.Namespace) -> int:
 
     result = run_cycle_once(config=config, limit=args.limit, include_content=args.include_content)
     alert_contract = build_alert_contract(result.events, interval_minutes=config.check_interval_minutes)
+    warnings: list[str] = []
+    for metric in result.connector_metrics:
+        for w in metric.get("warnings", []) or []:
+            if isinstance(w, str) and w.strip():
+                warnings.append(w.strip())
     payload = {
         "cycle_id": result.cycle_id,
         "summary": result.summary,
@@ -129,6 +136,7 @@ def cmd_run_cycle(args: argparse.Namespace) -> int:
         "llm_enrichment": result.llm_enrichment,
         "alerts_contract": alert_contract,
         "connector_metrics": result.connector_metrics,
+        "warnings": warnings,
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
@@ -196,6 +204,31 @@ def cmd_llm_report(args: argparse.Namespace) -> int:
 def cmd_source_health(args: argparse.Namespace) -> int:
     report = build_source_health_report(limit_cycles=args.limit)
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_source_check(args: argparse.Namespace) -> int:
+    load_environment()
+    config = _resolve_config(args)
+    report = run_source_check(config=config, limit=args.limit, include_content=args.include_content)
+    warnings: list[str] = []
+    for metric in report.connector_metrics:
+        for w in metric.get("warnings", []) or []:
+            if isinstance(w, str) and w.strip():
+                warnings.append(w.strip())
+    payload = {
+        "status": "ok",
+        "connector_count": report.connector_count,
+        "raw_item_count": report.raw_item_count,
+        "working_sources": sum(1 for s in report.source_checks if s.get("working")),
+        "total_sources": len(report.source_checks),
+        "stale_sources": sum(1 for s in report.source_checks if s.get("freshness_status") == "stale"),
+        "demoted_sources": sum(1 for s in report.source_checks if s.get("status") == "demoted_stale"),
+        "warnings": warnings,
+        "source_checks": report.source_checks,
+        "connector_metrics": report.connector_metrics,
+    }
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -298,12 +331,20 @@ def cmd_write_report(args: argparse.Namespace) -> int:
     ]
     countries = [c.strip() for c in (args.countries or "").split(",") if c.strip()]
     disaster_types = [d.strip() for d in (args.disaster_types or "").split(",") if d.strip()]
+    strict_filters = args.strict_filters
+    if strict_filters is None:
+        strict_filters = bool(get_feature_flag("report_strict_filters_default", True))
+
     graph_context = build_graph_context(
         countries=countries,
         disaster_types=disaster_types,
         limit_cycles=args.limit_cycles,
         limit_events=args.limit_events,
-        strict_filters=args.strict_filters,
+        strict_filters=strict_filters,
+        max_age_days=args.max_age_days,
+        country_min_events=args.country_min_events,
+        max_per_connector=args.max_per_connector,
+        max_per_source=args.max_per_source,
     )
     report = render_long_form_report(
         graph_context=graph_context,
@@ -345,6 +386,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument("--limit", type=int, default=20, help="Max ReliefWeb items to fetch")
     fetch_parser.add_argument("--include-content", action="store_true", help="Fetch content-level text")
     fetch_parser.add_argument("--use-saved-config", action="store_true", help="Use saved runtime config")
+    fetch_parser.add_argument("--max-age-days", type=int, help="Only include items published within N days")
     fetch_parser.set_defaults(func=cmd_fetch_reliefweb)
 
     run_parser = subparsers.add_parser("run-cycle", help="Run one full collection + dedupe + persistence cycle")
@@ -355,6 +397,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--include-content", action="store_true", help="Fetch content-level text")
     run_parser.add_argument("--local-news-feeds", help="Comma-separated local news RSS/Atom feed URLs")
     run_parser.add_argument("--use-saved-config", action="store_true", help="Use saved runtime config")
+    run_parser.add_argument("--max-age-days", type=int, help="Only include items published within N days")
     run_parser.set_defaults(func=cmd_run_cycle)
 
     scheduler_parser = subparsers.add_parser("start-scheduler", help="Run monitoring cycles on interval")
@@ -365,6 +408,7 @@ def build_parser() -> argparse.ArgumentParser:
     scheduler_parser.add_argument("--include-content", action="store_true", help="Fetch content-level text")
     scheduler_parser.add_argument("--local-news-feeds", help="Comma-separated local news RSS/Atom feed URLs")
     scheduler_parser.add_argument("--use-saved-config", action="store_true", help="Use saved runtime config")
+    scheduler_parser.add_argument("--max-age-days", type=int, help="Only include items published within N days")
     scheduler_parser.add_argument("--max-runs", type=int, default=None, help="Stop after N cycles (for testing)")
     scheduler_parser.set_defaults(func=cmd_start_scheduler)
 
@@ -395,6 +439,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     source_health_parser.add_argument("--limit", type=int, default=10)
     source_health_parser.set_defaults(func=cmd_source_health)
+
+    source_check_parser = subparsers.add_parser(
+        "source-check",
+        help="Run one-by-one source connectivity/data checks without persistence side effects",
+    )
+    source_check_parser.add_argument("--countries", help="Comma-separated country list")
+    source_check_parser.add_argument("--disaster-types", help="Comma-separated disaster types")
+    source_check_parser.add_argument("--interval", type=int, default=30, help="Interval minutes for config validation")
+    source_check_parser.add_argument("--limit", type=int, default=20, help="Max items per source check")
+    source_check_parser.add_argument("--include-content", action="store_true", help="Fetch content-level text")
+    source_check_parser.add_argument("--local-news-feeds", help="Comma-separated local news RSS/Atom feed URLs")
+    source_check_parser.add_argument("--use-saved-config", action="store_true", help="Use saved runtime config")
+    source_check_parser.add_argument("--max-age-days", type=int, help="Only include items published within N days")
+    source_check_parser.set_defaults(func=cmd_source_check)
 
     replay_parser = subparsers.add_parser(
         "replay-fixture",
@@ -435,6 +493,7 @@ def build_parser() -> argparse.ArgumentParser:
     pilot_parser.add_argument("--min-llm-enrichment-rate", type=float, default=0.10)
     pilot_parser.add_argument("--min-citation-coverage-rate", type=float, default=0.95)
     pilot_parser.add_argument("--enforce-llm-quality", action="store_true")
+    pilot_parser.add_argument("--max-age-days", type=int, help="Only include items published within N days")
     pilot_parser.add_argument(
         "--reset-state-before-run",
         action="store_true",
@@ -491,7 +550,7 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument(
         "--strict-filters",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=None,
         help="When true, do not fallback to cross-filter evidence if selected filters return zero events.",
     )
     report_parser.add_argument("--title", default="Disaster Intelligence Report")
@@ -502,6 +561,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to JSON report template (sections + length limits)",
     )
     report_parser.add_argument("--output", help="Write markdown report to this path")
+    report_parser.add_argument("--max-age-days", type=int, help="Only include events published within N days")
+    report_parser.add_argument(
+        "--country-min-events",
+        type=int,
+        default=1,
+        help="Minimum events per requested country when available (0 disables balancing).",
+    )
+    report_parser.add_argument(
+        "--max-per-connector",
+        type=int,
+        default=8,
+        help="Maximum selected incidents from a single connector (0 disables cap).",
+    )
+    report_parser.add_argument(
+        "--max-per-source",
+        type=int,
+        default=4,
+        help="Maximum selected incidents from a single source label/domain (0 disables cap).",
+    )
     report_parser.add_argument("--min-citation-density", type=float, default=0.005)
     report_parser.add_argument("--enforce-report-quality", action="store_true")
     report_parser.set_defaults(func=cmd_write_report)

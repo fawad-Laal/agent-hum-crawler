@@ -11,14 +11,16 @@ from bs4 import BeautifulSoup
 
 from ..config import RuntimeConfig
 from ..models import ContentSource, FetchResult, RawSourceItem
-from ..taxonomy import matches_config
+from ..source_freshness import evaluate_freshness, load_state, save_state, should_demote, update_source_state
+from ..taxonomy import match_with_reason
+from ..url_canonical import canonicalize_url
 
 
 @dataclass
 class ReliefWebConnector:
     appname: str
     timeout_seconds: int = 30
-    base_url: str = "https://api.reliefweb.int/v1/reports"
+    base_url: str = "https://api.reliefweb.int/v2/reports"
 
     def _build_client(self) -> httpx.Client:
         return httpx.Client(timeout=self.timeout_seconds)
@@ -29,15 +31,57 @@ class ReliefWebConnector:
         limit: int = 20,
         include_content: bool = True,
     ) -> FetchResult:
-        with self._build_client() as client:
-            response = client.get(
-                self.base_url,
-                params={
-                    "appname": self.appname,
-                    "limit": max(1, min(limit, 200)),
-                    "profile": "full",
-                    "sort[]": "date:desc",
+        freshness_state = load_state()
+        if should_demote(freshness_state, self.base_url):
+            row = update_source_state(
+                freshness_state,
+                source_url=self.base_url,
+                latest_published_at=str((freshness_state.get("sources", {}).get(self.base_url, {}) or {}).get("latest_published_at", "")) or None,
+                freshness_status="stale",
+                status="demoted_stale",
+            )
+            save_state(freshness_state)
+            return FetchResult(
+                items=[],
+                total_fetched=0,
+                total_matched=0,
+                connector_metrics={
+                    "connector": "reliefweb",
+                    "attempted_sources": 1,
+                    "healthy_sources": 0,
+                    "failed_sources": 0,
+                    "fetched_count": 0,
+                    "matched_count": 0,
+                    "errors": [],
+                    "warnings": ["ReliefWeb auto-demoted due to repeated stale source checks"],
+                    "source_results": [
+                        {
+                            "source_name": "ReliefWeb Reports API",
+                            "source_url": self.base_url,
+                            "status": "demoted_stale",
+                            "error": "auto-demoted due to repeated stale source checks",
+                            "fetched_count": 0,
+                            "matched_count": 0,
+                            "latest_published_at": row.get("latest_published_at"),
+                            "freshness_status": "stale",
+                            "stale_streak": int(row.get("stale_streak", 0) or 0),
+                            "stale_action": row.get("stale_action"),
+                            "match_reasons": {
+                                "matched": 0,
+                                "country_miss": 0,
+                                "hazard_miss": 0,
+                                "age_filtered": 0,
+                            },
+                        }
+                    ],
                 },
+            )
+
+        with self._build_client() as client:
+            response = client.post(
+                self.base_url,
+                params={"appname": self.appname},
+                json=self._build_query_payload(config=config, limit=limit),
             )
             response.raise_for_status()
             payload = response.json()
@@ -51,12 +95,36 @@ class ReliefWebConnector:
                 "error": "",
                 "fetched_count": len(data),
                 "matched_count": 0,
+                "latest_published_at": self._extract_date(data[0].get("fields", {})) if data else None,
+                "match_reasons": {
+                    "matched": 0,
+                    "country_miss": 0,
+                    "hazard_miss": 0,
+                    "age_filtered": 0,
+                },
             }
+            freshness = evaluate_freshness(source_result.get("latest_published_at"), config.max_item_age_days)
+            row = update_source_state(
+                freshness_state,
+                source_url=self.base_url,
+                latest_published_at=source_result.get("latest_published_at"),
+                freshness_status=freshness.status,
+                status="ok",
+            )
+            source_result["freshness_status"] = freshness.status
+            source_result["stale_streak"] = int(row.get("stale_streak", 0) or 0)
+            source_result["stale_action"] = row.get("stale_action")
+            source_result["latest_age_days"] = freshness.age_days
             for entry in data:
                 item = self._map_entry_to_item(entry, include_content=include_content, client=client)
-                if item and self._matches_config(item, config):
+                if not item:
+                    continue
+                is_match, reason = self._matches_config(item, config)
+                source_result["match_reasons"][reason] = int(source_result["match_reasons"].get(reason, 0) or 0) + 1
+                if is_match:
                     raw_items.append(item)
                     source_result["matched_count"] += 1
+            save_state(freshness_state)
 
             return FetchResult(
                 items=raw_items,
@@ -70,9 +138,59 @@ class ReliefWebConnector:
                     "fetched_count": len(data),
                     "matched_count": len(raw_items),
                     "errors": [],
+                    "warnings": (
+                        [f"ReliefWeb stale for {source_result['stale_streak']} checks"]
+                        if source_result.get("stale_action") == "warn"
+                        else []
+                    ),
                     "source_results": [source_result],
                 },
             )
+
+    def _build_query_payload(self, *, config: RuntimeConfig, limit: int) -> dict:
+        keywords: list[str] = []
+        keywords.extend([c for c in config.countries if c])
+        for d in config.disaster_types:
+            if d == "cyclone/storm":
+                keywords.extend(["cyclone", "storm", "hurricane", "typhoon"])
+            elif d == "conflict emergency":
+                keywords.extend(["conflict", "displacement", "violence", "humanitarian"])
+            else:
+                keywords.append(d)
+
+        seen: set[str] = set()
+        query_terms: list[str] = []
+        for k in keywords:
+            token = str(k).strip()
+            if not token:
+                continue
+            lk = token.lower()
+            if lk in seen:
+                continue
+            seen.add(lk)
+            query_terms.append(token)
+
+        body = {
+            "limit": max(1, min(int(limit), 200)),
+            "preset": "latest",
+            "profile": "full",
+            "sort": ["date:desc"],
+            "fields": {
+                "include": [
+                    "title",
+                    "url_alias",
+                    "date",
+                    "country",
+                    "language",
+                    "body",
+                    "body-html",
+                    "file",
+                ]
+            },
+        }
+        if query_terms:
+            body["query"] = {"value": " AND ".join(query_terms[:12])}
+        return body
 
     def _map_entry_to_item(
         self,
@@ -119,6 +237,7 @@ class ReliefWebConnector:
             connector="reliefweb",
             source_type="humanitarian",
             url=url,
+            canonical_url=canonicalize_url(str(url), client=client),
             title=title,
             published_at=published_at,
             country_candidates=[c for c in countries if c],
@@ -153,11 +272,13 @@ class ReliefWebConnector:
             return extracted.strip()
         return BeautifulSoup(response.text, "html.parser").get_text(" ", strip=True)
 
-    def _matches_config(self, item: RawSourceItem, config: RuntimeConfig) -> bool:
-        return matches_config(
+    def _matches_config(self, item: RawSourceItem, config: RuntimeConfig) -> tuple[bool, str]:
+        return match_with_reason(
             title=item.title,
             text=item.text,
             country_candidates=item.country_candidates,
             countries=config.countries,
             disaster_types=config.disaster_types,
+            published_at=item.published_at,
+            max_age_days=config.max_item_age_days,
         )

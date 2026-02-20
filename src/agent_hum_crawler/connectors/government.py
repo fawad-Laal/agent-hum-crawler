@@ -14,6 +14,8 @@ class GovernmentConnector(FeedConnector):
     feeds: list[FeedSource] = field(
         default_factory=lambda: [
             FeedSource("USGS Earthquakes", "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.atom"),
-            FeedSource("GDACS", "https://www.gdacs.org/xml/rss.xml"),
+            FeedSource("GDACS All 7d", "https://www.gdacs.org/xml/rss_7d.xml"),
+            FeedSource("GDACS Floods 7d", "https://www.gdacs.org/xml/rss_fl_7d.xml"),
+            FeedSource("GDACS Cyclones 7d", "https://www.gdacs.org/xml/rss_tc_7d.xml"),
         ]
     )

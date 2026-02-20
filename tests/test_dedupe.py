@@ -88,3 +88,21 @@ def test_low_corroboration_down_calibrates_severity() -> None:
     assert result.events[0].confidence == "low"
     assert result.events[0].severity in {"medium", "high"}
     assert "corroboration_sources=1" in result.events[0].summary
+
+
+def test_detect_changes_skips_items_without_disaster_signal() -> None:
+    nondisaster = _item(
+        "AU Summit annual ritual",
+        "Leaders discussed diplomacy and governance reforms in Addis Abeba.",
+        "https://example.com/non-disaster",
+        "2026-02-19",
+        connector="local_news_feeds",
+        source_type="news",
+    )
+    result = detect_changes(
+        [nondisaster],
+        previous_hashes=[],
+        countries=["Ethiopia"],
+        disaster_types=["conflict emergency"],
+    )
+    assert len(result.events) == 0

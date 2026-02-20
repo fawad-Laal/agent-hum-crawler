@@ -37,6 +37,7 @@ class EventRecord(SQLModel, table=True):
     source_type: str
     title: str
     url: str
+    canonical_url: str | None = None
     country: str
     disaster_type: str
     published_at: str | None = None
@@ -57,6 +58,7 @@ class RawItemRecord(SQLModel, table=True):
     source_type: str
     title: str
     url: str
+    canonical_url: str | None = None
     published_at: str | None = None
     payload_json: str
 
@@ -100,6 +102,7 @@ def init_db(path: Path | None = None) -> None:
     SQLModel.metadata.create_all(engine)
     _ensure_cyclerun_columns(engine)
     _ensure_eventrecord_columns(engine)
+    _ensure_rawitem_columns(engine)
 
 
 def _ensure_eventrecord_columns(engine) -> None:
@@ -109,6 +112,7 @@ def _ensure_eventrecord_columns(engine) -> None:
         "corroboration_source_types": "INTEGER NOT NULL DEFAULT 1",
         "llm_enriched": "INTEGER NOT NULL DEFAULT 0",
         "citations_json": "TEXT NOT NULL DEFAULT '[]'",
+        "canonical_url": "TEXT",
     }
 
     with engine.connect() as conn:
@@ -146,6 +150,22 @@ def _ensure_cyclerun_columns(engine) -> None:
                 )
 
 
+def _ensure_rawitem_columns(engine) -> None:
+    required = {
+        "canonical_url": "TEXT",
+    }
+    with engine.connect() as conn:
+        existing = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(rawitemrecord)").fetchall()
+        }
+        for column, column_type in required.items():
+            if column not in existing:
+                conn.exec_driver_sql(
+                    f"ALTER TABLE rawitemrecord ADD COLUMN {column} {column_type}"
+                )
+
+
 def persist_cycle(
     raw_items: List[RawSourceItem],
     events: List[ProcessedEvent],
@@ -159,6 +179,7 @@ def persist_cycle(
     SQLModel.metadata.create_all(engine)
     _ensure_cyclerun_columns(engine)
     _ensure_eventrecord_columns(engine)
+    _ensure_rawitem_columns(engine)
     llm_stats = llm_stats or {}
 
     now = datetime.now(timezone.utc).isoformat()
@@ -193,6 +214,7 @@ def persist_cycle(
                     source_type=event.source_type,
                     title=event.title,
                     url=str(event.url),
+                    canonical_url=str(event.canonical_url) if event.canonical_url else None,
                     country=event.country,
                     disaster_type=event.disaster_type,
                     published_at=event.published_at,
@@ -215,6 +237,7 @@ def persist_cycle(
                     source_type=raw_item.source_type,
                     title=raw_item.title,
                     url=str(raw_item.url),
+                    canonical_url=str(raw_item.canonical_url) if raw_item.canonical_url else None,
                     published_at=raw_item.published_at,
                     payload_json=json.dumps(raw_item.model_dump(mode="json")),
                 )
@@ -258,6 +281,8 @@ def get_recent_cycles(limit: int = 10, path: Path | None = None) -> list[CycleRu
     engine = build_engine(path)
     SQLModel.metadata.create_all(engine)
     _ensure_cyclerun_columns(engine)
+    _ensure_eventrecord_columns(engine)
+    _ensure_rawitem_columns(engine)
     with Session(engine) as session:
         statement = select(CycleRun).order_by(CycleRun.id.desc()).limit(limit)
         return list(session.exec(statement))

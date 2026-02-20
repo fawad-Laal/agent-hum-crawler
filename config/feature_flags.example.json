@@ -1,0 +1,12 @@
+{
+  "reliefweb_enabled": true,
+  "llm_enrichment_enabled": false,
+  "report_strict_filters_default": true,
+  "dashboard_auto_source_check_default": true,
+  "source_check_endpoint_enabled": true,
+  "max_item_age_days_default": 30,
+  "stale_feed_auto_warn_enabled": true,
+  "stale_feed_auto_demote_enabled": false,
+  "stale_feed_warn_after_checks": 2,
+  "stale_feed_demote_after_checks": 5
+}

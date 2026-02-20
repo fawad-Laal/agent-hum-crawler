@@ -3,9 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 const defaultForm = {
   countries: "Madagascar,Mozambique",
   disaster_types: "cyclone/storm,flood",
+  max_age_days: 30,
   limit: 10,
   limit_cycles: 20,
   limit_events: 30,
+  country_min_events: 1,
+  max_per_connector: 8,
+  max_per_source: 4,
   report_template: "config/report_template.brief.json",
   use_llm: false,
 };
@@ -16,6 +20,20 @@ function fmtNumber(v, digits = 3) {
   if (Number.isNaN(n)) return String(v);
   if (Math.abs(n) < 1) return n.toFixed(digits);
   return n.toLocaleString();
+}
+
+function formatMatchReasons(reasons) {
+  const r = reasons || {};
+  const country = Number(r.country_miss || 0);
+  const hazard = Number(r.hazard_miss || 0);
+  const age = Number(r.age_filtered || 0);
+  return `country:${country} | hazard:${hazard} | age:${age}`;
+}
+
+function freshnessTone(status) {
+  if (status === "fresh") return "ok";
+  if (status === "stale") return "fail";
+  return "muted";
 }
 
 function TinyLineChart({ values, color = "#1ec97e", yMax = null }) {
@@ -39,6 +57,44 @@ function TinyLineChart({ values, color = "#1ec97e", yMax = null }) {
   );
 }
 
+function buildSourceCheckFromConnectorMetrics(payload) {
+  const metrics = Array.isArray(payload?.connector_metrics) ? payload.connector_metrics : [];
+  const sourceChecks = [];
+  for (const metric of metrics) {
+    const connector = metric?.connector || "unknown";
+    const sources = Array.isArray(metric?.source_results) ? metric.source_results : [];
+    for (const s of sources) {
+      const status = String(s?.status || "unknown");
+      const fetched = Number(s?.fetched_count || 0);
+      sourceChecks.push({
+        connector,
+        source_name: String(s?.source_name || ""),
+        source_url: String(s?.source_url || ""),
+        status,
+        fetched_count: fetched,
+        matched_count: Number(s?.matched_count || 0),
+        error: String(s?.error || ""),
+        latest_published_at: s?.latest_published_at || null,
+        latest_age_days: s?.latest_age_days,
+        freshness_status: String(s?.freshness_status || "unknown"),
+        stale_streak: Number(s?.stale_streak || 0),
+        stale_action: s?.stale_action || null,
+        match_reasons: s?.match_reasons || {},
+        working: (status === "ok" || status === "recovered") && fetched > 0,
+      });
+    }
+  }
+  return {
+    status: "ok",
+    connector_count: Number(payload?.connector_count || metrics.length || 0),
+    raw_item_count: Number(payload?.raw_item_count || 0),
+    working_sources: sourceChecks.filter((x) => x.working).length,
+    total_sources: sourceChecks.length,
+    source_checks: sourceChecks,
+    connector_metrics: metrics,
+  };
+}
+
 export default function App() {
   const [overview, setOverview] = useState(null);
   const [reports, setReports] = useState([]);
@@ -49,6 +105,8 @@ export default function App() {
   const [actionOutput, setActionOutput] = useState(null);
   const [workbench, setWorkbench] = useState(null);
   const [profileStore, setProfileStore] = useState({ presets: {}, last_profile: null });
+  const [sourceCheck, setSourceCheck] = useState(null);
+  const [autoSourceCheck, setAutoSourceCheck] = useState(true);
   const [presetName, setPresetName] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("");
   const [error, setError] = useState("");
@@ -58,6 +116,16 @@ export default function App() {
     const r = await fetch("/api/overview");
     const data = await r.json();
     setOverview(data);
+    const flags = data?.feature_flags || {};
+    if (typeof flags.dashboard_auto_source_check_default === "boolean") {
+      setAutoSourceCheck(flags.dashboard_auto_source_check_default);
+    }
+    if (
+      Number.isFinite(Number(flags.max_item_age_days_default)) &&
+      Number(flags.max_item_age_days_default) > 0
+    ) {
+      setForm((s) => ({ ...s, max_age_days: Number(flags.max_item_age_days_default) }));
+    }
   }
 
   async function fetchReports() {
@@ -90,6 +158,7 @@ export default function App() {
   const cycles = Array.isArray(overview?.cycles) ? overview.cycles : [];
   const e2e = overview?.latest_e2e_summary || {};
   const qualityTrend = Array.isArray(overview?.quality_trend) ? overview.quality_trend : [];
+  const flags = overview?.feature_flags || {};
 
   const trend = useMemo(() => {
     const ordered = [...cycles].reverse();
@@ -110,6 +179,18 @@ export default function App() {
     };
   }, [qualityTrend]);
 
+  const lastActionSummary = useMemo(() => {
+    if (!actionOutput) return { label: "No action yet", tone: "muted" };
+    if (actionOutput?.status === "error") return { label: "Failed", tone: "fail" };
+    if (actionOutput?.cycle_id !== undefined) {
+      return { label: `Cycle ran (cycle_id=${actionOutput.cycle_id})`, tone: "ok" };
+    }
+    if (actionOutput?.output_path || actionOutput?.report_path) {
+      return { label: "Report generated", tone: "ok" };
+    }
+    return { label: "Completed", tone: "ok" };
+  }, [actionOutput]);
+
   const topFailingSources = useMemo(() => {
     const list = Array.isArray(sourceHealth.sources) ? sourceHealth.sources : [];
     return [...list]
@@ -127,11 +208,29 @@ export default function App() {
         body: JSON.stringify({
           countries: form.countries,
           disaster_types: form.disaster_types,
+          max_age_days: form.max_age_days,
           limit: form.limit,
         }),
       });
       const data = await r.json();
       setActionOutput(data);
+      if (Array.isArray(data?.connector_metrics)) {
+        setSourceCheck(buildSourceCheckFromConnectorMetrics(data));
+      }
+      if (autoSourceCheck) {
+        const checkResp = await fetch("/api/source-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            countries: form.countries,
+            disaster_types: form.disaster_types,
+            max_age_days: form.max_age_days,
+            limit: form.limit,
+          }),
+        });
+        const checkData = await checkResp.json();
+        setSourceCheck(checkData);
+      }
       await fetchOverview();
     } catch (e) {
       setError(String(e));
@@ -150,6 +249,10 @@ export default function App() {
         body: JSON.stringify({
           countries: form.countries,
           disaster_types: form.disaster_types,
+          max_age_days: form.max_age_days,
+          country_min_events: form.country_min_events,
+          max_per_connector: form.max_per_connector,
+          max_per_source: form.max_per_source,
           limit_cycles: form.limit_cycles,
           limit_events: form.limit_events,
           report_template: form.report_template,
@@ -177,6 +280,10 @@ export default function App() {
         body: JSON.stringify({
           countries: form.countries,
           disaster_types: form.disaster_types,
+          max_age_days: form.max_age_days,
+          country_min_events: form.country_min_events,
+          max_per_connector: form.max_per_connector,
+          max_per_source: form.max_per_source,
           limit_cycles: form.limit_cycles,
           limit_events: form.limit_events,
           report_template: form.report_template,
@@ -198,6 +305,10 @@ export default function App() {
     return {
       countries: form.countries,
       disaster_types: form.disaster_types,
+      max_age_days: form.max_age_days,
+      country_min_events: form.country_min_events,
+      max_per_connector: form.max_per_connector,
+      max_per_source: form.max_per_source,
       limit_cycles: form.limit_cycles,
       limit_events: form.limit_events,
       report_template: form.report_template,
@@ -210,6 +321,10 @@ export default function App() {
       ...s,
       countries: profile.countries ?? s.countries,
       disaster_types: profile.disaster_types ?? s.disaster_types,
+      max_age_days: Number(profile.max_age_days ?? s.max_age_days),
+      country_min_events: Number(profile.country_min_events ?? s.country_min_events),
+      max_per_connector: Number(profile.max_per_connector ?? s.max_per_connector),
+      max_per_source: Number(profile.max_per_source ?? s.max_per_source),
       limit_cycles: Number(profile.limit_cycles ?? s.limit_cycles),
       limit_events: Number(profile.limit_events ?? s.limit_events),
       report_template: profile.report_template ?? s.report_template,
@@ -269,6 +384,30 @@ export default function App() {
       setError(String(e));
     } finally {
       setWorkbenchBusy(false);
+    }
+  }
+
+  async function handleSourceCheck() {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/source-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countries: form.countries,
+          disaster_types: form.disaster_types,
+          max_age_days: form.max_age_days,
+          limit: form.limit,
+        }),
+      });
+      const data = await r.json();
+      setSourceCheck(data);
+      setActionOutput(data);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -420,6 +559,32 @@ export default function App() {
         </article>
 
         <article className="card">
+          <h2>Feature Flags</h2>
+          <div className="kv">
+            <div>reliefweb_enabled</div>
+            <div>{String(flags.reliefweb_enabled)}</div>
+            <div>llm_enrichment_enabled</div>
+            <div>{String(flags.llm_enrichment_enabled)}</div>
+            <div>report_strict_filters_default</div>
+            <div>{String(flags.report_strict_filters_default)}</div>
+            <div>dashboard_auto_source_check_default</div>
+            <div>{String(flags.dashboard_auto_source_check_default)}</div>
+            <div>source_check_endpoint_enabled</div>
+            <div>{String(flags.source_check_endpoint_enabled)}</div>
+            <div>max_item_age_days_default</div>
+            <div>{flags.max_item_age_days_default ?? "-"}</div>
+            <div>stale_feed_auto_warn_enabled</div>
+            <div>{String(flags.stale_feed_auto_warn_enabled)}</div>
+            <div>stale_feed_warn_after_checks</div>
+            <div>{flags.stale_feed_warn_after_checks ?? "-"}</div>
+            <div>stale_feed_auto_demote_enabled</div>
+            <div>{String(flags.stale_feed_auto_demote_enabled)}</div>
+            <div>stale_feed_demote_after_checks</div>
+            <div>{flags.stale_feed_demote_after_checks ?? "-"}</div>
+          </div>
+        </article>
+
+        <article className="card">
           <h2>Source Health Hotspots</h2>
           <table className="table">
             <thead>
@@ -471,6 +636,14 @@ export default function App() {
               />
             </label>
             <label>
+              Max Age Days
+              <input
+                type="number"
+                value={form.max_age_days}
+                onChange={(e) => setForm((s) => ({ ...s, max_age_days: Number(e.target.value) }))}
+              />
+            </label>
+            <label>
               Limit Cycles
               <input
                 type="number"
@@ -484,6 +657,32 @@ export default function App() {
                 type="number"
                 value={form.limit_events}
                 onChange={(e) => setForm((s) => ({ ...s, limit_events: Number(e.target.value) }))}
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              Country Min Events
+              <input
+                type="number"
+                value={form.country_min_events}
+                onChange={(e) => setForm((s) => ({ ...s, country_min_events: Number(e.target.value) }))}
+              />
+            </label>
+            <label>
+              Max / Connector
+              <input
+                type="number"
+                value={form.max_per_connector}
+                onChange={(e) => setForm((s) => ({ ...s, max_per_connector: Number(e.target.value) }))}
+              />
+            </label>
+            <label>
+              Max / Source
+              <input
+                type="number"
+                value={form.max_per_source}
+                onChange={(e) => setForm((s) => ({ ...s, max_per_source: Number(e.target.value) }))}
               />
             </label>
           </div>
@@ -505,6 +704,14 @@ export default function App() {
               onChange={(e) => setForm((s) => ({ ...s, use_llm: e.target.checked }))}
             />
             Use LLM for report drafting
+          </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={autoSourceCheck}
+              onChange={(e) => setAutoSourceCheck(e.target.checked)}
+            />
+            Auto-run Source Check after Run Cycle
           </label>
           <label>
             Saved Compare Presets
@@ -548,10 +755,13 @@ export default function App() {
           </div>
           <div className="actions">
             <button disabled={busy} onClick={() => void handleRunCycle()}>
-              Run Cycle
+              {busy ? "Running..." : "Run Cycle"}
+            </button>
+            <button disabled={busy} className="ghost" onClick={() => void handleSourceCheck()}>
+              {busy ? "Checking..." : "Source Check"}
             </button>
             <button disabled={busy} className="accent" onClick={() => void handleWriteReport()}>
-              Write Report
+              {busy ? "Working..." : "Write Report"}
             </button>
             <button disabled={workbenchBusy} onClick={() => void handleRunWorkbench()}>
               {workbenchBusy ? "Comparing..." : "Compare AI vs Deterministic"}
@@ -564,7 +774,59 @@ export default function App() {
 
         <article className="card">
           <h2>Last Action Output</h2>
+          <div className={`status-inline status-${lastActionSummary.tone}`}>Status: {lastActionSummary.label}</div>
           <pre>{JSON.stringify(actionOutput, null, 2)}</pre>
+        </article>
+      </section>
+
+      <section className="grid">
+        <article className="card">
+          <h2>Per-Source Check</h2>
+          {!sourceCheck ? (
+            <div className="muted">Run Source Check to verify each feed one-by-one.</div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Connector</th>
+                  <th>Source</th>
+                  <th>Status</th>
+                  <th>Freshness</th>
+                  <th>Stale Action</th>
+                  <th>Fetched</th>
+                  <th>Matched</th>
+                  <th>Match Reasons</th>
+                  <th>Latest Published</th>
+                  <th>Working</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(sourceCheck.source_checks || []).map((s) => (
+                  <tr key={`${s.connector}-${s.source_name}-${s.source_url}`}>
+                    <td>{s.connector}</td>
+                    <td title={s.source_url}>{s.source_name}</td>
+                    <td>{s.status}</td>
+                    <td>
+                      <span className={`chip chip-${freshnessTone(s.freshness_status)}`}>
+                        {s.freshness_status}
+                      </span>
+                    </td>
+                    <td>{s.stale_action || "-"}</td>
+                    <td>{fmtNumber(s.fetched_count, 0)}</td>
+                    <td>{fmtNumber(s.matched_count, 0)}</td>
+                    <td>{formatMatchReasons(s.match_reasons)}</td>
+                    <td>
+                      {s.latest_published_at || "-"}
+                      {s.latest_age_days !== null && s.latest_age_days !== undefined ? ` (${fmtNumber(s.latest_age_days, 1)}d)` : ""}
+                    </td>
+                    <td>
+                      <input type="checkbox" checked={Boolean(s.working)} readOnly />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </article>
       </section>
 

@@ -157,7 +157,7 @@ select {
 
 .row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -248,6 +248,43 @@ pre {
 }
 
 .muted {
+  color: var(--muted);
+}
+
+.status-inline {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-ok {
+  color: #57e58e;
+}
+
+.status-muted {
+  color: var(--muted);
+}
+
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.chip-ok {
+  color: #57e58e;
+  border-color: rgba(87, 229, 142, 0.45);
+}
+
+.chip-fail {
+  color: #ff8686;
+  border-color: rgba(255, 101, 101, 0.45);
+}
+
+.chip-muted {
   color: var(--muted);
 }
 

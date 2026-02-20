@@ -1,7 +1,7 @@
 # Development Roadmap - Dynamic Disaster Intelligence Assistant
 
-Date: 2026-02-18
-Version: 1.1
+Date: 2026-02-20
+Version: 1.2
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.
@@ -118,3 +118,7 @@ Evidence:
 - Added minimal operator UI baseline for rapid quality iteration:
   - local API bridge (`scripts/dashboard_api.py`) wrapping existing CLI commands
   - React dashboard scaffold (`ui/`) for run-cycle, write-report, KPI snapshot, and report preview
+- Source integration quality improvements:
+  - ReliefWeb connector upgraded to API v2 with filter-aware query payload.
+  - GDACS upgraded to hazard-specific 7-day feeds (all/flood/cyclone).
+  - FEWS NET RSS feeds integrated for analysis and weather/agriculture outlook coverage.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
+from .feature_flags import get_feature_flag
 
 
 def load_environment() -> None:
@@ -12,8 +13,7 @@ def load_environment() -> None:
 
 
 def is_reliefweb_enabled() -> bool:
-    raw = os.getenv("RELIEFWEB_ENABLED", "true").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return bool(get_feature_flag("reliefweb_enabled", True))
 
 
 def get_reliefweb_appname() -> str:
@@ -27,8 +27,7 @@ def get_reliefweb_appname() -> str:
 
 
 def is_llm_enrichment_enabled() -> bool:
-    raw = os.getenv("LLM_ENRICHMENT_ENABLED", "false").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return bool(get_feature_flag("llm_enrichment_enabled", False))
 
 
 def get_openai_api_key() -> str:
