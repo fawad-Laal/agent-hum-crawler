@@ -1,0 +1,32 @@
+{
+  "country": "Democratic Republic of the Congo",
+  "iso3": "COD",
+  "admin1": {
+    "Kinshasa": ["Gombe", "Lingwala", "Barumbu", "Kinshasa", "Ngaliema", "Mont-Ngafula", "Selembao", "Bumbu", "Makala", "Ngiri-Ngiri", "Kalamu", "Bandalungwa", "Kintambo", "Lemba", "Limete", "Matete", "Ngaba", "Kisenso", "Kimbanseke", "Masina", "Ndjili", "Nsele", "Maluku"],
+    "Kongo-Central": ["Matadi", "Boma", "Muanda", "Tshela", "Lukula", "Mbanza-Ngungu", "Songololo", "Madimba", "Kasangulu"],
+    "Kwango": ["Kenge", "Kahemba", "Feshi", "Popokabaka", "Kasongo-Lunda"],
+    "Kwilu": ["Bandundu", "Kikwit", "Bulungu", "Idiofa", "Masi-Manimba", "Bagata", "Gungu"],
+    "Mai-Ndombe": ["Inongo", "Kutu", "Kiri", "Oshwe", "Bolobo", "Mushie", "Yumbi", "Kwamouth"],
+    "Equateur": ["Mbandaka", "Bikoro", "Ingende", "Bolomba", "Bomongo", "Basankusu", "Makanza", "Lukolela"],
+    "Mongala": ["Lisala", "Bumba", "Bongandanga"],
+    "Nord-Ubangi": ["Gbadolite", "Mobayi-Mbongo", "Yakoma", "Businga"],
+    "Sud-Ubangi": ["Gemena", "Kungu", "Budjala", "Libenge"],
+    "Tshuapa": ["Boende", "Befale", "Ikela", "Monkoto", "Djolu"],
+    "Tshopo": ["Kisangani", "Yangambi", "Isangi", "Opala", "Ubundu", "Bafwasende", "Banalia"],
+    "Bas-Uele": ["Buta", "Aketi", "Ango", "Bambesa", "Poko"],
+    "Haut-Uele": ["Isiro", "Dungu", "Faradje", "Watsa", "Niangara", "Wamba", "Rungu"],
+    "Ituri": ["Bunia", "Irumu", "Djugu", "Mahagi", "Aru", "Mambasa"],
+    "North Kivu": ["Goma", "Beni", "Butembo", "Lubero", "Masisi", "Rutshuru", "Walikale", "Nyiragongo"],
+    "South Kivu": ["Bukavu", "Uvira", "Fizi", "Mwenga", "Shabunda", "Walungu", "Kabare", "Kalehe", "Idjwi"],
+    "Maniema": ["Kindu", "Lubutu", "Punia", "Kailo", "Pangi", "Kabambare", "Kasongo"],
+    "Haut-Katanga": ["Lubumbashi", "Likasi", "Kipushi", "Kasenga", "Pweto", "Mitwaba", "Kambove"],
+    "Lualaba": ["Kolwezi", "Likasi", "Dilolo", "Kapanga", "Sandoa", "Mutshatsha", "Lubudi"],
+    "Haut-Lomami": ["Kamina", "Kabongo", "Malemba-Nkulu", "Kaniama", "Bukama"],
+    "Tanganyika": ["Kalemie", "Moba", "Manono", "Nyunzu", "Kabalo", "Kongolo"],
+    "Lomami": ["Kabinda", "Mwene-Ditu", "Ngandajika", "Lubao", "Luilu"],
+    "Kasai": ["Tshikapa", "Ilebo", "Luebo", "Mweka", "Dekese"],
+    "Kasai-Central": ["Kananga", "Demba", "Dibaya", "Dimbelenge", "Kazumba", "Luiza"],
+    "Kasai-Oriental": ["Mbuji-Mayi", "Tshilenge", "Miabi", "Kabeya-Kamwanga", "Katanda", "Lupatapata"],
+    "Sankuru": ["Lodja", "Lubefu", "Lusambo", "Katako-Kombe", "Lomela", "Kole"]
+  }
+}

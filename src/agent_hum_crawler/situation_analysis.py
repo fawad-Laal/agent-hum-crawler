@@ -21,10 +21,14 @@ and the ``reporting`` module for evidence gathering and citation logic.
 from __future__ import annotations
 
 import json
+import logging
+import re as _re_module
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 from .graph_ontology import (
     HumanitarianOntologyGraph,
@@ -41,6 +45,7 @@ from .llm_utils import (
     extract_json_object as _extract_json_object,
     extract_responses_text as _extract_responses_text,
 )
+from .sa_quality_gate import quality_summary_markdown, score_situation_analysis
 from .settings import get_openai_api_key, get_openai_model
 
 
@@ -279,6 +284,87 @@ def _extract_access_constraints(evidence: list[dict[str, Any]]) -> list[str]:
     return constraints
 
 
+# ── Citation span locking ────────────────────────────────────────────
+
+_CITATION_REF_RE = _re_module.compile(r"\[(\d+)\]")
+
+
+def validate_sa_citations(
+    narrative: dict[str, str],
+    citation_numbers: dict[str, int],
+) -> dict[str, Any]:
+    """Validate citation references in SA LLM narratives.
+
+    Checks that every ``[N]`` reference in each narrative section maps
+    to an actual citation number in the citation index.
+
+    Returns a quality dict with per-section and overall stats.
+    """
+    valid_numbers = set(citation_numbers.values())
+    total_refs = 0
+    valid_refs = 0
+    invalid_refs = 0
+    sections_with_refs = 0
+    section_details: dict[str, dict[str, Any]] = {}
+
+    for key, text in narrative.items():
+        if not isinstance(text, str):
+            continue
+        refs = _CITATION_REF_RE.findall(text)
+        section_total = len(refs)
+        section_valid = sum(1 for r in refs if int(r) in valid_numbers)
+        section_invalid = section_total - section_valid
+        total_refs += section_total
+        valid_refs += section_valid
+        invalid_refs += section_invalid
+        if section_total > 0:
+            sections_with_refs += 1
+        section_details[key] = {
+            "total_refs": section_total,
+            "valid_refs": section_valid,
+            "invalid_refs": section_invalid,
+        }
+
+    total_sections = len(narrative)
+    citation_coverage = sections_with_refs / total_sections if total_sections else 0.0
+    accuracy = valid_refs / total_refs if total_refs else 1.0
+
+    return {
+        "total_refs": total_refs,
+        "valid_refs": valid_refs,
+        "invalid_refs": invalid_refs,
+        "sections_with_refs": sections_with_refs,
+        "total_sections": total_sections,
+        "citation_coverage": round(citation_coverage, 3),
+        "citation_accuracy": round(accuracy, 3),
+        "section_details": section_details,
+    }
+
+
+def strip_invalid_citations(
+    narrative: dict[str, str],
+    citation_numbers: dict[str, int],
+) -> dict[str, str]:
+    """Remove invalid ``[N]`` references from narrative text.
+
+    Any ``[N]`` where N is not in the citation index is stripped
+    to prevent misleading references.
+    """
+    valid_numbers = set(citation_numbers.values())
+    cleaned: dict[str, str] = {}
+    for key, text in narrative.items():
+        if not isinstance(text, str):
+            cleaned[key] = text
+            continue
+
+        def _replace(m: _re_module.Match) -> str:
+            n = int(m.group(1))
+            return m.group(0) if n in valid_numbers else ""
+
+        cleaned[key] = _CITATION_REF_RE.sub(_replace, text).strip()
+    return cleaned
+
+
 # ── Main renderer ────────────────────────────────────────────────────
 
 def render_situation_analysis(
@@ -291,6 +377,8 @@ def render_situation_analysis(
     admin_hierarchy: dict[str, list[str]] | None = None,
     template_path: Path | None = None,
     use_llm: bool = False,
+    quality_gate: bool = False,
+    quality_thresholds: dict[str, float] | None = None,
 ) -> str:
     """Render a full OCHA Situation Analysis from graph evidence.
 
@@ -354,6 +442,9 @@ def render_situation_analysis(
             citation_numbers=citation_numbers,
             event_name=event_name,
         )
+        # Citation span locking — strip any invalid [N] refs
+        if llm_narrative:
+            llm_narrative = strip_invalid_citations(llm_narrative, citation_numbers)
 
     lines: list[str] = []
 
@@ -469,7 +560,23 @@ def render_situation_analysis(
         lines.append(f"{n}. {url}")
     lines.append("")
 
-    return "\n".join(lines) + "\n"
+    report_md = "\n".join(lines) + "\n"
+
+    # ── QUALITY GATE ────────────────────────────────────────
+    if quality_gate:
+        qa_result = score_situation_analysis(
+            report_md,
+            citation_numbers=citation_numbers,
+            thresholds=quality_thresholds,
+        )
+        report_md = report_md.rstrip("\n") + quality_summary_markdown(qa_result) + "\n"
+        _log.info(
+            "SA quality gate: score=%.3f passed=%s",
+            qa_result.overall_score,
+            qa_result.passed,
+        )
+
+    return report_md
 
 
 # ── Section renderers ────────────────────────────────────────────────
@@ -1088,7 +1195,17 @@ def _generate_llm_narratives(
         "- Cite dates when available (e.g. 'As of 12 Jan 2026…').\n"
         "- Cite the source when available (e.g. '…according to OCHA').\n"
         "- Never fabricate a date or source not present in the evidence.\n"
+        "- ALWAYS include citation references using [N] notation where N is the "
+        "citation number from the citation index below. Every factual claim MUST "
+        "have at least one [N] reference.\n"
+        "- Multiple claims from the same source can share one [N] reference.\n"
     )
+
+    # Build citation index string for LLM
+    citation_index_str = "\n".join(
+        f"  [{n}] {url}" for url, n in sorted(citation_numbers.items(), key=lambda x: x[1])
+    )
+    citation_context = f"\nCITATION INDEX:\n{citation_index_str}\n" if citation_numbers else ""
 
     # ── Pass 1: Core narrative ────────────────────────────────────
     _core_keys = [
@@ -1109,6 +1226,7 @@ def _generate_llm_narratives(
         "Write concise, factual humanitarian prose grounded ONLY in the provided evidence. "
         "Do NOT invent figures or facts not present in evidence.\n"
         + attribution_rules
+        + citation_context
         + f"Event: {event_name}\n"
         f"National figures: {json.dumps(nat_figures)}\n"
         f"Word limits: ~{limits.get('executive_summary_max_words', 500)} words for "
@@ -1152,6 +1270,7 @@ def _generate_llm_narratives(
         "Each section should focus on its specific sector (Shelter, WASH, Health, "
         "Food Security, Protection, Education).\n"
         + attribution_rules
+        + citation_context
         + f"Event: {event_name}\n"
         f"Word limits: ~{limits.get('sector_max_words', 250)} words per section."
         + sector_context

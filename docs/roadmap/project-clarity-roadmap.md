@@ -433,14 +433,14 @@ Last updated: 2026-02-21
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 3.1 | Citation span locking | Not started | |
-| 3.2 | Expand gazetteers (5 countries) | Not started | |
-| 3.3 | Source credibility weighting | Not started | |
-| 3.4 | SA quality gate | Not started | |
-| 3.5 | Agent abstraction layer | Not started | |
-| 3.6 | Provider abstraction | Not started | |
+| 3.1 | Citation span locking | ✅ Complete | `validate_sa_citations()`, `strip_invalid_citations()`, LLM prompt citation index |
+| 3.2 | Expand gazetteers (5 countries) | ✅ Complete | SOM, SDN, SSD, COD, AFG in `config/gazetteers/` |
+| 3.3 | Source credibility weighting | ✅ Complete | `source_credibility.py` — 4-tier system wired into ontology + reporting |
+| 3.4 | SA quality gate | ✅ Complete | `sa_quality_gate.py` — 6-dimension scoring with configurable thresholds |
+| 3.5 | Agent abstraction layer | ✅ Complete | `agents.py` — base Agent class with retry/validate/fallback + 5 concrete agents |
+| 3.6 | Provider abstraction | ✅ Complete | `llm_provider.py` — LLMProvider ABC, OpenAI Responses impl, env-driven selection |
 
-**Phase 3 overall**: Not started
+**Phase 3 overall**: ✅ Complete — 187/187 Python tests, 23/23 Rust tests passing
 
 ---
 

@@ -1,0 +1,16 @@
+{
+  "country": "South Sudan",
+  "iso3": "SSD",
+  "admin1": {
+    "Central Equatoria": ["Juba", "Kajo-keji", "Lainya", "Morobo", "Terekeka", "Yei"],
+    "Eastern Equatoria": ["Torit", "Budi", "Ikotos", "Kapoeta East", "Kapoeta North", "Kapoeta South", "Lafon", "Magwi"],
+    "Western Equatoria": ["Yambio", "Ezo", "Ibba", "Maridi", "Mundri East", "Mundri West", "Mvolo", "Nagero", "Nzara", "Tambura"],
+    "Jonglei": ["Bor South", "Akobo", "Ayod", "Canal/Pigi", "Duk", "Fangak", "Nyirol", "Twic East", "Uror", "Pibor"],
+    "Unity": ["Bentiu", "Guit", "Koch", "Leer", "Mayendit", "Mayom", "Panyijiar", "Rubkona", "Pariang"],
+    "Upper Nile": ["Malakal", "Baliet", "Fashoda", "Luakpiny/Nasir", "Longochuk", "Maiwut", "Manyo", "Maban", "Panyikang", "Renk", "Ulang"],
+    "Lakes": ["Rumbek Centre", "Rumbek East", "Rumbek North", "Awerial", "Cueibet", "Wulu", "Yirol East", "Yirol West"],
+    "Warrap": ["Kuajok", "Gogrial East", "Gogrial West", "Tonj East", "Tonj North", "Tonj South", "Twic"],
+    "Western Bahr el Ghazal": ["Wau", "Jur River", "Raga"],
+    "Northern Bahr el Ghazal": ["Aweil Centre", "Aweil East", "Aweil North", "Aweil South", "Aweil West"]
+  }
+}

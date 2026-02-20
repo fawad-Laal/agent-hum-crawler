@@ -1,0 +1,24 @@
+{
+  "country": "Sudan",
+  "iso3": "SDN",
+  "admin1": {
+    "Khartoum": ["Khartoum", "Omdurman", "Bahri", "Jabal Awliya", "Karrari", "Sharg An Nil", "Um Baddah"],
+    "Northern": ["Dongola", "Merowe", "Halfa", "El Daba", "El Golid"],
+    "River Nile": ["Atbara", "Ed Damer", "Shendi", "Berber", "Abu Hamad", "Al Matammah"],
+    "Red Sea": ["Port Sudan", "Suakin", "Tokar", "Sinkat", "Halaib", "Agig"],
+    "Kassala": ["Kassala", "Aroma", "Halfa Al Jadidah", "Khashm El Girba", "Wad Al Helew", "Hamashkoreib"],
+    "Gedaref": ["Gedaref", "Al Fao", "Galabat", "Rahad", "Al Butanah", "Al Fashaga"],
+    "Gezira": ["Wad Medani", "Al Hasahisa", "Al Kamlin", "Al Managil", "South Gezira", "East Gezira", "Um Al Qura"],
+    "Sennar": ["Sennar", "Singa", "Abu Hugar", "Al Dinder", "Al Suki"],
+    "White Nile": ["Kosti", "Rabak", "Ad Duwaym", "Tendalti", "Al Jabalain", "Al Gitaina"],
+    "Blue Nile": ["Ed Damazin", "Roseires", "Bau", "Al Kurmuk", "Geissan", "Wad Al Mahi"],
+    "North Kordofan": ["El Obeid", "Sheikan", "Bara", "Um Ruwaba", "Sodiri", "Jebrat Al Sheikh"],
+    "South Kordofan": ["Kadugli", "Dilling", "Rashad", "Abu Jibeha", "Talodi", "Al Liri", "Heiban"],
+    "West Kordofan": ["El Fula", "Al Nuhud", "Babanusa", "Al Meiram", "Lagawa", "Keilak", "Al Sunut"],
+    "North Darfur": ["El Fasher", "Kutum", "Kebkabiya", "Al Lait", "Malha", "Mellit", "Tawila", "Um Kaddada", "Dar Al Salam"],
+    "West Darfur": ["El Geneina", "Kulbus", "Habila", "Sirba", "Beida", "Kereinik", "Jebel Moon"],
+    "Central Darfur": ["Zalingei", "Nertiti", "Azum", "Wadi Salih", "Mukjar", "Golo", "Rokero", "Um Dukhun", "Bindisi"],
+    "South Darfur": ["Nyala", "Ed Daein", "Kass", "Tulus", "Buram", "Gereida", "Sheria", "Al Salam"],
+    "East Darfur": ["Ed Daein", "Abu Karinka", "Adila", "Assalaya", "Bahr al Arab", "Al Firdous", "Yassin", "Shairia"]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "country": "Somalia",
+  "iso3": "SOM",
+  "admin1": {
+    "Awdal": ["Borama", "Baki", "Lughaye", "Zeila"],
+    "Woqooyi Galbeed": ["Hargeisa", "Berbera", "Gebiley", "Wajaale"],
+    "Togdheer": ["Burao", "Sheikh", "Oodweyne", "Buuhoodle"],
+    "Sanaag": ["Erigavo", "Ceel Afweyn", "Laasqoray", "Ceerigaabo"],
+    "Sool": ["Laas Caanood", "Ainabo", "Taleex", "Hudun"],
+    "Bari": ["Bosaso", "Qardho", "Iskushuban", "Bandarbeyla", "Caluula"],
+    "Nugaal": ["Garowe", "Eyl", "Burtinle", "Dangorayo"],
+    "Mudug": ["Galkayo", "Hobyo", "Jariban", "Harardhere", "Xarardheere"],
+    "Galgaduud": ["Dhusamareb", "Abudwak", "Cadaado", "El Bur", "El Dher"],
+    "Hiraan": ["Beledweyne", "Bulo Burto", "Mataban", "Jalalaqsi"],
+    "Middle Shabelle": ["Jowhar", "Balcad", "Aden Yabal", "Cadale", "Warsheikh"],
+    "Banadir": ["Mogadishu", "Hodan", "Wadajir", "Karaan", "Dharkenley", "Hamar Jajab", "Hamar Weyne", "Shangani", "Abdiaziz", "Bondhere", "Shibis", "Waberi", "Wardhigley", "Yaqshid", "Daynile", "Kaxda"],
+    "Lower Shabelle": ["Marka", "Baidoa", "Qoryoley", "Kurtunwaarey", "Wanla Weyn", "Afgooye"],
+    "Bay": ["Baidoa", "Buur Hakaba", "Dinsor", "Qansax Dheere"],
+    "Bakool": ["Hudur", "Tiyeglow", "Wajid", "Elberde", "Rabdhure"],
+    "Gedo": ["Garbaharey", "Bardhere", "El Waq", "Luuq", "Belet Hawa", "Dollow"],
+    "Middle Juba": ["Bu'aale", "Jilib", "Saakow"],
+    "Lower Juba": ["Kismayo", "Jamame", "Badhaadhe", "Afmadow"]
+  }
+}

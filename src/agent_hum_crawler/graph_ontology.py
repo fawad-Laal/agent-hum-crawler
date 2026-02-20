@@ -147,6 +147,8 @@ class ImpactObservation:
     # Temporal fields (Phase 2)
     reported_date: str = ""   # YYYY-MM-DD or ISO-8601 fragment
     source_label: str = ""
+    # Credibility tier (Phase 3): 1=UN/OCHA, 2=NGO/Gov, 3=News, 4=Other
+    credibility_tier: int = 4
 
 
 @dataclass
@@ -198,6 +200,7 @@ class SourceClaim:
     connector: str
     published_at: str | None = None
     confidence: str = "medium"
+    credibility_tier: int = 4
 
 
 # ── Ontology Graph ───────────────────────────────────────────────────
@@ -1104,6 +1107,18 @@ def build_ontology_from_evidence(
         source_label = str(ev.get("source_label", "unknown"))
         combined = " ".join([title, summary, text])
 
+        # Source credibility tier (injected by annotate_evidence or computed here)
+        cred_tier = ev.get("credibility_tier")
+        if cred_tier is None:
+            try:
+                from .source_credibility import source_tier as _src_tier
+                cred_tier = _src_tier(
+                    connector=connector,
+                    source_type=str(ev.get("source_type", "")),
+                )
+            except Exception:
+                cred_tier = 4
+
         # Geo — resolve ISO3 if not provided
         if country:
             _iso3 = country_iso3
@@ -1136,6 +1151,7 @@ def build_ontology_from_evidence(
             connector=connector,
             published_at=str(published_at) if published_at else None,
             confidence=confidence,
+            credibility_tier=cred_tier,
         ))
 
         # Figures extraction (Rust-accelerated when available)
@@ -1176,6 +1192,7 @@ def build_ontology_from_evidence(
             confidence=confidence,
             reported_date=_reported_date,
             source_label=source_label,
+            credibility_tier=cred_tier,
         ))
 
         # Need extraction (Rust-accelerated when available)

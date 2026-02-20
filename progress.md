@@ -2,7 +2,7 @@
 
 Date: 2026-02-20
 Last Updated: 2026-02-21
-Status: Post-MVP Hardening + **Project Clarity** (Phase 2 Intelligence Layer Complete)
+Status: Post-MVP Hardening + **Project Clarity** (Phase 3 Expansion Complete)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -147,7 +147,7 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 2 Intelligence Layer Com
   - removed stale CNN World default feed,
   - added country-targeted disaster query feeds for Madagascar, Mozambique, Pakistan, Bangladesh, Ethiopia,
   - retained BBC, Reuters World, NYT World, NPR World, Al Jazeera, AllAfrica, Africanews, ANA, Guardian.
-- Current test status: `150 passed`.
+- Current test status: `187 passed`.
 - Dashboard redesigned from 13 sections → 8 unified sections (Command Center, Trends, System Health, Action Output, Source Intelligence, Workbench, SA Output, Reports).
 - SA quality analysis completed — root cause analysis of Ethiopia SA output quality issues documented in `docs/analysis/sa-improvement-analysis.md`.
   - Identified 9 critical SA issues: garbage sector tables, missing gazetteers, no date awareness, PDFs not extracted, figure deduplication absent, etc.
@@ -230,11 +230,13 @@ Active roadmap: `docs/roadmap/project-clarity-roadmap.md`
    - ✅ Two-pass SA synthesis (Pass 1: core narrative — executive_summary, national_impact, access_constraints, outstanding_needs, forecast_risk; Pass 2: 6 sector narratives with Pass 1 context).
    - ✅ "As of" dating on all SA figures (`national_figures_with_dates()`, "As of" column in impact table, inline date attribution in narratives).
    - ✅ Streaming ingestion (`fetch_stream()` generator on ReliefWeb connector — yields `RawSourceItem` page-by-page).
-3. **Reduced++ Phase 3 — Expansion (when needed)** ← NEXT:
-   - Citation span locking.
-   - Expand gazetteers (Somalia, Sudan, South Sudan, DRC, Afghanistan).
-   - Source credibility tier weighting.
-   - SA quality gate (automated scoring).
+3. **~~Reduced++ Phase 3 — Expansion~~ ✅ COMPLETE**:
+   - ✅ Citation span locking (`validate_sa_citations()`, `strip_invalid_citations()`, LLM prompt citation index injection).
+   - ✅ Expand gazetteers (Somalia, Sudan, South Sudan, DRC, Afghanistan — 5 new files in `config/gazetteers/`).
+   - ✅ Source credibility tier weighting (`source_credibility.py` — 4-tier system: UN/OCHA → NGO/Gov → Major News → Other; wired into graph_ontology + reporting).
+   - ✅ SA quality gate (`sa_quality_gate.py` — 6-dimension scoring: section completeness, key figure coverage, citation accuracy/density, admin coverage, date attribution; configurable thresholds).
+   - ✅ Agent abstraction layer (`agents.py` — `Agent` base class with retry/validate/fallback lifecycle; `EnrichmentAgent`, `SANarrativeAgent`, `GazetteerAgent`, `BatchEnrichmentAgent`, `ReportNarrativeAgent`).
+   - ✅ Provider abstraction (`llm_provider.py` — `LLMProvider` ABC, `OpenAIResponsesProvider` implementation, `get_provider()` singleton with `LLM_PROVIDER` env selection, `register_provider()` extension point).
 4. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 5. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 6. Continue frontend roadmap execution (archived: `docs/roadmap/archive/frontend-roadmap.md`).

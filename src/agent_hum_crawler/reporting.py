@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 from .config import normalize_disaster_types
 from .database import EventRecord, RawItemRecord, build_engine, get_recent_cycles
 from .gazetteers import country_to_iso3
+from .source_credibility import annotate_evidence as _annotate_credibility, source_tier, credibility_weight, tier_distribution
 from .llm_utils import (
     build_citation_numbers,
     citation_ref,
@@ -54,6 +55,8 @@ class ReportEvidence:
     corroboration_sources: int
     graph_score: float
     source_label: str
+    credibility_tier: int = 4
+    credibility_weight: float = 0.7
 
 
 def default_report_template() -> dict[str, Any]:
@@ -177,6 +180,13 @@ def build_graph_context(
             connector=e.connector,
             disaster_types=disaster_types,
         )
+        _cred_tier = source_tier(
+            connector=e.connector,
+            source_type=e.source_type,
+            domain=urlparse(e.url).netloc if e.url else "",
+        )
+        _cred_weight = credibility_weight(_cred_tier)
+        graph_score *= _cred_weight
         evidence.append(
             ReportEvidence(
                 event_id=e.event_id,
@@ -196,6 +206,8 @@ def build_graph_context(
                 corroboration_sources=int(e.corroboration_sources),
                 graph_score=round(graph_score, 3),
                 source_label=_source_label_from_title(e.title),
+                credibility_tier=_cred_tier,
+                credibility_weight=_cred_weight,
             )
         )
 
@@ -238,6 +250,7 @@ def build_graph_context(
     by_disaster = Counter(e.disaster_type for e in evidence)
     by_connector = Counter(e.connector for e in evidence)
     by_source_type = Counter(e.source_type for e in evidence)
+    by_credibility_tier = Counter(e.credibility_tier for e in evidence)
 
     return {
         "evidence": [e.__dict__ for e in evidence],
@@ -255,6 +268,7 @@ def build_graph_context(
             "by_disaster_type": dict(by_disaster),
             "by_connector": dict(by_connector),
             "by_source_type": dict(by_source_type),
+            "by_credibility_tier": {f"tier_{k}": v for k, v in sorted(by_credibility_tier.items())},
         },
     }
 
