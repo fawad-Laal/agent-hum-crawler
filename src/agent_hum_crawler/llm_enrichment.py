@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Callable
 
@@ -10,6 +11,12 @@ import httpx
 
 from .models import EventCitation, ProcessedEvent, RawSourceItem
 from .settings import get_openai_api_key, get_openai_model
+
+logger = logging.getLogger(__name__)
+
+# Batch enrichment defaults
+_BATCH_SIZE = 15  # items per LLM call (sweet spot for gpt-4.1-mini)
+_BATCH_TEXT_CAP = 400  # chars of source text per item in batch
 
 
 def enrich_events_with_llm(
@@ -83,6 +90,191 @@ def enrich_events_with_llm(
         "insufficient_text_count": insufficient_text_count,
         "citation_recovery_count": citation_recovery_count,
     }
+
+
+# ── Batch enrichment (Phase 2 — Stage B) ────────────────────────────
+
+
+_BATCH_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["items"],
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["index", "summary", "severity", "confidence"],
+                "properties": {
+                    "index": {"type": "integer"},
+                    "summary": {"type": "string"},
+                    "severity": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"],
+                    },
+                    "confidence": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                    },
+                },
+            },
+        },
+    },
+}
+
+
+def enrich_events_batch(
+    events: list[ProcessedEvent],
+    raw_items: list[RawSourceItem],
+    *,
+    batch_size: int = _BATCH_SIZE,
+    text_cap: int = _BATCH_TEXT_CAP,
+) -> tuple[list[ProcessedEvent], dict]:
+    """Batch-enrich events: send *batch_size* items per LLM call.
+
+    Cheaper and faster than one-at-a-time enrichment.  Falls back
+    gracefully per-event if the LLM omits or mangles an item.
+    """
+    api_key = get_openai_api_key()
+    if not api_key:
+        return events, {"enabled": False, "reason": "no_api_key"}
+
+    by_url = {str(item.url): item for item in raw_items}
+    enriched: list[ProcessedEvent] = []
+    stats = {
+        "enabled": True,
+        "mode": "batch",
+        "batch_size": batch_size,
+        "batches_sent": 0,
+        "enriched_count": 0,
+        "fallback_count": 0,
+        "provider_error_count": 0,
+    }
+
+    # Pair each event with its source text
+    pairs: list[tuple[ProcessedEvent, str]] = []
+    for event in events:
+        item = by_url.get(str(event.url))
+        text = (item.text if item else "") or ""
+        pairs.append((event, text))
+
+    # Process in batches
+    for i in range(0, len(pairs), batch_size):
+        batch = pairs[i : i + batch_size]
+        batch_payload = []
+        for idx, (ev, txt) in enumerate(batch):
+            batch_payload.append({
+                "index": idx,
+                "title": ev.title,
+                "country": ev.country,
+                "disaster_type": ev.disaster_type,
+                "severity_guess": ev.severity,
+                "confidence_guess": ev.confidence,
+                "text_excerpt": txt[:text_cap],
+            })
+
+        try:
+            result = _call_batch_llm(api_key, batch_payload)
+            stats["batches_sent"] += 1
+        except Exception:
+            logger.warning("Batch enrichment LLM call failed", exc_info=True)
+            stats["provider_error_count"] += 1
+            # Fall back: keep all events in batch as-is
+            for ev, _ in batch:
+                enriched.append(ev)
+                stats["fallback_count"] += 1
+            continue
+
+        # Map results by index
+        result_map: dict[int, dict] = {}
+        for item in result.get("items", []):
+            if isinstance(item, dict) and "index" in item:
+                result_map[int(item["index"])] = item
+
+        for idx, (ev, _txt) in enumerate(batch):
+            enriched_item = result_map.get(idx)
+            if not enriched_item:
+                enriched.append(ev)
+                stats["fallback_count"] += 1
+                continue
+
+            summary = str(enriched_item.get("summary", "")).strip()
+            severity = str(enriched_item.get("severity", "")).strip()
+            confidence = str(enriched_item.get("confidence", "")).strip()
+
+            if (
+                not summary
+                or severity not in {"low", "medium", "high", "critical"}
+                or confidence not in {"low", "medium", "high"}
+            ):
+                enriched.append(ev)
+                stats["fallback_count"] += 1
+                continue
+
+            enriched.append(
+                ev.model_copy(
+                    update={
+                        "summary": summary[:320].strip(),
+                        "severity": severity,
+                        "confidence": confidence,
+                        "llm_enriched": True,
+                    }
+                )
+            )
+            stats["enriched_count"] += 1
+
+    return enriched, stats
+
+
+def _call_batch_llm(api_key: str, batch_payload: list[dict]) -> dict:
+    """Send a batch of events to the LLM with strict JSON schema."""
+    instructions = (
+        "You are calibrating multiple humanitarian disaster events. "
+        "For each item in the array, refine the summary, severity, and confidence "
+        "based on the provided text excerpt. Return a JSON object with an 'items' array "
+        "where each element has index, summary, severity, confidence. "
+        "Do not invent facts not present in the text. Keep summaries concise (≤300 chars)."
+    )
+
+    body = {
+        "model": get_openai_model(),
+        "input": [
+            {"role": "system", "content": [{"type": "input_text", "text": instructions}]},
+            {"role": "user", "content": [{"type": "input_text", "text": json.dumps(batch_payload)}]},
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "batch_enrichment",
+                "schema": _BATCH_SCHEMA,
+                "strict": True,
+            }
+        },
+    }
+
+    with httpx.Client(timeout=45.0) as client:
+        r = client.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+        )
+        r.raise_for_status()
+        data = r.json()
+
+    text = data.get("output_text") or ""
+    if not text:
+        # Fallback extraction
+        for block in data.get("output", []) or []:
+            for content in block.get("content", []) or []:
+                t = content.get("text")
+                if isinstance(t, str):
+                    text += t
+
+    return json.loads(text) if text else {"items": []}
 
 
 def _default_complete(event: ProcessedEvent, source_text: str) -> dict | None:

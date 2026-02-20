@@ -1,0 +1,258 @@
+{
+  "name": "ocha-situation-analysis-v1",
+  "description": "OCHA-style Situation Analysis template for cyclone/flood humanitarian crises. Structured for multi-admin-level impact assessment with sectoral breakdown — distinct from the shorter Situation Report (SitRep).",
+  "report_type": "situation_analysis",
+
+  "sections": {
+    "executive_summary": "Executive Summary",
+    "national_impact": "National Impact Overview",
+    "admin1_summary": "Province-Level (Admin 1) Impact Summary",
+    "admin2_detail": "District-Level (Admin 2) Detailed Impact Tables",
+    "sectoral_shelter": "Shelter & Housing",
+    "sectoral_wash": "Water, Sanitation & Hygiene (WASH)",
+    "sectoral_health": "Health",
+    "sectoral_food_security": "Food Security, Nutrition & Livelihoods",
+    "sectoral_protection": "Protection",
+    "sectoral_education": "Education",
+    "access_constraints": "Access Constraints",
+    "outstanding_needs": "Outstanding Needs & Gaps",
+    "forecast_risk": "Forecast & Risk Outlook",
+    "annex": "Annex — Full Admin 1 & Admin 2 Reference List",
+    "citations": "Sources and References"
+  },
+
+  "section_groups": {
+    "header": ["executive_summary"],
+    "impact": ["national_impact", "admin1_summary", "admin2_detail"],
+    "sectors": [
+      "sectoral_shelter",
+      "sectoral_wash",
+      "sectoral_health",
+      "sectoral_food_security",
+      "sectoral_protection",
+      "sectoral_education"
+    ],
+    "operational": ["access_constraints", "outstanding_needs"],
+    "forward_looking": ["forecast_risk"],
+    "annexes": ["annex", "citations"]
+  },
+
+  "limits": {
+    "executive_summary_max_words": 500,
+    "national_impact_max_words": 400,
+    "admin1_max_words": 300,
+    "admin2_per_province_max_words": 250,
+    "sector_max_words": 250,
+    "access_constraints_max_words": 200,
+    "outstanding_needs_max_words": 250,
+    "forecast_48h_max_words": 150,
+    "forecast_7d_max_words": 200,
+    "max_incident_highlights": 30,
+    "incident_summary_max_words": 120,
+    "incident_quote_max_chars": 800
+  },
+
+  "executive_summary_structure": {
+    "subsections": [
+      "overall_scale_and_severity",
+      "geographic_spread_and_hotspots",
+      "rapidly_evolving_risks",
+      "displacement_and_shelters",
+      "core_humanitarian_priorities",
+      "government_un_ngo_response",
+      "anticipation_risk_outlook"
+    ],
+    "event_card_fields": [
+      "event_name",
+      "event_type",
+      "hazards",
+      "period",
+      "worst_affected_admin1",
+      "worst_affected_admin2"
+    ],
+    "key_figures_fields": [
+      "deaths",
+      "missing",
+      "injured",
+      "displaced_in_centres",
+      "affected_population",
+      "houses_damaged_destroyed"
+    ],
+    "anticipation_horizons": ["48_hours", "7_days"]
+  },
+
+  "national_impact_table": {
+    "columns": ["Category", "Figure", "Source", "Notes"],
+    "rows": [
+      "Deaths",
+      "Missing",
+      "Injured",
+      "Displaced (in accommodation centres)",
+      "Total affected population",
+      "Houses fully destroyed",
+      "Houses partially damaged",
+      "Schools damaged",
+      "Health facilities damaged"
+    ],
+    "narrative_prompts": [
+      "Describe national human impact and infrastructure damage.",
+      "Identify nationwide bottlenecks (electricity grid, fuel, bridge damage).",
+      "Highlight displacement trajectory and access disruptions."
+    ]
+  },
+
+  "admin1_table": {
+    "columns": [
+      "Province",
+      "District Count",
+      "People Affected",
+      "Displaced",
+      "Deaths",
+      "Missing",
+      "Houses Damaged",
+      "Key Issues",
+      "Access Constraints"
+    ]
+  },
+
+  "admin2_table": {
+    "columns": [
+      "District",
+      "Pop. Affected",
+      "Displaced",
+      "Deaths",
+      "Missing",
+      "Injured",
+      "Houses Fully Destroyed",
+      "Houses Partially Damaged",
+      "Flood",
+      "Storm Surge / Landslide",
+      "Key Localities"
+    ],
+    "hazard_column_variants": {
+      "cyclone/storm": "Storm Surge",
+      "flood": "Riverine Flood",
+      "landslide": "Landslide",
+      "earthquake": "Seismic Intensity"
+    }
+  },
+
+  "sector_schemas": {
+    "shelter": {
+      "table_columns": ["District", "Fully Destroyed", "Partially Damaged", "Total"],
+      "narrative_prompts": [
+        "Traditional housing collapse patterns.",
+        "Overcrowded accommodation centres.",
+        "Secondary displacement risks."
+      ]
+    },
+    "wash": {
+      "table_columns": ["District", "Water Supply Status", "Sanitation Damage", "Contamination Alerts / Priority Actions"],
+      "narrative_prompts": [
+        "Water source contamination.",
+        "Cholera and diarrhoeal disease risk.",
+        "Areas needing water trucking or purification."
+      ]
+    },
+    "health": {
+      "table_columns": ["District", "Health Facilities Damaged", "Morbidity", "Mortality", "Stockouts / Priority Needs"],
+      "narrative_prompts": [
+        "Trauma cases and drowning.",
+        "Malaria, cholera, dengue risk.",
+        "Stockouts of essential medicines."
+      ]
+    },
+    "food_security": {
+      "table_columns": ["District", "Agriculture Loss", "Fisheries Loss", "Market Functionality", "Priority Livelihood Support"],
+      "narrative_prompts": [
+        "Crop destruction (cassava, maize, rice, paddy).",
+        "Fishing fleet and livestock damage.",
+        "Market access and supply chain disruptions."
+      ]
+    },
+    "protection": {
+      "table_columns": ["District", "Main Protection Risks", "At-Risk Groups", "Referral Pathways", "Priority Actions"],
+      "narrative_prompts": [
+        "GBV risk in shelters.",
+        "Child protection concerns and separated children.",
+        "Missing persons and vulnerable populations."
+      ]
+    },
+    "education": {
+      "table_columns": ["District", "Schools Damaged / Used as Shelters", "Learners Affected", "Priority Education Needs"],
+      "narrative_prompts": [
+        "School infrastructure damage.",
+        "Schools used as emergency shelters.",
+        "Temporary learning spaces needed."
+      ]
+    }
+  },
+
+  "access_constraints_table": {
+    "columns": ["District", "Status (Open/Restricted/Closed)", "Roads Affected", "Bridge Damage", "Notes"]
+  },
+
+  "outstanding_needs_table": {
+    "columns": ["Sector", "Urgent Needs", "Medium-Term Needs", "Notes"],
+    "rows": ["Shelter", "WASH", "Health", "Food", "Protection", "Education", "Logistics"]
+  },
+
+  "forecast_structure": {
+    "horizons": [
+      {
+        "label": "48-72 hour outlook",
+        "prompts": [
+          "Rainfall forecast",
+          "River level projections",
+          "Storm surge residual effects"
+        ]
+      },
+      {
+        "label": "7-day outlook",
+        "prompts": [
+          "Hydrological evolution",
+          "Disease outbreak probability",
+          "Recommended anticipatory actions"
+        ]
+      }
+    ]
+  },
+
+  "severity_scale": {
+    "1": "Minimal — routine monitoring",
+    "2": "Stressed — elevated concern, localized impacts",
+    "3": "Crisis — significant humanitarian needs, multi-sector response",
+    "4": "Emergency — severe and widespread needs, large-scale response",
+    "5": "Catastrophe / Famine — extreme life-threatening needs"
+  },
+
+  "hazard_taxonomy": {
+    "meteorological": ["cyclone/storm", "heatwave", "cold wave"],
+    "hydrological": ["flood", "flash flood", "coastal flood", "storm surge"],
+    "climatological": ["drought", "wildfire"],
+    "geophysical": ["earthquake", "landslide", "volcanic eruption", "tsunami"],
+    "conflict": ["armed conflict", "armed clashes", "inter-communal violence"],
+    "health": ["cholera", "dengue", "ebola", "measles", "COVID-19"]
+  },
+
+  "population_categories": [
+    "Internally Displaced Persons (IDPs)",
+    "Refugees",
+    "Returnees",
+    "Host Communities",
+    "Non-Displaced Affected"
+  ],
+
+  "need_types": [
+    "Food Security",
+    "Health",
+    "WASH",
+    "Shelter/NFI",
+    "Protection",
+    "Education",
+    "Nutrition",
+    "Early Recovery",
+    "Logistics",
+    "Camp Coordination/Management"
+  ]
+}

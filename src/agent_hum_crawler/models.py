@@ -24,6 +24,7 @@ class RawSourceItem(BaseModel):
     country_candidates: List[str] = Field(default_factory=list)
     text: str = ""
     language: str | None = None
+    source_label: str | None = None
     content_mode: Literal["link-level", "content-level"] = "link-level"
     content_sources: List[ContentSource] = Field(default_factory=list)
 
@@ -51,6 +52,7 @@ class ProcessedEvent(BaseModel):
     canonical_url: HttpUrl | None = None
     title: str
     country: str
+    country_iso3: str = ""
     disaster_type: str
     published_at: str | None = None
     severity: Literal["low", "medium", "high", "critical"]

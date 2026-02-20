@@ -26,6 +26,8 @@ from .reporting import (
     render_long_form_report,
     write_report_file,
 )
+from .coordinator import PipelineCoordinator
+from .situation_analysis import write_situation_analysis
 from .state import RuntimeState, load_state, reset_state, save_state
 
 
@@ -372,6 +374,86 @@ def cmd_write_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_write_situation_analysis(args: argparse.Namespace) -> int:
+    load_environment()
+    countries = [c.strip() for c in (args.countries or "").split(",") if c.strip()]
+    disaster_types = [d.strip() for d in (args.disaster_types or "").split(",") if d.strip()]
+    admin_hierarchy: dict[str, list[str]] | None = None
+    if args.admin_hierarchy:
+        try:
+            admin_hierarchy = json.loads(Path(args.admin_hierarchy).read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(json.dumps({"status": "error", "message": f"Failed to load admin hierarchy: {exc}"}))
+            return 1
+    template_path = Path(args.sa_template) if args.sa_template else None
+    result = write_situation_analysis(
+        countries=countries,
+        disaster_types=disaster_types,
+        title=args.title,
+        event_name=args.event_name,
+        event_type=args.event_type,
+        period=args.period,
+        admin_hierarchy=admin_hierarchy,
+        template_path=template_path,
+        use_llm=args.use_llm,
+        limit_cycles=args.limit_cycles,
+        limit_events=args.limit_events,
+        max_age_days=args.max_age_days,
+        output_path=Path(args.output) if args.output else None,
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_run_pipeline(args: argparse.Namespace) -> int:
+    """Run the full coordinated pipeline: evidence → ontology → report + SA."""
+    load_environment()
+    countries = [c.strip() for c in (args.countries or "").split(",") if c.strip()]
+    disaster_types = [d.strip() for d in (args.disaster_types or "").split(",") if d.strip()]
+    strict_filters = args.strict_filters
+    if strict_filters is None:
+        strict_filters = bool(get_feature_flag("report_strict_filters_default", True))
+    admin_hierarchy: dict[str, list[str]] | None = None
+    if args.admin_hierarchy:
+        try:
+            admin_hierarchy = json.loads(Path(args.admin_hierarchy).read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(json.dumps({"status": "error", "message": f"Failed to load admin hierarchy: {exc}"}))
+            return 1
+
+    coord = PipelineCoordinator(
+        countries=countries,
+        disaster_types=disaster_types,
+        limit_cycles=args.limit_cycles,
+        limit_events=args.limit_events,
+        max_age_days=args.max_age_days,
+        strict_filters=strict_filters,
+        country_min_events=args.country_min_events,
+        max_per_connector=args.max_per_connector,
+        max_per_source=args.max_per_source,
+    )
+
+    report_template_path = Path(args.report_template) if args.report_template else None
+    sa_template_path = Path(args.sa_template) if args.sa_template else None
+
+    ctx = coord.run_pipeline(
+        report_title=args.report_title,
+        report_template_path=report_template_path,
+        sa_title=args.sa_title,
+        event_name=args.event_name,
+        event_type=args.event_type,
+        period=args.period,
+        admin_hierarchy=admin_hierarchy,
+        sa_template_path=sa_template_path,
+        use_llm=args.use_llm,
+        write_files=True,
+    )
+
+    payload = coord.summary_dict()
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-hum-crawler")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -583,6 +665,65 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--min-citation-density", type=float, default=0.005)
     report_parser.add_argument("--enforce-report-quality", action="store_true")
     report_parser.set_defaults(func=cmd_write_report)
+
+    sa_parser = subparsers.add_parser(
+        "write-situation-analysis",
+        help="Generate OCHA-style Situation Analysis from persisted monitoring database",
+    )
+    sa_parser.add_argument("--countries", help="Comma-separated country filters")
+    sa_parser.add_argument("--disaster-types", help="Comma-separated disaster type filters")
+    sa_parser.add_argument("--title", default="Situation Analysis")
+    sa_parser.add_argument("--event-name", default="", help="Event name, e.g. 'Tropical Cyclone Gezani-26'")
+    sa_parser.add_argument("--event-type", default="", help="Event type, e.g. 'Cyclone/storm'")
+    sa_parser.add_argument("--period", default="", help="Event period, e.g. '2-6 March 2026'")
+    sa_parser.add_argument(
+        "--admin-hierarchy",
+        help="Path to JSON file mapping admin1 → [admin2] districts",
+    )
+    sa_parser.add_argument(
+        "--sa-template",
+        default="config/report_template.situation_analysis.json",
+        help="Path to Situation Analysis JSON template",
+    )
+    sa_parser.add_argument("--use-llm", action="store_true", help="Use LLM for narrative sections")
+    sa_parser.add_argument("--limit-cycles", type=int, default=20)
+    sa_parser.add_argument("--limit-events", type=int, default=80)
+    sa_parser.add_argument("--max-age-days", type=int, help="Only include events published within N days")
+    sa_parser.add_argument("--output", help="Write markdown report to this path")
+    sa_parser.set_defaults(func=cmd_write_situation_analysis)
+
+    # ── run-pipeline (coordinated report + SA) ───────────────────────
+    pipe_parser = subparsers.add_parser(
+        "run-pipeline",
+        help="Run full coordinated pipeline: evidence → ontology → report + SA",
+    )
+    pipe_parser.add_argument("--countries", help="Comma-separated country filters")
+    pipe_parser.add_argument("--disaster-types", help="Comma-separated disaster type filters")
+    pipe_parser.add_argument("--report-title", default="Disaster Intelligence Report")
+    pipe_parser.add_argument("--sa-title", default="Situation Analysis")
+    pipe_parser.add_argument("--event-name", default="", help="Event name, e.g. 'Tropical Cyclone Gezani-26'")
+    pipe_parser.add_argument("--event-type", default="", help="Event type, e.g. 'Cyclone/storm'")
+    pipe_parser.add_argument("--period", default="", help="Event period, e.g. '2-6 March 2026'")
+    pipe_parser.add_argument("--admin-hierarchy", help="Path to JSON file mapping admin1 → [admin2] districts")
+    pipe_parser.add_argument("--report-template", help="Path to report template JSON")
+    pipe_parser.add_argument(
+        "--sa-template",
+        default="config/report_template.situation_analysis.json",
+        help="Path to SA template JSON",
+    )
+    pipe_parser.add_argument("--use-llm", action="store_true", help="Use LLM for narrative sections")
+    pipe_parser.add_argument("--limit-cycles", type=int, default=20)
+    pipe_parser.add_argument("--limit-events", type=int, default=80)
+    pipe_parser.add_argument("--max-age-days", type=int, help="Only include events published within N days")
+    pipe_parser.add_argument(
+        "--strict-filters", type=lambda x: None if x is None else x.lower() == "true",
+        default=None,
+        help="Enforce strict country/disaster filters (default: from feature flags)",
+    )
+    pipe_parser.add_argument("--country-min-events", type=int, default=1)
+    pipe_parser.add_argument("--max-per-connector", type=int, default=8)
+    pipe_parser.add_argument("--max-per-source", type=int, default=4)
+    pipe_parser.set_defaults(func=cmd_run_pipeline)
 
     return parser
 

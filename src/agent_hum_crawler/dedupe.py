@@ -8,7 +8,23 @@ from difflib import SequenceMatcher
 from typing import Dict, List
 
 from .models import ProcessedEvent, RawSourceItem
+from .gazetteers import country_to_iso3
 from .taxonomy import infer_disaster_type, matches_country, normalize_text
+
+# ── Optional Rust acceleration for fuzzy similarity ──────────────────
+_USE_RUST_SIMILARITY = False
+try:
+    from .rust_accel import similarity_ratio as _rust_similarity, rust_available
+    _USE_RUST_SIMILARITY = rust_available()
+except ImportError:
+    pass
+
+
+def _similarity(a: str, b: str) -> float:
+    """Fuzzy string similarity — Rust LCS when available, else difflib."""
+    if _USE_RUST_SIMILARITY:
+        return _rust_similarity(a, b)
+    return SequenceMatcher(a=a, b=b).ratio()
 
 
 @dataclass
@@ -21,6 +37,7 @@ class DedupeResult:
 class CandidateItem:
     item: RawSourceItem
     country: str
+    country_iso3: str
     disaster_type: str
 
 
@@ -66,7 +83,7 @@ def _confidence_from_source(source_type: str) -> str:
 def _find_similar_status(title: str, existing: Dict[str, ProcessedEvent]) -> str:
     normalized = normalize_text(title)
     for prev in existing.values():
-        score = SequenceMatcher(a=normalized, b=normalize_text(prev.title)).ratio()
+        score = _similarity(normalized, normalize_text(prev.title))
         if score >= 0.92:
             return "updated"
     return "new"
@@ -82,7 +99,7 @@ def _cluster_candidates(candidates: List[CandidateItem]) -> List[List[CandidateI
             pivot = cluster[0]
             if candidate.country != pivot.country or candidate.disaster_type != pivot.disaster_type:
                 continue
-            score = SequenceMatcher(a=title, b=normalize_text(pivot.item.title)).ratio()
+            score = _similarity(title, normalize_text(pivot.item.title))
             if score >= 0.90:
                 cluster.append(candidate)
                 placed = True
@@ -155,7 +172,8 @@ def detect_changes(
         disaster_type = infer_disaster_type(combined_text, disaster_types)
         if not disaster_type:
             continue
-        candidates.append(CandidateItem(item=item, country=country, disaster_type=disaster_type))
+        iso3 = country_to_iso3(country) or ""
+        candidates.append(CandidateItem(item=item, country=country, country_iso3=iso3, disaster_type=disaster_type))
 
     clusters = _cluster_candidates(candidates)
     current_hashes: List[str] = []
@@ -195,6 +213,7 @@ def detect_changes(
             canonical_url=primary.item.canonical_url,
             title=primary.item.title,
             country=primary.country,
+            country_iso3=primary.country_iso3,
             disaster_type=primary.disaster_type,
             published_at=primary.item.published_at,
             severity=severity,

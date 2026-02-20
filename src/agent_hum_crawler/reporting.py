@@ -16,8 +16,23 @@ from sqlmodel import Session, select
 
 from .config import normalize_disaster_types
 from .database import EventRecord, RawItemRecord, build_engine, get_recent_cycles
+from .gazetteers import country_to_iso3
+from .llm_utils import (
+    build_citation_numbers,
+    citation_ref,
+    domain_counter,
+    extract_json_object,
+    extract_responses_text,
+)
 from .settings import get_openai_api_key, get_openai_model
 from .time_utils import parse_published_datetime
+
+# Backward-compatible aliases (existing private names)
+_extract_responses_text = extract_responses_text
+_extract_json_object = extract_json_object
+_build_citation_numbers = build_citation_numbers
+_citation_ref = citation_ref
+_domain_counter = domain_counter
 
 
 @dataclass
@@ -25,6 +40,7 @@ class ReportEvidence:
     event_id: str
     title: str
     country: str
+    country_iso3: str
     disaster_type: str
     connector: str
     source_type: str
@@ -166,6 +182,7 @@ def build_graph_context(
                 event_id=e.event_id,
                 title=e.title,
                 country=e.country,
+                country_iso3=getattr(e, "country_iso3", "") or country_to_iso3(e.country) or "",
                 disaster_type=e.disaster_type,
                 connector=e.connector,
                 source_type=e.source_type,
@@ -190,6 +207,7 @@ def build_graph_context(
                     event_id=e.event_id,
                     title=e.title,
                     country=e.country,
+                    country_iso3=getattr(e, "country_iso3", "") or country_to_iso3(e.country) or "",
                     disaster_type=e.disaster_type,
                     connector=e.connector,
                     source_type=e.source_type,
@@ -521,40 +539,8 @@ def _ensure_ai_assisted_banner(markdown: str) -> str:
     return out if out.endswith("\n") else out + "\n"
 
 
-def _extract_responses_text(payload: dict[str, Any]) -> str:
-    output_text = payload.get("output_text")
-    if isinstance(output_text, str) and output_text.strip():
-        return output_text
-
-    chunks: list[str] = []
-    for out in payload.get("output", []) or []:
-        for content in out.get("content", []) or []:
-            if content.get("type") in {"output_text", "text"}:
-                text = content.get("text")
-                if isinstance(text, str) and text.strip():
-                    chunks.append(text.strip())
-    return "\n\n".join(chunks)
-
-
-def _extract_json_object(text: str) -> dict[str, Any] | None:
-    if not text:
-        return None
-    raw = text.strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?", "", raw, flags=re.IGNORECASE).strip()
-        raw = re.sub(r"```$", "", raw).strip()
-    try:
-        data = json.loads(raw)
-        return data if isinstance(data, dict) else None
-    except Exception:
-        match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
-        if not match:
-            return None
-        try:
-            data = json.loads(match.group(0))
-            return data if isinstance(data, dict) else None
-        except Exception:
-            return None
+# NOTE: _extract_responses_text and _extract_json_object definitions
+# have been moved to llm_utils.py — aliases defined at module top.
 
 
 def _render_report_template(
@@ -739,30 +725,8 @@ def _render_no_evidence_report(
     return "\n".join(lines) + "\n"
 
 
-def _build_citation_numbers(evidence: list[dict[str, Any]]) -> dict[str, int]:
-    citations: dict[str, int] = {}
-    for ev in evidence:
-        url = str(ev.get("canonical_url") or ev.get("url", "")).strip()
-        if not url:
-            continue
-        if url not in citations:
-            citations[url] = len(citations) + 1
-    return citations
-
-
-def _citation_ref(citation_numbers: dict[str, int], canonical_url: str | None, url: str) -> str:
-    n = citation_numbers.get(canonical_url or url)
-    return f"[{n}]" if n else "[unavailable]"
-
-
-def _domain_counter(evidence: list[dict[str, Any]]) -> dict[str, int]:
-    counts: Counter[str] = Counter()
-    for ev in evidence:
-        raw_url = str(ev.get("canonical_url") or ev.get("url", "")).strip()
-        host = urlparse(raw_url).netloc.lower()
-        if host:
-            counts[host] += 1
-    return dict(counts)
+# NOTE: _build_citation_numbers, _citation_ref, _domain_counter definitions
+# have been moved to llm_utils.py — aliases defined at module top.
 
 
 def _source_label_from_title(title: str) -> str:

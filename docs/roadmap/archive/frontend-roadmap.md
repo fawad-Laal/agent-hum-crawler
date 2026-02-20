@@ -1,8 +1,7 @@
 # Frontend Roadmap - Agent HUM Crawler Dashboard
 
 Date: 2026-02-20
-Status: **Closed** — Phases 0-2.5 delivered, Phase 3-3.5 in progress at time of archive. Archived to `docs/roadmap/archive/frontend-roadmap.md`.
-Successor: [Project Clarity](../docs/roadmap/project-clarity-roadmap.md)
+Status: Active (Phase 2.5 SA UI delivered, Phase 3 started, Phase 3.5 Pipeline + Multi-Hazard in progress)
 
 ## Purpose
 Define a focused frontend roadmap for the custom operator interface that monitors crawler quality, report quality, and agent behavior improvements.

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 const defaultForm = {
-  countries: "Madagascar,Mozambique",
-  disaster_types: "cyclone/storm,flood",
+  countries: "Ethiopia",
+  disaster_types: "epidemic/disease outbreak,flood,conflict emergency,drought",
   max_age_days: 30,
   limit: 10,
   limit_cycles: 20,
@@ -12,6 +12,19 @@ const defaultForm = {
   max_per_source: 4,
   report_template: "config/report_template.brief.json",
   use_llm: false,
+  // Situation Analysis fields
+  sa_title: "Situation Analysis",
+  sa_event_name: "",
+  sa_event_type: "",
+  sa_period: "",
+  sa_template: "config/report_template.situation_analysis.json",
+  sa_limit_events: 80,
+  // Pipeline fields
+  pipeline_report_title: "Disaster Intelligence Report",
+  pipeline_sa_title: "Situation Analysis",
+  pipeline_event_name: "",
+  pipeline_event_type: "",
+  pipeline_period: "",
 };
 
 function fmtNumber(v, digits = 3) {
@@ -95,6 +108,8 @@ function buildSourceCheckFromConnectorMetrics(payload) {
   };
 }
 
+/* ═══════════════════════════════════════════════════════════════════ */
+
 export default function App() {
   const [overview, setOverview] = useState(null);
   const [reports, setReports] = useState([]);
@@ -110,6 +125,17 @@ export default function App() {
   const [presetName, setPresetName] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("");
   const [error, setError] = useState("");
+  const [saOutput, setSaOutput] = useState(null);
+  const [systemInfo, setSystemInfo] = useState(null);
+  const [countrySources, setCountrySources] = useState(null);
+  const [pipelineOutput, setPipelineOutput] = useState(null);
+  const [pipelineBusy, setPipelineBusy] = useState(false);
+  const [connectorDiag, setConnectorDiag] = useState(null);
+  const [selectedHazards, setSelectedHazards] = useState(
+    new Set(defaultForm.disaster_types.split(",").map((s) => s.trim()))
+  );
+
+  /* ── Fetchers ─────────────────────────────────────────────── */
 
   async function fetchOverview() {
     setError("");
@@ -146,11 +172,35 @@ export default function App() {
     setProfileStore(data || { presets: {}, last_profile: null });
   }
 
+  async function fetchSystemInfo() {
+    try {
+      const r = await fetch("/api/system-info");
+      const data = await r.json();
+      setSystemInfo(data);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  async function fetchCountrySources() {
+    try {
+      const r = await fetch("/api/country-sources");
+      const data = await r.json();
+      setCountrySources(data);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
     void fetchOverview().catch((e) => setError(String(e)));
     void fetchReports().catch((e) => setError(String(e)));
     void fetchWorkbenchProfiles().catch((e) => setError(String(e)));
+    void fetchSystemInfo();
+    void fetchCountrySources();
   }, []);
+
+  /* ── Derived values ───────────────────────────────────────── */
 
   const quality = overview?.quality || {};
   const hardening = overview?.hardening || {};
@@ -198,6 +248,8 @@ export default function App() {
       .slice(0, 8);
   }, [sourceHealth]);
 
+  /* ── Handlers ─────────────────────────────────────────────── */
+
   async function handleRunCycle() {
     setBusy(true);
     setError("");
@@ -216,6 +268,7 @@ export default function App() {
       setActionOutput(data);
       if (Array.isArray(data?.connector_metrics)) {
         setSourceCheck(buildSourceCheckFromConnectorMetrics(data));
+        setConnectorDiag(parseConnectorDiagnostics(data));
       }
       if (autoSourceCheck) {
         const checkResp = await fetch("/api/source-check", {
@@ -387,6 +440,38 @@ export default function App() {
     }
   }
 
+  async function handleWriteSituationAnalysis() {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/write-situation-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countries: form.countries,
+          disaster_types: form.disaster_types,
+          title: form.sa_title,
+          event_name: form.sa_event_name,
+          event_type: form.sa_event_type,
+          period: form.sa_period,
+          sa_template: form.sa_template,
+          limit_cycles: form.limit_cycles,
+          limit_events: form.sa_limit_events,
+          max_age_days: form.max_age_days,
+          use_llm: form.use_llm,
+        }),
+      });
+      const data = await r.json();
+      setActionOutput(data);
+      setSaOutput(data);
+      await fetchReports();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSourceCheck() {
     setBusy(true);
     setError("");
@@ -411,12 +496,101 @@ export default function App() {
     }
   }
 
+  async function handleRunPipeline() {
+    setPipelineBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/run-pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countries: form.countries,
+          disaster_types: form.disaster_types,
+          report_title: form.pipeline_report_title,
+          sa_title: form.pipeline_sa_title,
+          event_name: form.pipeline_event_name,
+          event_type: form.pipeline_event_type,
+          period: form.pipeline_period,
+          limit_cycles: form.limit_cycles,
+          limit_events: form.limit_events,
+          max_age_days: form.max_age_days,
+          use_llm: form.use_llm,
+        }),
+      });
+      const data = await r.json();
+      setPipelineOutput(data);
+      setActionOutput(data);
+      await fetchReports();
+      await fetchOverview();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPipelineBusy(false);
+    }
+  }
+
+  function toggleHazard(hazard) {
+    setSelectedHazards((prev) => {
+      const next = new Set(prev);
+      if (next.has(hazard)) {
+        next.delete(hazard);
+      } else {
+        next.add(hazard);
+      }
+      const joined = [...next].join(",");
+      setForm((s) => ({ ...s, disaster_types: joined }));
+      return next;
+    });
+  }
+
+  function selectCountryPreset(countryName) {
+    setForm((s) => ({ ...s, countries: countryName }));
+  }
+
+  function parseConnectorDiagnostics(payload) {
+    const metrics = Array.isArray(payload?.connector_metrics) ? payload.connector_metrics : [];
+    const summary = metrics.map((m) => ({
+      connector: m.connector || "unknown",
+      attempted: m.attempted_sources || 0,
+      healthy: m.healthy_sources || 0,
+      failed: m.failed_sources || 0,
+      fetched: m.fetched_count || 0,
+      matched: m.matched_count || 0,
+      errors: m.errors || [],
+      warnings: m.warnings || [],
+      sources: (m.source_results || []).map((s) => ({
+        name: s.source_name || "",
+        url: s.source_url || "",
+        status: s.status || "unknown",
+        fetched: s.fetched_count || 0,
+        matched: s.matched_count || 0,
+        match_reasons: s.match_reasons || {},
+        freshness: s.freshness_status || "unknown",
+        age_days: s.latest_age_days,
+        stale_action: s.stale_action,
+      })),
+    }));
+    return { connectors: summary, total_fetched: payload?.raw_item_count || 0 };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════ */
+  /*  RENDER                                                        */
+  /* ═══════════════════════════════════════════════════════════════ */
+
   return (
     <main className="page">
+      {/* ── Header ──────────────────────────────────────────────── */}
       <header className="top">
         <div>
-          <h1>Agent HUM Crawler Dashboard</h1>
-          <p>Phase 1: Monitoring trends, hardening thresholds, conformance, and source hotspots.</p>
+          <h1>Agent HUM Crawler</h1>
+          <div className="header-meta">
+            <span>Multi-Hazard Intelligence Platform</span>
+            {systemInfo ? (
+              <span className={`chip chip-${systemInfo.rust_available ? "ok" : "muted"}`}>
+                {systemInfo.rust_available ? "Rust ✓" : "Python-only"}
+              </span>
+            ) : null}
+          </div>
         </div>
         <button className="ghost" onClick={() => void fetchOverview()}>
           Refresh
@@ -425,47 +599,460 @@ export default function App() {
 
       {error ? <div className="error">{error}</div> : null}
 
+      {/* ── KPIs ────────────────────────────────────────────────── */}
       <section className="grid kpis">
         <article className="card kpi">
-          <div className="kpi-label">Cycles Analyzed</div>
+          <div className="kpi-label">Cycles</div>
           <div className="kpi-value">{fmtNumber(quality.cycles_analyzed, 0)}</div>
         </article>
         <article className="card kpi">
-          <div className="kpi-label">Events Analyzed</div>
+          <div className="kpi-label">Events</div>
           <div className="kpi-value">{fmtNumber(quality.events_analyzed, 0)}</div>
         </article>
         <article className="card kpi">
-          <div className="kpi-label">Duplicate Rate</div>
+          <div className="kpi-label">Dup Rate</div>
           <div className="kpi-value">{fmtNumber(quality.duplicate_rate_estimate)}</div>
         </article>
         <article className="card kpi">
-          <div className="kpi-label">Traceable Rate</div>
+          <div className="kpi-label">Traceable</div>
           <div className="kpi-value">{fmtNumber(quality.traceable_rate)}</div>
         </article>
         <article className="card kpi">
           <div className="kpi-label">Hardening</div>
-          <div className={`kpi-value status-${hardening.status || "unknown"}`}>{hardening.status || "-"}</div>
+          <div className={`kpi-value status-${hardening.status || "unknown"}`}>
+            {hardening.status || "-"}
+          </div>
         </article>
       </section>
 
+      {/* ── Command Center ──────────────────────────────────────── */}
+      <section className="grid">
+        <article className="card command-center">
+          <h2>Command Center</h2>
+
+          {/* Target: Country */}
+          <div className="cc-section">
+            <div className="cc-label">Country</div>
+            <div className="chip-row">
+              {(countrySources?.countries || []).map((c) => (
+                <button
+                  key={c.country}
+                  className={`chip-btn ${form.countries === c.country ? "chip-active" : ""}`}
+                  onClick={() => selectCountryPreset(c.country)}
+                >
+                  {c.country}{" "}
+                  <span className="chip-count">
+                    {c.feed_count + (countrySources?.global_feed_count || 0)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Target: Hazard Types */}
+          <div className="cc-section">
+            <div className="cc-label">Hazard Types</div>
+            <div className="chip-row">
+              {(systemInfo?.allowed_disaster_types || []).map((h) => (
+                <button
+                  key={h}
+                  className={`chip-btn ${selectedHazards.has(h) ? "chip-active" : ""}`}
+                  onClick={() => toggleHazard(h)}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
+            <div className="cc-meta">
+              {selectedHazards.size} type{selectedHazards.size !== 1 ? "s" : ""} &middot;{" "}
+              {countrySources?.global_feed_count || 0} global feeds
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="action-groups">
+            <div className="action-group">
+              <div className="action-group-label">Collection</div>
+              <div className="actions">
+                <button disabled={busy} onClick={() => void handleRunCycle()}>
+                  {busy ? "Running\u2026" : "Run Cycle"}
+                </button>
+                <button disabled={busy} className="ghost" onClick={() => void handleSourceCheck()}>
+                  {busy ? "Checking\u2026" : "Source Check"}
+                </button>
+              </div>
+            </div>
+            <div className="action-group">
+              <div className="action-group-label">Reports</div>
+              <div className="actions">
+                <button disabled={busy} className="accent" onClick={() => void handleWriteReport()}>
+                  {busy ? "Working\u2026" : "Write Report"}
+                </button>
+                <button
+                  disabled={busy}
+                  className="accent"
+                  onClick={() => void handleWriteSituationAnalysis()}
+                >
+                  {busy ? "Working\u2026" : "Write SA"}
+                </button>
+              </div>
+            </div>
+            <div className="action-group">
+              <div className="action-group-label">Workbench</div>
+              <div className="actions">
+                <button disabled={workbenchBusy} onClick={() => void handleRunWorkbench()}>
+                  {workbenchBusy ? "Comparing\u2026" : "AI vs Deterministic"}
+                </button>
+                <button
+                  disabled={workbenchBusy}
+                  className="ghost"
+                  onClick={() => void handleRerunLastProfile()}
+                >
+                  {workbenchBusy ? "Running\u2026" : "Rerun Last"}
+                </button>
+              </div>
+            </div>
+            <div className="action-group">
+              <div className="action-group-label">Pipeline</div>
+              <div className="actions">
+                <button
+                  disabled={pipelineBusy}
+                  className="pipeline-btn"
+                  onClick={() => void handleRunPipeline()}
+                >
+                  {pipelineBusy ? "Pipeline Running\u2026" : "\u25B6 Run Pipeline"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Collapsible parameter groups ──────────────────── */}
+          <div className="cc-params">
+            <details>
+              <summary>Collection Parameters</summary>
+              <div className="cc-params-body">
+                <div className="row">
+                  <label>
+                    Countries
+                    <input
+                      value={form.countries}
+                      onChange={(e) => setForm((s) => ({ ...s, countries: e.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Disaster Types
+                    <input
+                      value={form.disaster_types}
+                      onChange={(e) => setForm((s) => ({ ...s, disaster_types: e.target.value }))}
+                    />
+                  </label>
+                </div>
+                <div className="row">
+                  <label>
+                    Limit
+                    <input
+                      type="number"
+                      value={form.limit}
+                      onChange={(e) => setForm((s) => ({ ...s, limit: Number(e.target.value) }))}
+                    />
+                  </label>
+                  <label>
+                    Max Age Days
+                    <input
+                      type="number"
+                      value={form.max_age_days}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, max_age_days: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Max / Connector
+                    <input
+                      type="number"
+                      value={form.max_per_connector}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, max_per_connector: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Max / Source
+                    <input
+                      type="number"
+                      value={form.max_per_source}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, max_per_source: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>Report Settings</summary>
+              <div className="cc-params-body">
+                <div className="row">
+                  <label>
+                    Limit Cycles
+                    <input
+                      type="number"
+                      value={form.limit_cycles}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, limit_cycles: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Limit Events
+                    <input
+                      type="number"
+                      value={form.limit_events}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, limit_events: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Country Min Events
+                    <input
+                      type="number"
+                      value={form.country_min_events}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, country_min_events: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                </div>
+                <label>
+                  Template
+                  <select
+                    value={form.report_template}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, report_template: e.target.value }))
+                    }
+                  >
+                    <option value="config/report_template.brief.json">Brief</option>
+                    <option value="config/report_template.detailed.json">Detailed</option>
+                    <option value="config/report_template.json">Default</option>
+                    <option value="config/report_template.situation_analysis.json">
+                      Situation Analysis
+                    </option>
+                  </select>
+                </label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={form.use_llm}
+                    onChange={(e) => setForm((s) => ({ ...s, use_llm: e.target.checked }))}
+                  />
+                  Use LLM for report drafting
+                </label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={autoSourceCheck}
+                    onChange={(e) => setAutoSourceCheck(e.target.checked)}
+                  />
+                  Auto-run Source Check after Run Cycle
+                </label>
+              </div>
+            </details>
+
+            <details>
+              <summary>Situation Analysis Parameters</summary>
+              <div className="cc-params-body">
+                <label>
+                  SA Title
+                  <input
+                    value={form.sa_title}
+                    onChange={(e) => setForm((s) => ({ ...s, sa_title: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Event Name
+                  <input
+                    value={form.sa_event_name}
+                    onChange={(e) => setForm((s) => ({ ...s, sa_event_name: e.target.value }))}
+                    placeholder="e.g. Tropical Cyclone Gezani-26"
+                  />
+                </label>
+                <div className="row">
+                  <label>
+                    Event Type
+                    <input
+                      value={form.sa_event_type}
+                      onChange={(e) => setForm((s) => ({ ...s, sa_event_type: e.target.value }))}
+                      placeholder="e.g. cyclone/storm"
+                    />
+                  </label>
+                  <label>
+                    Period
+                    <input
+                      value={form.sa_period}
+                      onChange={(e) => setForm((s) => ({ ...s, sa_period: e.target.value }))}
+                      placeholder="e.g. 2-6 March 2026"
+                    />
+                  </label>
+                </div>
+                <div className="row">
+                  <label>
+                    SA Limit Events
+                    <input
+                      type="number"
+                      value={form.sa_limit_events}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, sa_limit_events: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    SA Template
+                    <select
+                      value={form.sa_template}
+                      onChange={(e) => setForm((s) => ({ ...s, sa_template: e.target.value }))}
+                    >
+                      <option value="config/report_template.situation_analysis.json">
+                        Situation Analysis
+                      </option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>Pipeline Parameters</summary>
+              <div className="cc-params-body">
+                <div className="row">
+                  <label>
+                    Report Title
+                    <input
+                      value={form.pipeline_report_title}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, pipeline_report_title: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    SA Title
+                    <input
+                      value={form.pipeline_sa_title}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, pipeline_sa_title: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="row">
+                  <label>
+                    Event Name
+                    <input
+                      value={form.pipeline_event_name}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, pipeline_event_name: e.target.value }))
+                      }
+                      placeholder="auto-inferred if empty"
+                    />
+                  </label>
+                  <label>
+                    Event Type
+                    <input
+                      value={form.pipeline_event_type}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, pipeline_event_type: e.target.value }))
+                      }
+                      placeholder="e.g. disease outbreak"
+                    />
+                  </label>
+                  <label>
+                    Period
+                    <input
+                      value={form.pipeline_period}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, pipeline_period: e.target.value }))
+                      }
+                      placeholder="e.g. Feb 2026"
+                    />
+                  </label>
+                </div>
+              </div>
+            </details>
+
+            <details>
+              <summary>Presets</summary>
+              <div className="cc-params-body">
+                <label>
+                  Saved Presets
+                  <select
+                    value={selectedPreset}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setSelectedPreset(name);
+                      if (name && profileStore?.presets?.[name]) {
+                        applyProfile(profileStore.presets[name]);
+                      }
+                    }}
+                  >
+                    <option value="">Select preset\u2026</option>
+                    {Object.keys(profileStore?.presets || {})
+                      .sort()
+                      .map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <div className="row">
+                  <label>
+                    Preset Name
+                    <input
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      placeholder="e.g. madagascar-brief-cyclone"
+                    />
+                  </label>
+                  <div className="preset-buttons">
+                    <button type="button" onClick={() => void handleSavePreset()}>
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={!selectedPreset}
+                      onClick={() => void handleDeletePreset()}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </article>
+      </section>
+
+      {/* ── Trends ──────────────────────────────────────────────── */}
       <section className="grid two">
         <article className="card">
           <h2>Cycle Trends</h2>
           <div className="trend">
             <div>
-              <div className="metric-label">Events per Cycle</div>
+              <div className="metric-label">Events / Cycle</div>
               <TinyLineChart values={trend.events} color="#63b3ff" />
             </div>
             <div>
-              <div className="metric-label">LLM Enriched per Cycle</div>
+              <div className="metric-label">LLM Enriched</div>
               <TinyLineChart values={trend.llmEnriched} color="#1ec97e" />
             </div>
             <div>
-              <div className="metric-label">LLM Fallback per Cycle</div>
+              <div className="metric-label">LLM Fallback</div>
               <TinyLineChart values={trend.llmFallback} color="#f4c542" />
             </div>
             <div>
-              <div className="metric-label">LLM Validation Failures</div>
+              <div className="metric-label">Validation Failures</div>
               <TinyLineChart values={trend.llmValidationFails} color="#ff6565" />
             </div>
           </div>
@@ -475,28 +1062,29 @@ export default function App() {
           <h2>Quality Rate Trends</h2>
           <div className="trend">
             <div>
-              <div className="metric-label">Duplicate Rate (rolling)</div>
+              <div className="metric-label">Duplicate Rate</div>
               <TinyLineChart values={qualityRateTrend.duplicate} color="#ff6565" yMax={1} />
             </div>
             <div>
-              <div className="metric-label">Traceable Rate (rolling)</div>
+              <div className="metric-label">Traceable Rate</div>
               <TinyLineChart values={qualityRateTrend.traceable} color="#57e58e" yMax={1} />
             </div>
             <div>
-              <div className="metric-label">LLM Enrichment Rate</div>
+              <div className="metric-label">LLM Enrichment</div>
               <TinyLineChart values={qualityRateTrend.llmEnrichment} color="#f4c542" yMax={1} />
             </div>
             <div>
-              <div className="metric-label">Citation Coverage Rate</div>
+              <div className="metric-label">Citation Coverage</div>
               <TinyLineChart values={qualityRateTrend.citationCoverage} color="#63b3ff" yMax={1} />
             </div>
           </div>
         </article>
       </section>
 
-      <section className="grid two">
+      {/* ── System Health (unified) ─────────────────────────────── */}
+      <section className="grid">
         <article className="card">
-          <h2>Hardening Thresholds</h2>
+          <h2>System Health</h2>
           <table className="table">
             <thead>
               <tr>
@@ -539,355 +1127,482 @@ export default function App() {
               </tr>
             </tbody>
           </table>
-        </article>
-        <article className="card">
-          <h2>Conformance and Security Snapshot</h2>
-          <div className="kv">
-            <div>Latest E2E Status</div>
-            <div>{e2e.status || "-"}</div>
-            <div>Conformance Status</div>
-            <div>{e2e?.checks?.conformance_status || "-"}</div>
-            <div>Security Status</div>
-            <div>{e2e?.checks?.security_status || "-"}</div>
-            <div>Report Quality Status</div>
-            <div>{e2e?.checks?.report_quality_status || "-"}</div>
-            <div>Hardening Status</div>
-            <div>{e2e?.checks?.hardening_status || "-"}</div>
-            <div>Artifact Directory</div>
-            <div className="truncate">{e2e.artifacts_dir || "-"}</div>
-          </div>
-        </article>
 
-        <article className="card">
-          <h2>Feature Flags</h2>
-          <div className="kv">
-            <div>reliefweb_enabled</div>
-            <div>{String(flags.reliefweb_enabled)}</div>
-            <div>llm_enrichment_enabled</div>
-            <div>{String(flags.llm_enrichment_enabled)}</div>
-            <div>report_strict_filters_default</div>
-            <div>{String(flags.report_strict_filters_default)}</div>
-            <div>dashboard_auto_source_check_default</div>
-            <div>{String(flags.dashboard_auto_source_check_default)}</div>
-            <div>source_check_endpoint_enabled</div>
-            <div>{String(flags.source_check_endpoint_enabled)}</div>
-            <div>max_item_age_days_default</div>
-            <div>{flags.max_item_age_days_default ?? "-"}</div>
-            <div>stale_feed_auto_warn_enabled</div>
-            <div>{String(flags.stale_feed_auto_warn_enabled)}</div>
-            <div>stale_feed_warn_after_checks</div>
-            <div>{flags.stale_feed_warn_after_checks ?? "-"}</div>
-            <div>stale_feed_auto_demote_enabled</div>
-            <div>{String(flags.stale_feed_auto_demote_enabled)}</div>
-            <div>stale_feed_demote_after_checks</div>
-            <div>{flags.stale_feed_demote_after_checks ?? "-"}</div>
-          </div>
-        </article>
+          <details className="health-details">
+            <summary>Conformance &amp; Security</summary>
+            <div className="kv" style={{ marginTop: "0.5rem" }}>
+              <div>Latest E2E Status</div>
+              <div>{e2e.status || "-"}</div>
+              <div>Conformance</div>
+              <div>{e2e?.checks?.conformance_status || "-"}</div>
+              <div>Security</div>
+              <div>{e2e?.checks?.security_status || "-"}</div>
+              <div>Report Quality</div>
+              <div>{e2e?.checks?.report_quality_status || "-"}</div>
+              <div>Hardening</div>
+              <div>{e2e?.checks?.hardening_status || "-"}</div>
+              <div>Artifacts</div>
+              <div className="truncate">{e2e.artifacts_dir || "-"}</div>
+            </div>
+          </details>
 
-        <article className="card">
-          <h2>Source Health Hotspots</h2>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Connector</th>
-                <th>Failure Rate</th>
-                <th>Runs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topFailingSources.map((s) => (
-                <tr key={`${s.connector}-${s.source_name}-${s.source_url}`}>
-                  <td title={s.source_url}>{s.source_name}</td>
-                  <td>{s.connector}</td>
-                  <td>{fmtNumber(s.failure_rate)}</td>
-                  <td>{fmtNumber(s.runs, 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <details className="health-details">
+            <summary>Feature Flags</summary>
+            <div className="kv" style={{ marginTop: "0.5rem" }}>
+              <div>reliefweb_enabled</div>
+              <div>{String(flags.reliefweb_enabled)}</div>
+              <div>llm_enrichment_enabled</div>
+              <div>{String(flags.llm_enrichment_enabled)}</div>
+              <div>report_strict_filters_default</div>
+              <div>{String(flags.report_strict_filters_default)}</div>
+              <div>dashboard_auto_source_check_default</div>
+              <div>{String(flags.dashboard_auto_source_check_default)}</div>
+              <div>source_check_endpoint_enabled</div>
+              <div>{String(flags.source_check_endpoint_enabled)}</div>
+              <div>max_item_age_days_default</div>
+              <div>{flags.max_item_age_days_default ?? "-"}</div>
+              <div>stale_feed_auto_warn_enabled</div>
+              <div>{String(flags.stale_feed_auto_warn_enabled)}</div>
+              <div>stale_feed_warn_after_checks</div>
+              <div>{flags.stale_feed_warn_after_checks ?? "-"}</div>
+              <div>stale_feed_auto_demote_enabled</div>
+              <div>{String(flags.stale_feed_auto_demote_enabled)}</div>
+              <div>stale_feed_demote_after_checks</div>
+              <div>{flags.stale_feed_demote_after_checks ?? "-"}</div>
+            </div>
+          </details>
+
+          {topFailingSources.length > 0 && (
+            <details className="health-details">
+              <summary>Source Health Hotspots ({topFailingSources.length})</summary>
+              <table className="table" style={{ marginTop: "0.5rem" }}>
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Connector</th>
+                    <th>Failure Rate</th>
+                    <th>Runs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topFailingSources.map((s) => (
+                    <tr key={`${s.connector}-${s.source_name}-${s.source_url}`}>
+                      <td title={s.source_url}>{s.source_name}</td>
+                      <td>{s.connector}</td>
+                      <td>{fmtNumber(s.failure_rate)}</td>
+                      <td>{fmtNumber(s.runs, 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
         </article>
       </section>
 
+      {/* ── Action Output (unified — replaces both "Last Action Output" */}
+      {/*    and separate "Pipeline Output" cards) ─────────────────────── */}
+      {(actionOutput || pipelineOutput) && (
+        <section className="grid">
+          <article className={`card${pipelineOutput ? " pipeline-output-card" : ""}`}>
+            <h2>Action Output</h2>
+
+            {pipelineOutput ? (
+              /* Pipeline-specific rich display */
+              <>
+                {pipelineOutput.status === "error" ? (
+                  <div className="error">
+                    <strong>Pipeline Error</strong>
+                    <pre style={{ margin: "0.5rem 0 0" }}>
+                      {pipelineOutput.stderr ||
+                        pipelineOutput.stdout ||
+                        JSON.stringify(pipelineOutput, null, 2)}
+                    </pre>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mini-stat-row">
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">Status</span>
+                        <span
+                          className={`mini-stat-value ${
+                            pipelineOutput.status === "ok" ? "status-pass" : "status-fail"
+                          }`}
+                        >
+                          {pipelineOutput.status || "\u2014"}
+                        </span>
+                      </div>
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">Evidence</span>
+                        <span className="mini-stat-value">
+                          {pipelineOutput.evidence_count ?? "\u2014"}
+                        </span>
+                      </div>
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">Ontology</span>
+                        <span className="mini-stat-value">
+                          {pipelineOutput.ontology_built ? "\u2713" : "\u2014"}
+                        </span>
+                      </div>
+                      {pipelineOutput.report_path && (
+                        <div className="mini-stat">
+                          <span className="mini-stat-label">Report</span>
+                          <span className="mini-stat-value" title={pipelineOutput.report_path}>
+                            \u2713 Generated
+                          </span>
+                        </div>
+                      )}
+                      {pipelineOutput.sa_path && (
+                        <div className="mini-stat">
+                          <span className="mini-stat-label">SA</span>
+                          <span className="mini-stat-value" title={pipelineOutput.sa_path}>
+                            \u2713 Generated
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {pipelineOutput.timing && (
+                      <div className="timing-line">
+                        {pipelineOutput.timing.started_at || "\u2014"} \u2192{" "}
+                        {pipelineOutput.timing.finished_at || "\u2014"}
+                      </div>
+                    )}
+                  </>
+                )}
+                <details>
+                  <summary style={{ cursor: "pointer" }}>Full JSON</summary>
+                  <pre style={{ maxHeight: "400px", overflow: "auto" }}>
+                    {JSON.stringify(pipelineOutput, null, 2)}
+                  </pre>
+                </details>
+              </>
+            ) : (
+              /* Generic action output */
+              <>
+                <div className={`status-inline status-${lastActionSummary.tone}`}>
+                  {lastActionSummary.label}
+                </div>
+                <details open>
+                  <summary style={{ cursor: "pointer" }}>JSON Response</summary>
+                  <pre>{JSON.stringify(actionOutput, null, 2)}</pre>
+                </details>
+              </>
+            )}
+          </article>
+        </section>
+      )}
+
+      {/* ── Source Intelligence (unified — replaces separate "Connector */}
+      {/*    Diagnostics" and "Per-Source Check" sections) ─────────────── */}
+      {(sourceCheck || connectorDiag?.connectors?.length > 0) && (
+        <section className="grid">
+          <article className="card">
+            <h2>Source Intelligence</h2>
+
+            {sourceCheck
+              ? (() => {
+                  const checks = sourceCheck.source_checks || [];
+                  const grouped = {};
+                  for (const s of checks) {
+                    const key = s.connector || "unknown";
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(s);
+                  }
+                  const connectors = Object.keys(grouped).sort();
+                  return (
+                    <>
+                      <div className="source-intel-summary">
+                        <span className="chip chip-ok">
+                          {sourceCheck.working_sources}/{sourceCheck.total_sources} working
+                        </span>
+                        <span className="chip">{sourceCheck.raw_item_count || 0} items</span>
+                        <span className="chip">{connectors.length} connectors</span>
+                      </div>
+                      <div className="connector-diag-grid">
+                        {connectors.map((conn) => {
+                          const sources = grouped[conn];
+                          const totalFetched = sources.reduce(
+                            (a, s) => a + (s.fetched_count || 0),
+                            0
+                          );
+                          const totalMatched = sources.reduce(
+                            (a, s) => a + (s.matched_count || 0),
+                            0
+                          );
+                          const failedCount = sources.filter(
+                            (s) => s.status === "failed"
+                          ).length;
+                          return (
+                            <details
+                              key={conn}
+                              className="connector-diag-card"
+                              open={failedCount > 0 || totalMatched > 0}
+                            >
+                              <summary>
+                                <strong>{conn}</strong>
+                                <span className="chip-row" style={{ marginLeft: "0.5rem" }}>
+                                  <span className="chip chip-ok">
+                                    {sources.length} sources
+                                  </span>
+                                  <span className="chip chip-ok">{totalFetched} fetched</span>
+                                  {totalMatched > 0 && (
+                                    <span className="chip chip-warn">
+                                      {totalMatched} matched
+                                    </span>
+                                  )}
+                                  {failedCount > 0 && (
+                                    <span className="chip chip-error">
+                                      {failedCount} failed
+                                    </span>
+                                  )}
+                                </span>
+                              </summary>
+                              <table
+                                className="table"
+                                style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}
+                              >
+                                <thead>
+                                  <tr>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Freshness</th>
+                                    <th>Fetched</th>
+                                    <th>Matched</th>
+                                    <th>Match Reasons</th>
+                                    <th>Latest Published</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sources.map((s) => (
+                                    <tr
+                                      key={`${s.source_name}-${s.source_url}`}
+                                      style={
+                                        s.status === "failed"
+                                          ? { color: "#ff6565" }
+                                          : undefined
+                                      }
+                                    >
+                                      <td title={s.source_url}>{s.source_name}</td>
+                                      <td>
+                                        {s.status}
+                                        {s.stale_action ? ` (${s.stale_action})` : ""}
+                                      </td>
+                                      <td>
+                                        <span
+                                          className={`chip chip-${freshnessTone(
+                                            s.freshness_status
+                                          )}`}
+                                        >
+                                          {s.freshness_status}
+                                        </span>
+                                      </td>
+                                      <td>{fmtNumber(s.fetched_count, 0)}</td>
+                                      <td>{fmtNumber(s.matched_count, 0)}</td>
+                                      <td>{formatMatchReasons(s.match_reasons)}</td>
+                                      <td>
+                                        {s.latest_published_at || "-"}
+                                        {s.latest_age_days !== null &&
+                                        s.latest_age_days !== undefined
+                                          ? ` (${fmtNumber(s.latest_age_days, 1)}d)`
+                                          : ""}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </details>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()
+              : connectorDiag?.connectors?.length > 0
+              ? (
+                <>
+                  <div className="source-intel-summary">
+                    <span className="chip">
+                      {connectorDiag.total_fetched || 0} items fetched
+                    </span>
+                  </div>
+                  <div className="connector-diag-grid">
+                    {connectorDiag.connectors.map((c) => (
+                      <details key={c.connector} className="connector-diag-card">
+                        <summary>
+                          <strong>{c.connector}</strong>
+                          <span className="chip-row" style={{ marginLeft: "0.5rem" }}>
+                            <span className="chip chip-ok">{c.fetched} fetched</span>
+                            <span className="chip chip-warn">{c.matched} matched</span>
+                            {c.failed > 0 && (
+                              <span className="chip chip-error">{c.failed} failed</span>
+                            )}
+                          </span>
+                        </summary>
+                        {c.errors?.length > 0 && (
+                          <div
+                            className="error"
+                            style={{ margin: "0.5rem 0", fontSize: "0.8rem" }}
+                          >
+                            {c.errors.map((e, i) => (
+                              <div key={i}>{e}</div>
+                            ))}
+                          </div>
+                        )}
+                        {c.warnings?.length > 0 && (
+                          <div
+                            style={{
+                              margin: "0.25rem 0",
+                              fontSize: "0.8rem",
+                              color: "#f0c674",
+                            }}
+                          >
+                            {c.warnings.map((w, i) => (
+                              <div key={i}>\u26A0 {w}</div>
+                            ))}
+                          </div>
+                        )}
+                        <table
+                          className="table"
+                          style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}
+                        >
+                          <thead>
+                            <tr>
+                              <th>Source</th>
+                              <th>Status</th>
+                              <th>Fetched</th>
+                              <th>Matched</th>
+                              <th>Freshness</th>
+                              <th>Match Reasons</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(c.sources || []).map((s, i) => (
+                              <tr
+                                key={i}
+                                style={
+                                  s.status === "failed" ? { color: "#ff6565" } : undefined
+                                }
+                              >
+                                <td title={s.url}>{s.name}</td>
+                                <td>{s.status}</td>
+                                <td>{s.fetched}</td>
+                                <td>{s.matched}</td>
+                                <td>
+                                  <span
+                                    className={`chip chip-${freshnessTone(s.freshness)}`}
+                                  >
+                                    {s.freshness}
+                                  </span>
+                                </td>
+                                <td>{formatMatchReasons(s.match_reasons)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </details>
+                    ))}
+                  </div>
+                </>
+              )
+              : null}
+          </article>
+        </section>
+      )}
+
+      {/* ── Report Quality Workbench ────────────────────────────── */}
       <section className="grid two">
         <article className="card">
-          <h2>Operator Controls</h2>
-          <label>
-            Countries
-            <input
-              value={form.countries}
-              onChange={(e) => setForm((s) => ({ ...s, countries: e.target.value }))}
-            />
-          </label>
-          <label>
-            Disaster Types
-            <input
-              value={form.disaster_types}
-              onChange={(e) => setForm((s) => ({ ...s, disaster_types: e.target.value }))}
-            />
-          </label>
-          <div className="row">
-            <label>
-              Limit
-              <input
-                type="number"
-                value={form.limit}
-                onChange={(e) => setForm((s) => ({ ...s, limit: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              Max Age Days
-              <input
-                type="number"
-                value={form.max_age_days}
-                onChange={(e) => setForm((s) => ({ ...s, max_age_days: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              Limit Cycles
-              <input
-                type="number"
-                value={form.limit_cycles}
-                onChange={(e) => setForm((s) => ({ ...s, limit_cycles: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              Limit Events
-              <input
-                type="number"
-                value={form.limit_events}
-                onChange={(e) => setForm((s) => ({ ...s, limit_events: Number(e.target.value) }))}
-              />
-            </label>
-          </div>
-          <div className="row">
-            <label>
-              Country Min Events
-              <input
-                type="number"
-                value={form.country_min_events}
-                onChange={(e) => setForm((s) => ({ ...s, country_min_events: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              Max / Connector
-              <input
-                type="number"
-                value={form.max_per_connector}
-                onChange={(e) => setForm((s) => ({ ...s, max_per_connector: Number(e.target.value) }))}
-              />
-            </label>
-            <label>
-              Max / Source
-              <input
-                type="number"
-                value={form.max_per_source}
-                onChange={(e) => setForm((s) => ({ ...s, max_per_source: Number(e.target.value) }))}
-              />
-            </label>
-          </div>
-          <label>
-            Template
-            <select
-              value={form.report_template}
-              onChange={(e) => setForm((s) => ({ ...s, report_template: e.target.value }))}
-            >
-              <option value="config/report_template.brief.json">Brief</option>
-              <option value="config/report_template.detailed.json">Detailed</option>
-              <option value="config/report_template.json">Default</option>
-            </select>
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={form.use_llm}
-              onChange={(e) => setForm((s) => ({ ...s, use_llm: e.target.checked }))}
-            />
-            Use LLM for report drafting
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={autoSourceCheck}
-              onChange={(e) => setAutoSourceCheck(e.target.checked)}
-            />
-            Auto-run Source Check after Run Cycle
-          </label>
-          <label>
-            Saved Compare Presets
-            <select
-              value={selectedPreset}
-              onChange={(e) => {
-                const name = e.target.value;
-                setSelectedPreset(name);
-                if (name && profileStore?.presets?.[name]) {
-                  applyProfile(profileStore.presets[name]);
-                }
-              }}
-            >
-              <option value="">Select preset...</option>
-              {Object.keys(profileStore?.presets || {})
-                .sort()
-                .map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <div className="row">
-            <label>
-              Preset Name
-              <input
-                value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
-                placeholder="e.g. madagascar-brief-cyclone"
-              />
-            </label>
-            <div className="preset-buttons">
-              <button type="button" onClick={() => void handleSavePreset()}>
-                Save Preset
-              </button>
-              <button type="button" className="ghost" disabled={!selectedPreset} onClick={() => void handleDeletePreset()}>
-                Delete Preset
-              </button>
+          <h2>Report Quality Workbench</h2>
+          {!workbench ? (
+            <div className="muted">
+              Run &quot;AI vs Deterministic&quot; to populate side-by-side quality diagnostics.
             </div>
-          </div>
-          <div className="actions">
-            <button disabled={busy} onClick={() => void handleRunCycle()}>
-              {busy ? "Running..." : "Run Cycle"}
-            </button>
-            <button disabled={busy} className="ghost" onClick={() => void handleSourceCheck()}>
-              {busy ? "Checking..." : "Source Check"}
-            </button>
-            <button disabled={busy} className="accent" onClick={() => void handleWriteReport()}>
-              {busy ? "Working..." : "Write Report"}
-            </button>
-            <button disabled={workbenchBusy} onClick={() => void handleRunWorkbench()}>
-              {workbenchBusy ? "Comparing..." : "Compare AI vs Deterministic"}
-            </button>
-            <button disabled={workbenchBusy} className="ghost" onClick={() => void handleRerunLastProfile()}>
-              {workbenchBusy ? "Running..." : "Rerun Last Profile"}
-            </button>
-          </div>
-        </article>
-
-        <article className="card">
-          <h2>Last Action Output</h2>
-          <div className={`status-inline status-${lastActionSummary.tone}`}>Status: {lastActionSummary.label}</div>
-          <pre>{JSON.stringify(actionOutput, null, 2)}</pre>
-        </article>
-      </section>
-
-      <section className="grid">
-        <article className="card">
-          <h2>Per-Source Check</h2>
-          {!sourceCheck ? (
-            <div className="muted">Run Source Check to verify each feed one-by-one.</div>
           ) : (
             <table className="table">
               <thead>
                 <tr>
-                  <th>Connector</th>
-                  <th>Source</th>
-                  <th>Status</th>
-                  <th>Freshness</th>
-                  <th>Stale Action</th>
-                  <th>Fetched</th>
-                  <th>Matched</th>
-                  <th>Match Reasons</th>
-                  <th>Latest Published</th>
-                  <th>Working</th>
+                  <th>Metric</th>
+                  <th>Deterministic</th>
+                  <th>AI</th>
                 </tr>
               </thead>
               <tbody>
-                {(sourceCheck.source_checks || []).map((s) => (
-                  <tr key={`${s.connector}-${s.source_name}-${s.source_url}`}>
-                    <td>{s.connector}</td>
-                    <td title={s.source_url}>{s.source_name}</td>
-                    <td>{s.status}</td>
-                    <td>
-                      <span className={`chip chip-${freshnessTone(s.freshness_status)}`}>
-                        {s.freshness_status}
-                      </span>
-                    </td>
-                    <td>{s.stale_action || "-"}</td>
-                    <td>{fmtNumber(s.fetched_count, 0)}</td>
-                    <td>{fmtNumber(s.matched_count, 0)}</td>
-                    <td>{formatMatchReasons(s.match_reasons)}</td>
-                    <td>
-                      {s.latest_published_at || "-"}
-                      {s.latest_age_days !== null && s.latest_age_days !== undefined ? ` (${fmtNumber(s.latest_age_days, 1)}d)` : ""}
-                    </td>
-                    <td>
-                      <input type="checkbox" checked={Boolean(s.working)} readOnly />
-                    </td>
-                  </tr>
-                ))}
+                <tr>
+                  <td>Status</td>
+                  <td>{workbench?.deterministic?.report_quality?.status || "-"}</td>
+                  <td>{workbench?.ai?.report_quality?.status || "-"}</td>
+                </tr>
+                <tr>
+                  <td>Citation Density</td>
+                  <td>
+                    {fmtNumber(
+                      workbench?.deterministic?.report_quality?.metrics?.citation_density
+                    )}
+                  </td>
+                  <td>
+                    {fmtNumber(workbench?.ai?.report_quality?.metrics?.citation_density)}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Word Count</td>
+                  <td>
+                    {fmtNumber(
+                      workbench?.deterministic?.report_quality?.metrics?.word_count,
+                      0
+                    )}
+                  </td>
+                  <td>
+                    {fmtNumber(workbench?.ai?.report_quality?.metrics?.word_count, 0)}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Missing Sections</td>
+                  <td>
+                    {(
+                      workbench?.deterministic?.report_quality?.metrics?.missing_sections ||
+                      []
+                    ).length}
+                  </td>
+                  <td>
+                    {(
+                      workbench?.ai?.report_quality?.metrics?.missing_sections || []
+                    ).length}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Unsupported Incident Blocks</td>
+                  <td>
+                    {(
+                      workbench?.deterministic?.report_quality?.metrics
+                        ?.unsupported_incident_blocks || []
+                    ).length}
+                  </td>
+                  <td>
+                    {(
+                      workbench?.ai?.report_quality?.metrics
+                        ?.unsupported_incident_blocks || []
+                    ).length}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Invalid Citation Refs</td>
+                  <td>
+                    {(
+                      workbench?.deterministic?.report_quality?.metrics
+                        ?.invalid_citation_refs || []
+                    ).length}
+                  </td>
+                  <td>
+                    {(
+                      workbench?.ai?.report_quality?.metrics?.invalid_citation_refs || []
+                    ).length}
+                  </td>
+                </tr>
               </tbody>
             </table>
           )}
         </article>
-      </section>
 
-      <section className="grid two">
-        <article className="card">
-          <h2>Report Quality Workbench (Phase 2)</h2>
-          {!workbench ? (
-            <div className="muted">
-              Run "Compare AI vs Deterministic" to populate side-by-side quality diagnostics.
-            </div>
-          ) : (
-            <>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Metric</th>
-                    <th>Deterministic</th>
-                    <th>AI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Status</td>
-                    <td>{workbench?.deterministic?.report_quality?.status || "-"}</td>
-                    <td>{workbench?.ai?.report_quality?.status || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td>Citation Density</td>
-                    <td>{fmtNumber(workbench?.deterministic?.report_quality?.metrics?.citation_density)}</td>
-                    <td>{fmtNumber(workbench?.ai?.report_quality?.metrics?.citation_density)}</td>
-                  </tr>
-                  <tr>
-                    <td>Word Count</td>
-                    <td>{fmtNumber(workbench?.deterministic?.report_quality?.metrics?.word_count, 0)}</td>
-                    <td>{fmtNumber(workbench?.ai?.report_quality?.metrics?.word_count, 0)}</td>
-                  </tr>
-                  <tr>
-                    <td>Missing Sections</td>
-                    <td>{(workbench?.deterministic?.report_quality?.metrics?.missing_sections || []).length}</td>
-                    <td>{(workbench?.ai?.report_quality?.metrics?.missing_sections || []).length}</td>
-                  </tr>
-                  <tr>
-                    <td>Unsupported Incident Blocks</td>
-                    <td>
-                      {(workbench?.deterministic?.report_quality?.metrics?.unsupported_incident_blocks || [])
-                        .length}
-                    </td>
-                    <td>
-                      {(workbench?.ai?.report_quality?.metrics?.unsupported_incident_blocks || []).length}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Invalid Citation Refs</td>
-                    <td>{(workbench?.deterministic?.report_quality?.metrics?.invalid_citation_refs || []).length}</td>
-                    <td>{(workbench?.ai?.report_quality?.metrics?.invalid_citation_refs || []).length}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </>
-          )}
-        </article>
         <article className="card">
           <h2>Section Budget Usage</h2>
           {!workbench ? (
@@ -910,13 +1625,24 @@ export default function App() {
                   ["method", "method_max_words"],
                 ].map(([sectionKey, limitKey]) => {
                   const sectionTitle =
-                    workbench?.template?.sections?.[sectionKey] || sectionKey.replaceAll("_", " ");
+                    workbench?.template?.sections?.[sectionKey] ||
+                    sectionKey.replaceAll("_", " ");
                   return (
                     <tr key={sectionKey}>
                       <td>{sectionTitle}</td>
                       <td>{fmtNumber(workbench?.template?.limits?.[limitKey], 0)}</td>
-                      <td>{fmtNumber(workbench?.deterministic?.section_word_usage?.[sectionTitle], 0)}</td>
-                      <td>{fmtNumber(workbench?.ai?.section_word_usage?.[sectionTitle], 0)}</td>
+                      <td>
+                        {fmtNumber(
+                          workbench?.deterministic?.section_word_usage?.[sectionTitle],
+                          0
+                        )}
+                      </td>
+                      <td>
+                        {fmtNumber(
+                          workbench?.ai?.section_word_usage?.[sectionTitle],
+                          0
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -926,17 +1652,34 @@ export default function App() {
         </article>
       </section>
 
-      <section className="grid two">
-        <article className="card">
-          <h2>Deterministic Markdown</h2>
-          <pre>{workbench?.deterministic?.markdown || "No workbench output yet."}</pre>
-        </article>
-        <article className="card">
-          <h2>AI Markdown</h2>
-          <pre>{workbench?.ai?.markdown || "No workbench output yet."}</pre>
-        </article>
-      </section>
+      {/* ── Workbench Markdown (only when data exists) ──────────── */}
+      {workbench && (
+        <section className="grid two">
+          <article className="card">
+            <h2>Deterministic Markdown</h2>
+            <pre>{workbench?.deterministic?.markdown || "No output."}</pre>
+          </article>
+          <article className="card">
+            <h2>AI Markdown</h2>
+            <pre>{workbench?.ai?.markdown || "No output."}</pre>
+          </article>
+        </section>
+      )}
 
+      {/* ── Situation Analysis Output (conditional) ─────────────── */}
+      {saOutput?.markdown && (
+        <section className="grid">
+          <article className="card">
+            <h2>Situation Analysis</h2>
+            <div className="timing-line">{saOutput.output_file || ""}</div>
+            <pre style={{ whiteSpace: "pre-wrap", maxHeight: "60vh", overflow: "auto" }}>
+              {saOutput.markdown}
+            </pre>
+          </article>
+        </section>
+      )}
+
+      {/* ── Generated Reports ───────────────────────────────────── */}
       <section className="grid two">
         <article className="card">
           <h2>Generated Reports</h2>
@@ -952,7 +1695,7 @@ export default function App() {
         </article>
         <article className="card">
           <h2>Report Preview</h2>
-          <pre>{selectedReport?.markdown || "Select a report to preview markdown."}</pre>
+          <pre>{selectedReport?.markdown || "Select a report to preview."}</pre>
         </article>
       </section>
     </main>

@@ -2,8 +2,6 @@
 
 Date: 2026-02-20
 Version: 1.2
-Status: **Closed** — All 6 milestones delivered. Archived to `docs/roadmap/archive/mvp-roadmap.md`.
-Successor: [Project Clarity](../docs/roadmap/project-clarity-roadmap.md)
 
 ## Roadmap Goals
 - Deliver MVP with dynamic user-defined monitoring filters.

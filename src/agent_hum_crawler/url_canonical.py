@@ -6,6 +6,14 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 
+# ── Optional Rust acceleration for tracking-param stripping ──────────
+_USE_RUST_STRIP = False
+try:
+    from .rust_accel import strip_tracking_params as _rust_strip, rust_available
+    _USE_RUST_STRIP = rust_available()
+except ImportError:
+    pass
+
 TRACKING_QUERY_PREFIXES = ("utm_",)
 TRACKING_QUERY_KEYS = {
     "fbclid",
@@ -16,7 +24,8 @@ TRACKING_QUERY_KEYS = {
 }
 
 
-def _strip_tracking_params(url: str) -> str:
+def _strip_tracking_params_py(url: str) -> str:
+    """Pure-Python implementation of tracking param removal."""
     parsed = urlparse(url)
     qs = parse_qs(parsed.query, keep_blank_values=False)
     clean_qs: dict[str, list[str]] = {}
@@ -37,6 +46,13 @@ def _strip_tracking_params(url: str) -> str:
             "",
         )
     )
+
+
+def _strip_tracking_params(url: str) -> str:
+    """Dispatch to Rust when available, else Python."""
+    if _USE_RUST_STRIP:
+        return _rust_strip(url)
+    return _strip_tracking_params_py(url)
 
 
 def _extract_google_target(url: str) -> str | None:

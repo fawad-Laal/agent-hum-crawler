@@ -9,6 +9,14 @@ Dynamic disaster-intelligence monitoring assistant.
 - Template-driven report formatting (`default`, `brief`, `detailed`).
 - AI-assisted report drafting with deterministic fallback when LLM is unavailable.
 - Deterministic quality gates for reports, LLM enrichment, hardening, and conformance.
+- **Phase 2 Intelligence Layer** (new):
+  - Temporal awareness on all ontology nodes (`reported_date`, `source_label`).
+  - Figure deduplication — MAX-per-(location, figure_key) prevents double-counting.
+  - Batch LLM enrichment — 15 items/call with strict JSON schema and single-event fallback.
+  - ISO3 geo normalization through the full pipeline (dedupe → database → reporting → ontology).
+  - Two-pass SA synthesis — core narrative then 6 sector narratives with shared context.
+  - "As of" dating on all SA figures and narrative sections.
+  - Streaming ingestion — `fetch_stream()` generator yields items page-by-page without buffering.
 
 ## Stack
 - Python 3.11+

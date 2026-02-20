@@ -5,6 +5,7 @@
 - `03-mvp-backlog.md`: phased implementation tasks with acceptance criteria.
 - `04-test-plan.md`: validation strategy for quality and safety.
 - `05-roadmap.md`: 6-week milestone roadmap, dependencies, risks, and KPI checkpoints.
+- `06-architecture.md`: system architecture document — modules, data flow, ontology graph, and deployment model.
 - `07-source-connectors.md`: tiered source-collection strategy (ReliefWeb, government, UN, NGO, local news) and connector rules.
 - `08-country-source-onboarding.md`: country allowlist schema and onboarding workflow for government/local-news sources.
 - `09-stocktake.md`: current delivery snapshot, stability status, and remaining hardening work.
@@ -13,9 +14,9 @@
 - `12-moltis-advanced-operations.md`: skill self-extension, session branching, hooks, hardened config, and local-validate/e2e operating model.
 - `13-moltis-security-auth.md`: unified auth-gate model, scoped API key policy, proxy hardening, and third-party skills security controls.
 - `14-moltis-streaming-tool-registry.md`: streaming event lifecycle, runner/gateway event mapping, and source-aware tool registry controls.
-- `15-llm-intelligence-layer-v1.md`: optional LLM enrichment design for full-text summary, severity/confidence calibration, citation-locked outputs, and deterministic fallback.
+- `15-llm-intelligence-layer-v1.md`: optional LLM enrichment design — full-text summary, severity/confidence calibration, citation-locked outputs, humanitarian ontology graph, OCHA-style Situation Analysis, and deterministic fallback.
 - `16-phase-c-skill-branch-sop.md`: Phase C governance policy for skill lifecycle safety and incident session branching workflow.
-- `frontend-roadmap.md`: phased plan for the React operator dashboard (monitoring, report quality workbench, and agent improvement console).
+- `frontend-roadmap.md`: phased plan for the React operator dashboard (monitoring, report quality workbench, SA generation UI, and agent improvement console).
 
 ## Source Inputs
 - `docs/research/03-personal-assistant-scope.md`

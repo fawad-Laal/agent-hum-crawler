@@ -39,6 +39,7 @@ class EventRecord(SQLModel, table=True):
     url: str
     canonical_url: str | None = None
     country: str
+    country_iso3: str = ""
     disaster_type: str
     published_at: str | None = None
     severity: str
@@ -113,6 +114,7 @@ def _ensure_eventrecord_columns(engine) -> None:
         "llm_enriched": "INTEGER NOT NULL DEFAULT 0",
         "citations_json": "TEXT NOT NULL DEFAULT '[]'",
         "canonical_url": "TEXT",
+        "country_iso3": "TEXT NOT NULL DEFAULT ''",
     }
 
     with engine.connect() as conn:
@@ -216,6 +218,7 @@ def persist_cycle(
                     url=str(event.url),
                     canonical_url=str(event.canonical_url) if event.canonical_url else None,
                     country=event.country,
+                    country_iso3=event.country_iso3,
                     disaster_type=event.disaster_type,
                     published_at=event.published_at,
                     severity=event.severity,

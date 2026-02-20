@@ -16,12 +16,14 @@ import re
 from urllib.parse import urlparse
 
 from agent_hum_crawler.feature_flags import load_feature_flags
+from agent_hum_crawler.config import ALLOWED_DISASTER_TYPES
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
 E2E_DIR = ROOT / "artifacts" / "e2e"
 PROFILE_FILE = ROOT / "config" / "dashboard_workbench_profiles.json"
+COUNTRY_SOURCES_FILE = ROOT / "config" / "country_sources.json"
 
 
 def _json_body(handler: BaseHTTPRequestHandler) -> dict:
@@ -434,6 +436,47 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._send_json({"name": report_path.name, "markdown": report_path.read_text(encoding="utf-8")})
             return
+        if parsed.path == "/api/system-info":
+            rust_available = False
+            try:
+                from agent_hum_crawler.rust_accel import rust_available as _ra
+                rust_available = _ra()
+            except ImportError:
+                pass
+            self._send_json({
+                "python_version": sys.version,
+                "rust_available": rust_available,
+                "allowed_disaster_types": sorted(ALLOWED_DISASTER_TYPES),
+            })
+            return
+        if parsed.path == "/api/country-sources":
+            data: dict = {}
+            try:
+                data = json.loads(COUNTRY_SOURCES_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+            countries_cfg = data.get("countries", {})
+            global_cfg = data.get("global", {})
+            country_list = sorted(countries_cfg.keys())
+            # For each country, count feeds
+            summary = []
+            for c in country_list:
+                entry = countries_cfg.get(c, {})
+                feed_count = sum(
+                    len(entry.get(cat, []))
+                    for cat in ("government", "un", "ngo", "local_news")
+                )
+                summary.append({"country": c, "feed_count": feed_count, "sources": entry})
+            global_feed_count = sum(
+                len(global_cfg.get(cat, []))
+                for cat in ("government", "un", "ngo", "local_news")
+            )
+            self._send_json({
+                "countries": summary,
+                "global_feed_count": global_feed_count,
+                "global_sources": global_cfg,
+            })
+            return
         self._send_json({"error": "not found"}, status=404)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -539,6 +582,93 @@ class DashboardHandler(BaseHTTPRequestHandler):
             store["presets"].pop(name, None)
             _save_profile_store(store)
             self._send_json({"status": "ok", "store": store})
+            return
+        if parsed.path == "/api/write-situation-analysis":
+            body = _json_body(self)
+            ts = subprocess.run(
+                [sys.executable, "-c", "from datetime import datetime, UTC; print(datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ'))"],
+                text=True, capture_output=True, cwd=ROOT, check=False,
+            ).stdout.strip()
+            out_path = REPORTS_DIR / f"situation-analysis-{ts}.md"
+            # Normalise list params to comma-separated strings
+            raw_countries = body.get("countries", "Madagascar,Mozambique")
+            if isinstance(raw_countries, list):
+                raw_countries = ",".join(raw_countries)
+            raw_dtypes = body.get("disaster_types", "cyclone/storm,flood")
+            if isinstance(raw_dtypes, list):
+                raw_dtypes = ",".join(raw_dtypes)
+            cmd = [
+                "write-situation-analysis",
+                "--countries",
+                str(raw_countries),
+                "--disaster-types",
+                str(raw_dtypes),
+                "--title",
+                str(body.get("title", "Situation Analysis")),
+                "--event-name",
+                str(body.get("event_name", "")),
+                "--event-type",
+                str(body.get("event_type", "")),
+                "--period",
+                str(body.get("period", "")),
+                "--sa-template",
+                str(body.get("sa_template", "config/report_template.situation_analysis.json")),
+                "--limit-cycles",
+                str(int(body.get("limit_cycles", 20))),
+                "--limit-events",
+                str(int(body.get("limit_events", 80))),
+                "--output",
+                str(out_path),
+            ]
+            max_age = body.get("max_age_days")
+            if max_age is not None:
+                cmd.extend(["--max-age-days", str(int(max_age))])
+            if bool(body.get("use_llm", False)):
+                cmd.append("--use-llm")
+            payload = _run_cli(cmd)
+            markdown = ""
+            if out_path.exists():
+                markdown = out_path.read_text(encoding="utf-8")
+            payload["markdown"] = markdown
+            payload["output_file"] = out_path.name
+            self._send_json(payload)
+            return
+        if parsed.path == "/api/run-pipeline":
+            body = _json_body(self)
+            raw_countries = body.get("countries", "Madagascar,Mozambique")
+            if isinstance(raw_countries, list):
+                raw_countries = ",".join(raw_countries)
+            raw_dtypes = body.get("disaster_types", "cyclone/storm,flood")
+            if isinstance(raw_dtypes, list):
+                raw_dtypes = ",".join(raw_dtypes)
+            cmd = [
+                "run-pipeline",
+                "--countries",
+                str(raw_countries),
+                "--disaster-types",
+                str(raw_dtypes),
+                "--report-title",
+                str(body.get("report_title", "Disaster Intelligence Report")),
+                "--sa-title",
+                str(body.get("sa_title", "Situation Analysis")),
+                "--event-name",
+                str(body.get("event_name", "")),
+                "--event-type",
+                str(body.get("event_type", "")),
+                "--period",
+                str(body.get("period", "")),
+                "--limit-cycles",
+                str(int(body.get("limit_cycles", 20))),
+                "--limit-events",
+                str(int(body.get("limit_events", 80))),
+            ]
+            max_age = body.get("max_age_days")
+            if max_age is not None:
+                cmd.extend(["--max-age-days", str(int(max_age))])
+            if bool(body.get("use_llm", False)):
+                cmd.append("--use-llm")
+            payload = _run_cli(cmd)
+            self._send_json(payload)
             return
         self._send_json({"error": "not found"}, status=404)
 

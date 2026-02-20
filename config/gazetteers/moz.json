@@ -1,0 +1,16 @@
+{
+  "country": "Mozambique",
+  "iso3": "MOZ",
+  "admin1": {
+    "Maputo Province": ["Matola", "Boane", "Marracuene", "Namaacha", "Moamba"],
+    "Gaza": ["Xai-Xai", "Chokwe", "Chibuto", "Bilene", "Guijá", "Massingir"],
+    "Inhambane": ["Inhambane", "Maxixe", "Vilankulo", "Morrumbene", "Zavala", "Massinga"],
+    "Sofala": ["Beira", "Dondo", "Buzi", "Chibabava", "Gorongosa", "Nhamatanda"],
+    "Manica": ["Chimoio", "Gondola", "Manica", "Sussundenga", "Barué"],
+    "Zambezia": ["Quelimane", "Mocuba", "Maganja da Costa", "Alto Molócue", "Guruè", "Milange"],
+    "Tete": ["Tete", "Moatize", "Cahora Bassa", "Angónia", "Changara"],
+    "Nampula": ["Nampula", "Nacala", "Angoche", "Monapo", "Ilha de Moçambique"],
+    "Cabo Delgado": ["Pemba", "Mocimboa da Praia", "Mueda", "Montepuez", "Palma", "Macomia"],
+    "Niassa": ["Lichinga", "Cuamba", "Mandimba", "Marrupa", "Mecula"]
+  }
+}

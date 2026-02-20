@@ -1,13 +1,15 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-20
-Last Updated: 2026-02-20
-Status: Post-MVP Hardening + Frontend Operator Console In Progress
+Last Updated: 2026-02-21
+Status: Post-MVP Hardening + **Project Clarity** (Phase 2 Intelligence Layer Complete)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
 - MVP implementation phase: 100% complete
 - Post-MVP hardening and operator tooling: in active rollout
+- Humanitarian ontology and Situation Analysis engine: implemented and validated
+- Graph ontology evidence extraction: operational with multi-pattern NLP
 
 ## Completed
 - Milestones 1-5 completed.
@@ -145,7 +147,51 @@ Status: Post-MVP Hardening + Frontend Operator Console In Progress
   - removed stale CNN World default feed,
   - added country-targeted disaster query feeds for Madagascar, Mozambique, Pakistan, Bangladesh, Ethiopia,
   - retained BBC, Reuters World, NYT World, NPR World, Al Jazeera, AllAfrica, Africanews, ANA, Guardian.
-- Current test status: `46 passed`.
+- Current test status: `150 passed`.
+- Dashboard redesigned from 13 sections → 8 unified sections (Command Center, Trends, System Health, Action Output, Source Intelligence, Workbench, SA Output, Reports).
+- SA quality analysis completed — root cause analysis of Ethiopia SA output quality issues documented in `docs/analysis/sa-improvement-analysis.md`.
+  - Identified 9 critical SA issues: garbage sector tables, missing gazetteers, no date awareness, PDFs not extracted, figure deduplication absent, etc.
+  - Proposed multi-agent architecture (5 agent types), OCR pipeline (Docling primary), Graph RAG enhancements, model selection strategy.
+  - 5-phase implementation roadmap defined.
+
+## Humanitarian Ontology & Situation Analysis (New)
+- Built graph ontology module (`src/agent_hum_crawler/graph_ontology.py`) for structured humanitarian evidence modelling:
+  - `HumanitarianOntologyGraph` with typed nodes: `HazardNode`, `ImpactObservation`, `NeedStatement`, `ResponseAction`, `RiskStatement`, `AdminArea`.
+  - Multi-pattern NLP figure extraction (`_extract_figures`) with 4 regex patterns:
+    - Standard `NUM keyword` (e.g. "48,000 displaced")
+    - Death toll phrasing (e.g. "death toll rises to 59")
+    - At-least/over/approximately phrasing (e.g. "at least 52 dead")
+    - Sentence-level pattern (e.g. "59 killed in the storm")
+  - Uses `max()` accumulation to avoid double-counting across overlapping patterns.
+  - Automatic impact type, need type, hazard category, and admin area classification from text.
+  - Country gazetteer system (`COUNTRY_GAZETTEERS`) with admin1/admin2 hierarchies:
+    - Madagascar: 22 provinces, 100+ districts
+    - Mozambique: 10 provinces, 50+ districts
+  - Auto-detects countries from evidence and loads matching gazetteers when no explicit hierarchy is provided.
+- Built OCHA-style Situation Analysis renderer (`src/agent_hum_crawler/situation_analysis.py`):
+  - 15-section report structure following OCHA SA format.
+  - Template-driven rendering from `config/report_template.situation_analysis.json`.
+  - Deterministic path renders structured tables and evidence-sourced narratives without LLM dependency.
+  - Optional LLM narrative generation across all sections.
+  - Auto-inference of event name and type from evidence (e.g. "Cyclone Gezani" detected from headlines).
+  - Auto-inference of disaster type (e.g. "cyclone" → "Tropical Cyclone").
+  - Dynamic access constraint extraction from evidence using keyword patterns.
+  - Sector narrative rendering maps evidence descriptions instead of static "Assessment pending" placeholders.
+  - Full admin reference annex auto-generated from country gazetteers.
+  - CLI: `write-situation-analysis` subcommand.
+  - SA template: `config/report_template.situation_analysis.json`.
+- Wired Situation Analysis into dashboard API and frontend:
+  - API endpoint: `POST /api/write-situation-analysis` in `scripts/dashboard_api.py`.
+  - Frontend: collapsible "Situation Analysis Parameters" form in `ui/src/App.jsx`.
+  - Fields: SA Title, Event Name, Event Type, Period, SA Template, SA Limit Events.
+  - One-click "Write Situation Analysis" button with output display.
+- Fixed dashboard API list-to-string serialization for countries/disaster_types parameters.
+- Validated SA output quality — report now includes:
+  - Event card with auto-detected "Cyclone Gezani" and "Tropical Cyclone" type.
+  - Key figures: Deaths 158, Displaced 16,000, Affected Population 400,052, Severity Phase 4.
+  - Evidence-sourced sector narratives (Health, Food Security).
+  - Full 22-province admin annex with districts for Madagascar.
+  - 12 source citations.
 
 ## Milestone Status (from `specs/05-roadmap.md`)
 - Milestone 1 (Week 1): Completed
@@ -163,22 +209,47 @@ Status: Post-MVP Hardening + Frontend Operator Console In Progress
 - `llm-report --enforce-llm-quality`: `pass`
 - `conformance-report` status: `pass`
 
-## Next Action Queue
-1. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`:
-   - add runtime auth-path probes (local/remote/proxy simulation) for direct behavioral validation.
-   - add optional strict requirement for at least one non-admin scoped automation key in production profiles.
-2. Continue implementation of `specs/15-llm-intelligence-layer-v1.md`:
-   - tighten AI narrative conformance around section aliases and unsupported-claim checks in live windows.
-   - improve source ranking/selection quality for cross-country filter balance in sparse windows.
-3. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
-4. Continue frontend roadmap execution (`specs/frontend-roadmap.md`):
-   - complete Phase 3 diagnostics (connector latency/error classes, outcome diff views),
-   - add operator run-history with artifact linking for repeatable QA loops.
+## Next Action Queue — Project Clarity
+
+Active roadmap: `docs/roadmap/project-clarity-roadmap.md`
+
+1. **~~Reduced++ Phase 1 — Foundation~~ ✅ COMPLETE**:
+   - ✅ ReliefWeb pagination + appname enforcement + date filter.
+   - ✅ PDF text extraction (pdfplumber + pypdf) wired into ReliefWeb.
+   - ✅ Country substring matching fixed (word-boundary regex).
+   - ✅ Dynamic gazetteer system (50+ countries, LLM generation, file caching).
+   - ✅ Strict JSON schema on SA LLM calls (11 keys, strict mode).
+   - ✅ Deterministic sector tables (no raw evidence in cells).
+   - ✅ Event name inference fixed (3-pass: storm → crisis → type+country).
+   - ✅ `published_at` + `source_label` in LLM evidence digest.
+2. **~~Reduced++ Phase 2 — Intelligence Layer~~ ✅ COMPLETE**:
+   - ✅ Temporal layer on ontology nodes (`reported_date` + `source_label` on ImpactObservation, NeedStatement, RiskStatement).
+   - ✅ Figure deduplication (MAX-per-(geo_area, figure_key) in national/admin1/admin2 aggregation).
+   - ✅ Batch enrichment (`enrich_events_batch()`, 15 items/call, strict JSON schema, single-event fallback).
+   - ✅ Geo normalization (ISO3 through full pipeline: dedupe → database → reporting → ontology; `country_iso3` on ProcessedEvent, EventRecord, ReportEvidence, GeoArea).
+   - ✅ Two-pass SA synthesis (Pass 1: core narrative — executive_summary, national_impact, access_constraints, outstanding_needs, forecast_risk; Pass 2: 6 sector narratives with Pass 1 context).
+   - ✅ "As of" dating on all SA figures (`national_figures_with_dates()`, "As of" column in impact table, inline date attribution in narratives).
+   - ✅ Streaming ingestion (`fetch_stream()` generator on ReliefWeb connector — yields `RawSourceItem` page-by-page).
+3. **Reduced++ Phase 3 — Expansion (when needed)** ← NEXT:
+   - Citation span locking.
+   - Expand gazetteers (Somalia, Sudan, South Sudan, DRC, Afghanistan).
+   - Source credibility tier weighting.
+   - SA quality gate (automated scoring).
+4. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+5. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
+6. Continue frontend roadmap execution (archived: `docs/roadmap/archive/frontend-roadmap.md`).
+
+## Analysis Documents
+- `docs/analysis/sa-improvement-analysis.md` — Comprehensive SA quality analysis (multi-agent proposal superseded by Reduced++).
+- `docs/roadmap/project-clarity-roadmap.md` — **Active** — Project Clarity (SA Reduced++ Architecture).
+- `docs/roadmap/README.md` — Roadmap index (active + archived phases).
 
 ## Risks / Blockers
 - No blocking issues for MVP sign-off.
 
 ## References
-- `specs/05-roadmap.md`
+- `docs/roadmap/project-clarity-roadmap.md` (active roadmap)
+- `docs/roadmap/README.md` (roadmap index)
+- `specs/05-roadmap.md` (closed — archived)
 - `specs/09-stocktake.md`
 - `specs/10-pilot-signoff.md`

@@ -132,12 +132,42 @@
     },
     "Ethiopia": {
       "government": [],
-      "un": [],
-      "ngo": [],
+      "un": [
+        {
+          "name": "OCHA Ethiopia",
+          "url": "https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3A%22eth%22&format=rss"
+        },
+        {
+          "name": "WHO Disease Outbreak News",
+          "url": "https://www.who.int/feeds/entity/csr/don/en/rss.xml"
+        }
+      ],
+      "ngo": [
+        {
+          "name": "FEWS NET East Africa",
+          "url": "https://fews.net/taxonomy/term/236/feed"
+        }
+      ],
       "local_news": [
         {
-          "name": "Ethiopia Humanitarian Crisis (Google News)",
-          "url": "https://news.google.com/rss/search?q=Ethiopia+humanitarian+crisis+flood+conflict&hl=en-US&gl=US&ceid=US:en"
+          "name": "Ethiopia Multi-Hazard (Google News)",
+          "url": "https://news.google.com/rss/search?q=Ethiopia+humanitarian+crisis+flood+conflict+drought+disease+outbreak+epidemic+displacement&hl=en-US&gl=US&ceid=US:en"
+        },
+        {
+          "name": "Ethiopia Health Crisis (Google News)",
+          "url": "https://news.google.com/rss/search?q=Ethiopia+cholera+measles+epidemic+disease+outbreak+health+emergency&hl=en-US&gl=US&ceid=US:en"
+        },
+        {
+          "name": "Ethiopia Drought Famine (Google News)",
+          "url": "https://news.google.com/rss/search?q=Ethiopia+drought+famine+food+insecurity+hunger&hl=en-US&gl=US&ceid=US:en"
+        },
+        {
+          "name": "Addis Fortune",
+          "url": "https://addisfortune.news/feed/"
+        },
+        {
+          "name": "Ethiopian Monitor",
+          "url": "https://ethiopianmonitor.com/feed/"
         }
       ]
     }

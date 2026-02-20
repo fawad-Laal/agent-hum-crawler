@@ -8,6 +8,15 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+*.egg-info/
+
+# Rust build artifacts
+rust_core/target/
+
+# Maturin build output
+*.so
+*.pyd
+*.dll
 
 # Local tooling
 .projectmemory/
@@ -16,6 +25,10 @@ __pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Stray SQLite databases
+*.db
+!reports/.gitkeep
 *.egg-info/
 
 # Moltis hook runtime logs

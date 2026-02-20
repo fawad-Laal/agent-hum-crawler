@@ -15,6 +15,10 @@ ALLOWED_DISASTER_TYPES = {
     "landslide",
     "heatwave",
     "conflict emergency",
+    "epidemic/disease outbreak",
+    "drought",
+    "volcanic eruption",
+    "tsunami",
 }
 
 _DISASTER_TYPE_ALIAS_MAP = {
@@ -53,6 +57,28 @@ _DISASTER_TYPE_ALIAS_MAP = {
     "complex emergency": "conflict emergency",
     "conflict": "conflict emergency",
     "conflicts": "conflict emergency",
+    "epidemic/disease outbreak": "epidemic/disease outbreak",
+    "epidemic disease outbreak": "epidemic/disease outbreak",
+    "epidemic": "epidemic/disease outbreak",
+    "epidemics": "epidemic/disease outbreak",
+    "disease outbreak": "epidemic/disease outbreak",
+    "disease": "epidemic/disease outbreak",
+    "outbreak": "epidemic/disease outbreak",
+    "pandemic": "epidemic/disease outbreak",
+    "cholera": "epidemic/disease outbreak",
+    "measles": "epidemic/disease outbreak",
+    "ebola": "epidemic/disease outbreak",
+    "malaria": "epidemic/disease outbreak",
+    "drought": "drought",
+    "droughts": "drought",
+    "dry spell": "drought",
+    "water scarcity": "drought",
+    "volcanic eruption": "volcanic eruption",
+    "volcano": "volcanic eruption",
+    "eruption": "volcanic eruption",
+    "tsunami": "tsunami",
+    "tsunamis": "tsunami",
+    "tidal wave": "tsunami",
 }
 
 

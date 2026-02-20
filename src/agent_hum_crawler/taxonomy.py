@@ -16,6 +16,23 @@ DISASTER_KEYWORDS: Dict[str, List[str]] = {
     "landslide": ["landslide", "mudslide", "rockslide"],
     "heatwave": ["heatwave", "extreme heat", "high temperature"],
     "conflict emergency": ["conflict", "displacement", "armed clashes", "violence"],
+    "epidemic/disease outbreak": [
+        "epidemic", "disease outbreak", "outbreak", "pandemic",
+        "cholera", "measles", "ebola", "malaria", "dengue",
+        "disease", "infectious", "meningitis", "polio",
+        "avian flu", "bird flu", "yellow fever", "plague",
+        "public health emergency", "health emergency",
+    ],
+    "drought": [
+        "drought", "dry spell", "water scarcity", "famine",
+        "food insecurity", "crop failure", "water shortage",
+        "desertification", "arid",
+    ],
+    "volcanic eruption": [
+        "volcano", "volcanic", "eruption", "lava", "ash cloud",
+        "pyroclastic", "magma",
+    ],
+    "tsunami": ["tsunami", "tidal wave"],
 }
 
 CONFLICT_STRONG_KEYWORDS = [
@@ -54,7 +71,15 @@ def normalize_text(value: str) -> str:
 
 def matches_country(text: str, countries: Iterable[str]) -> bool:
     haystack = normalize_text(text)
-    return any(normalize_text(country) in haystack for country in countries)
+    for country in countries:
+        term = normalize_text(country)
+        if not term:
+            continue
+        # Word-boundary match — prevents "Niger" matching "Nigeria" etc.
+        pattern = r"(?<!\w)" + re.escape(term) + r"(?!\w)"
+        if re.search(pattern, haystack):
+            return True
+    return False
 
 
 def infer_disaster_type(text: str, allowed_types: Iterable[str]) -> str | None:

@@ -1,0 +1,28 @@
+{
+  "country": "Madagascar",
+  "iso3": "MDG",
+  "admin1": {
+    "Analamanga": ["Antananarivo", "Ambohidratrimo", "Ankazobe", "Anjozorobe", "Manjakandriana", "Tsiroanomandidy"],
+    "Atsinanana": ["Toamasina", "Brickaville", "Mahanoro", "Vatomandry", "Marolambo", "Antanambao Manampotsy"],
+    "Vatovavy-Fitovinany": ["Mananjary", "Nosy Varika", "Ifanadiana", "Ikongo", "Manakara"],
+    "Atsimo-Atsinanana": ["Farafangana", "Vangaindrano", "Midongy du Sud", "Vondrozo", "Befotaka"],
+    "Boeny": ["Mahajanga", "Marovoay", "Mitsinjo", "Ambato-Boeni", "Soalala"],
+    "Diana": ["Antsiranana", "Nosy Be", "Ambanja", "Ambilobe", "Antsirabe Nord"],
+    "Sava": ["Sambava", "Antalaha", "Vohémar", "Andapa"],
+    "Menabe": ["Morondava", "Belo sur Tsiribihina", "Mahabo", "Miandrivazo", "Manja"],
+    "Atsimo-Andrefana": ["Toliara", "Sakaraha", "Ankazoabo", "Betioky", "Morombe", "Ampanihy"],
+    "Androy": ["Ambovombe", "Tsihombe", "Bekily", "Beloha"],
+    "Anosy": ["Taolagnaro", "Amboasary", "Betroka"],
+    "Vakinankaratra": ["Antsirabe", "Ambatolampy", "Betafo", "Faratsiho"],
+    "Analanjirofo": ["Fenoarivo Atsinanana", "Mananara Nord", "Maroantsetra", "Sainte-Marie"],
+    "Alaotra-Mangoro": ["Ambatondrazaka", "Moramanga", "Amparafaravola", "Andilamena"],
+    "Sofia": ["Antsohihy", "Port-Bergé", "Mampikony", "Bealanana", "Befandriana-Nord"],
+    "Betsiboka": ["Maevatanana", "Kandreho", "Tsaratanana"],
+    "Melaky": ["Maintirano", "Morafenobe", "Antsalova", "Ambatomainty", "Besalampy"],
+    "Ihorombe": ["Ihosy", "Ivohibe", "Iakora"],
+    "Amoron'i Mania": ["Ambositra", "Fandriana", "Ambatofinandrahana", "Manandriana"],
+    "Haute Matsiatra": ["Fianarantsoa", "Ambalavao", "Ambohimahasoa", "Ikalamavony", "Lalangina"],
+    "Itasy": ["Miarinarivo", "Arivonimamo", "Soavinandriana"],
+    "Bongolava": ["Tsiroanomandidy", "Fenoarivobe"]
+  }
+}
