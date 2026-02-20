@@ -2,7 +2,7 @@
 
 Date: 2026-02-20
 Last Updated: 2026-02-21
-Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Deep Extraction Complete)
+Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 5 Frontend Rewrite Planned)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -250,7 +250,14 @@ Active roadmap: `docs/roadmap/project-clarity-roadmap.md`
    - ✅ Province-level figure distribution (`distribute_national_figures()` — proportional allocation by admin1 mention counts, distributed flag).
    - ✅ Coordinator pipeline upgrade (`_run_stage()` wrapper, `ProgressCallback`, per-stage error/diagnostics, resilient pipeline, 3-state status).
    - ✅ Ontology persistence in DB (5 new SQLModel tables: `OntologySnapshot`, `ImpactRecord`, `NeedRecord`, `RiskRecord`, `ResponseRecord`; `persist_ontology()` + `get_ontology_snapshots()` for trending).
-5. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+5. **Phase 5 — Frontend Rewrite (Project Phoenix)** — PLANNED:
+   - Complete rewrite of 1795-line monolithic dashboard addressing 5 critical architectural issues.
+   - 10-phase implementation: Foundation → Data Layer → Operations → Reports → Sources/System → SA → Backend (FastAPI) → Real-time (SSE) → Advanced Features → Testing/Release.
+   - Target stack: TypeScript + Shadcn/ui + React Router + TanStack Query + Zustand + FastAPI + Redis.
+   - Timeline: 24 weeks (6 months) with 1-2 developers.
+   - Deliverables: 60-80 components, 80%+ test coverage, 100+ concurrent user support, < 500ms API latency, 90+ Lighthouse score.
+   - Documentation: `docs/roadmap/frontend-rewrite-roadmap.md`, audit: `docs/analysis/frontend-audit-report.md`.
+6. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 5. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 6. Continue frontend roadmap execution (archived: `docs/roadmap/archive/frontend-roadmap.md`).
 

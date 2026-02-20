@@ -455,6 +455,65 @@ Last updated: 2026-02-21
 
 **Phase 4 overall**: ✅ Complete — 220/220 Python tests, 23/23 Rust tests passing
 
+### Phase 5 — Frontend Rewrite (Project Phoenix)
+
+**Status:** Planned (not started)  
+**Timeline:** 24 weeks (6 months with 1-2 developers)  
+**Scope:** Complete frontend rewrite addressing 5 critical architectural issues in current 1795-line monolithic dashboard.  
+**Documentation:** [Frontend Rewrite Roadmap](frontend-rewrite-roadmap.md) | [Frontend Audit Report](../analysis/frontend-audit-report.md)
+
+**Critical Issues Addressed:**
+1. **Monolithic Architecture** → 60-80 decomposed components + feature modules
+2. **State Management Chaos** → Zustand + TanStack Query + React Hook Form
+3. **No Data Fetching Layer** → TanStack Query with caching + error recovery
+4. **No Navigation** → React Router with tab-based layout (8 routes)
+5. **Backend Bottleneck** → FastAPI + direct imports + Redis caching (10-50x faster)
+
+**Architecture Changes:**
+
+| Layer | Current | Target |
+|-------|---------|--------|
+| Language | JavaScript | TypeScript 5.x (100% strict mode) |
+| Components | 2 (1795-line App.jsx) | 60-80 modular components |
+| Routing | Vertical scroll | React Router 7 (8 routes) |
+| State | 19 useState hooks | Zustand + TanStack Query + React Hook Form |
+| UI Library | Custom CSS (649 lines) | Shadcn/ui + Tailwind |
+| Backend | ThreadingHTTPServer + subprocess | FastAPI + Uvicorn + direct imports |
+| Real-time | Polling | Server-Sent Events (SSE) |
+| Testing | 0% coverage | 80%+ (Vitest + Testing Library) |
+
+**10-Phase Implementation:**
+
+| Phase | Weeks | Deliverable |
+|-------|-------|-------------|
+| 1. Foundation | 3 | TypeScript + Shadcn/ui + React Router + 5 routes |
+| 2. Data Layer | 2 | TanStack Query + Zustand + localStorage |
+| 3. Operations | 2 | `/operations` route (Command Center migration) |
+| 4. Reports | 2 | `/reports` route + workbench + export |
+| 5. Sources/System | 2 | `/sources` + `/system` routes |
+| 6. Situation Analysis | 2 | `/sa` route + quality gate viz |
+| 7. Backend Rewrite | 3 | FastAPI + Redis + JWT auth + SSE |
+| 8. Real-time | 2 | SSE progress updates + notifications |
+| 9. Advanced Features | 3 | Search, filters, multi-workspace |
+| 10. Testing/Release | 3 | 80% coverage + performance audit + deployment |
+
+**Success Metrics:**
+
+| Metric | Current | Target |
+|--------|---------|--------|
+| API Latency | 5-30s | < 500ms (95th percentile) |
+| Concurrent Users | 1-5 | 100+ |
+| Component Count | 2 | 60-80 |
+| Test Coverage | 0% | 80%+ |
+| Lighthouse Score | 60-70 | 90+ |
+| Bundle Size | 250KB | < 400KB |
+
+**Migration Strategy:**
+- Parallel deployment (`/dashboard` old, `/v2` new)
+- No data migration required (SQLite + filesystem unchanged)
+- Gradual cutover after Phase 10 complete
+- Backward-compatible API shim during transition
+
 ---
 
 ## 9. Implementation Phases

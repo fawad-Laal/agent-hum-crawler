@@ -1,12 +1,13 @@
 # Moltis Roadmap Index
 
-Date: 2026-02-20
+Date: 2026-02-21
 
-## Active Phase
+## Active Phases
 
 | Phase | Document | Status |
 |-------|----------|--------|
-| **Project Clarity** (SA Reduced++) | [project-clarity-roadmap.md](project-clarity-roadmap.md) | **Active** |
+| **Project Clarity** (SA Reduced++) | [project-clarity-roadmap.md](project-clarity-roadmap.md) | **Active** — Phases 1-4 complete (220/220 tests) |
+| **Project Phoenix** (Frontend Rewrite) | [frontend-rewrite-roadmap.md](frontend-rewrite-roadmap.md) | **Planned** — 10-phase, 24-week timeline |
 
 ## Completed / Archived Phases
 
@@ -19,6 +20,7 @@ Date: 2026-02-20
 
 | Document | Location |
 |----------|----------|
+| Frontend Audit Report | [../analysis/frontend-audit-report.md](../analysis/frontend-audit-report.md) |
 | SA Quality Root Cause Analysis | [../analysis/sa-improvement-analysis.md](../analysis/sa-improvement-analysis.md) |
 | LLM Intelligence Layer v1 Spec | [../../specs/15-llm-intelligence-layer-v1.md](../../specs/15-llm-intelligence-layer-v1.md) |
 | System Architecture | [../../specs/06-architecture.md](../../specs/06-architecture.md) |
