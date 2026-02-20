@@ -442,6 +442,19 @@ Last updated: 2026-02-21
 
 **Phase 3 overall**: ✅ Complete — 187/187 Python tests, 23/23 Rust tests passing
 
+### Phase 4 — Deep Extraction & Pipeline Orchestration
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 4.1 | PDF table extraction | ✅ Complete | `ExtractedTable`/`ExtractedDocument` dataclasses; pdfplumber table extraction with markdown conversion; backward-compat `extract_pdf_text()` wrapper |
+| 4.2 | Full-article content fetching | ✅ Complete | `_fetch_page_text_with_html()` returns `(text, html)` tuple; PDF link detection from page HTML (capped at 3); RSS enclosure PDF extraction |
+| 4.3 | Multi-impact per evidence | ✅ Complete | `_classify_all_impact_types()` returns ALL matching types ordered by score; one `ImpactObservation` per type; secondary types get `{}` figures to prevent double-counting |
+| 4.4 | Province-level figure distribution | ✅ Complete | `distribute_national_figures()` on `HumanitarianOntologyGraph`; proportional allocation by admin1 mention counts; merges with already-localised figures; distributed flag |
+| 4.5 | Coordinator pipeline upgrade | ✅ Complete | `_run_stage()` wrapper with error capture + timing; `ProgressCallback` type; `PipelineContext.stage_errors`/`stage_diagnostics`; resilient pipeline (continues on stage failure); 3-state status (ok/partial/empty) |
+| 4.6 | Ontology persistence in DB | ✅ Complete | 5 new SQLModel tables (`OntologySnapshot`, `ImpactRecord`, `NeedRecord`, `RiskRecord`, `ResponseRecord`); `persist_ontology()` + `get_ontology_snapshots()` for trending; auto-migration in `init_db()` |
+
+**Phase 4 overall**: ✅ Complete — 220/220 Python tests, 23/23 Rust tests passing
+
 ---
 
 ## 9. Implementation Phases

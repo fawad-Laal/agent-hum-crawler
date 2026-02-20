@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 
 from ..config import RuntimeConfig
 from ..models import ContentSource, FetchResult, RawSourceItem
-from ..pdf_extract import extract_pdf_text
+from ..pdf_extract import extract_pdf_document, extract_pdf_text
 from ..source_freshness import evaluate_freshness, load_state, save_state, should_demote, update_source_state
 from ..taxonomy import match_with_reason
 from ..url_canonical import canonicalize_url
@@ -367,10 +367,10 @@ class ReliefWebConnector:
                 file_url = f.get("url")
                 if file_url and str(file_url).lower().endswith(".pdf"):
                     content_sources.append(ContentSource(type="document_pdf", url=file_url))
-                    # Extract text from PDF
-                    pdf_text = extract_pdf_text(str(file_url), client=client)
-                    if pdf_text:
-                        text = (text + "\n\n" + pdf_text).strip()
+                    # Extract text + tables from PDF
+                    pdf_doc = extract_pdf_document(str(file_url), client=client)
+                    if pdf_doc.full_text:
+                        text = (text + "\n\n" + pdf_doc.full_text).strip()
                 elif file_url:
                     content_sources.append(ContentSource(type="document_html", url=file_url))
 

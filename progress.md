@@ -2,7 +2,7 @@
 
 Date: 2026-02-20
 Last Updated: 2026-02-21
-Status: Post-MVP Hardening + **Project Clarity** (Phase 3 Expansion Complete)
+Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Deep Extraction Complete)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -147,7 +147,7 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 3 Expansion Complete)
   - removed stale CNN World default feed,
   - added country-targeted disaster query feeds for Madagascar, Mozambique, Pakistan, Bangladesh, Ethiopia,
   - retained BBC, Reuters World, NYT World, NPR World, Al Jazeera, AllAfrica, Africanews, ANA, Guardian.
-- Current test status: `187 passed`.
+- Current test status: `220 passed`.
 - Dashboard redesigned from 13 sections → 8 unified sections (Command Center, Trends, System Health, Action Output, Source Intelligence, Workbench, SA Output, Reports).
 - SA quality analysis completed — root cause analysis of Ethiopia SA output quality issues documented in `docs/analysis/sa-improvement-analysis.md`.
   - Identified 9 critical SA issues: garbage sector tables, missing gazetteers, no date awareness, PDFs not extracted, figure deduplication absent, etc.
@@ -243,7 +243,14 @@ Active roadmap: `docs/roadmap/project-clarity-roadmap.md`
      - Quality Gate toggle checkbox in SA Parameters form.
      - `--quality-gate` CLI flag wired through `write_situation_analysis()` → `render_situation_analysis()`.
      - New CSS: `.credibility-bars`, `.sa-quality-gate`, `.quality-dims` layouts.
-4. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
+4. **~~Reduced++ Phase 4 — Deep Extraction & Pipeline Orchestration~~ ✅ COMPLETE**:
+   - ✅ PDF table extraction (`ExtractedTable`/`ExtractedDocument` dataclasses, pdfplumber table extraction with markdown conversion).
+   - ✅ Full-article content fetching (PDF link detection from page HTML, RSS enclosure extraction, capped at 3 PDFs per article).
+   - ✅ Multi-impact per evidence (`_classify_all_impact_types()` — all matching types, secondary gets `{}` figures to prevent double-counting).
+   - ✅ Province-level figure distribution (`distribute_national_figures()` — proportional allocation by admin1 mention counts, distributed flag).
+   - ✅ Coordinator pipeline upgrade (`_run_stage()` wrapper, `ProgressCallback`, per-stage error/diagnostics, resilient pipeline, 3-state status).
+   - ✅ Ontology persistence in DB (5 new SQLModel tables: `OntologySnapshot`, `ImpactRecord`, `NeedRecord`, `RiskRecord`, `ResponseRecord`; `persist_ontology()` + `get_ontology_snapshots()` for trending).
+5. Continue security/auth hardening rollout from `specs/13-moltis-security-auth.md`.
 5. Continue streaming/tool-registry conformance rollout from `specs/14-moltis-streaming-tool-registry.md`.
 6. Continue frontend roadmap execution (archived: `docs/roadmap/archive/frontend-roadmap.md`).
 

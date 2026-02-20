@@ -584,6 +584,80 @@ class HumanitarianOntologyGraph:
             return 0
         return max(i.severity_phase for i in self.impacts)
 
+    # ── Province-level figure distribution ────────────────────
+
+    def distribute_national_figures(self) -> dict[str, dict[str, Any]]:
+        """Distribute national-level figures to admin1 areas proportionally.
+
+        When a figure is reported at admin-level 0 (country) but admin1
+        areas are known from other evidence, the figure is split across
+        those admin1 areas in proportion to their evidence-mention share.
+        Figures already reported at admin1/admin2 level are kept as-is.
+
+        Returns ``{admin1_key: {"name": ..., "figures": {...},
+        "distributed": bool, "impact_count": int}}``.
+        """
+        # Step 1: count evidence mentions per admin1
+        admin1_mention_count: Counter[str] = Counter()
+        admin1_names: dict[str, str] = {}
+        for impact in self.impacts:
+            geo_key = impact.geo_area.strip().lower()
+            geo = self.geo_areas.get(geo_key)
+            if not geo:
+                continue
+            if geo.admin_level == 1:
+                admin1_mention_count[geo_key] += 1
+                admin1_names[geo_key] = geo.name
+            elif geo.admin_level == 2 and geo.parent:
+                admin1_mention_count[geo.parent] += 1
+                parent_geo = self.geo_areas.get(geo.parent)
+                if parent_geo:
+                    admin1_names[geo.parent] = parent_geo.name
+
+        # Step 2: aggregate already-localised figures (admin1 + admin2)
+        localised = self.aggregate_figures_by_admin1()
+
+        # Step 3: collect national-level figures (admin_level == 0)
+        national_fig: dict[str, int] = {}
+        for impact in self.impacts:
+            if impact.admin_level != 0:
+                continue
+            for k, v in impact.figures.items():
+                if isinstance(v, (int, float)):
+                    national_fig[k] = max(national_fig.get(k, 0), int(v))
+
+        # Step 4: distribute national figures to admin1 proportionally
+        total_mentions = sum(admin1_mention_count.values())
+        result: dict[str, dict[str, Any]] = {}
+
+        # Seed from already-localised
+        for a1_key, bucket in localised.items():
+            result[a1_key] = {
+                "name": bucket["name"],
+                "figures": dict(bucket["figures"]),
+                "distributed": False,
+                "impact_count": bucket["impact_count"],
+            }
+
+        if total_mentions > 0 and national_fig:
+            for a1_key, mentions in admin1_mention_count.items():
+                proportion = mentions / total_mentions
+                if a1_key not in result:
+                    result[a1_key] = {
+                        "name": admin1_names.get(a1_key, a1_key),
+                        "figures": {},
+                        "distributed": True,
+                        "impact_count": mentions,
+                    }
+                for fig_key, nat_val in national_fig.items():
+                    existing = result[a1_key]["figures"].get(fig_key, 0)
+                    distributed_val = int(round(nat_val * proportion))
+                    if distributed_val > existing:
+                        result[a1_key]["figures"][fig_key] = distributed_val
+                        result[a1_key]["distributed"] = True
+
+        return result
+
 
 # ── Builder: evidence → ontology graph ───────────────────────────────
 
@@ -986,6 +1060,27 @@ def _classify_impact_type(text: str) -> ImpactType:
     return best if scores[best] > 0 else ImpactType.PEOPLE
 
 
+def _classify_all_impact_types(text: str) -> list[ImpactType]:
+    """Return **all** impact types with keyword matches, ordered by score.
+
+    A single Flash Update may mention deaths (PEOPLE), destroyed bridges
+    (INFRASTRUCTURE), and damaged clinics (SERVICES).  This function
+    returns all matching types so the caller can create one
+    ``ImpactObservation`` per type.  Falls back to ``[ImpactType.PEOPLE]``
+    if nothing matches.
+    """
+    haystack = text.lower()
+    scored: list[tuple[ImpactType, int]] = []
+    for itype, keywords in _IMPACT_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in haystack)
+        if score > 0:
+            scored.append((itype, score))
+    if not scored:
+        return [ImpactType.PEOPLE]
+    scored.sort(key=lambda t: t[1], reverse=True)
+    return [itype for itype, _ in scored]
+
+
 def _classify_need_types(text: str) -> list[NeedType]:
     """Find all need types mentioned in text."""
     haystack = text.lower()
@@ -1158,15 +1253,18 @@ def build_ontology_from_evidence(
         figures = _rust_extract_figures(combined) if _USE_RUST_FIGURES else _extract_figures(combined)
         sev_phase = _map_severity_to_phase(severity)
 
-        # Impact observation (Rust-accelerated when available)
+        # Multi-impact: one ImpactObservation per detected impact type.
+        # Rust path: single dominant type (Rust classifier is single-label).
+        # Python path: all matching types via _classify_all_impact_types.
         if _USE_RUST:
             _rust_it = _rust_classify_impact_type(combined)
             try:
-                impact_type = ImpactType(_rust_it)
+                all_impact_types = [ImpactType(_rust_it)]
             except ValueError:
-                impact_type = ImpactType.PEOPLE
+                all_impact_types = [ImpactType.PEOPLE]
         else:
-            impact_type = _classify_impact_type(combined)
+            all_impact_types = _classify_all_impact_types(combined)
+
         # Determine geographic target
         geo_target = country
         admin_level = 0
@@ -1180,20 +1278,24 @@ def build_ontology_from_evidence(
         # Normalize date to YYYY-MM-DD for temporal layer
         _reported_date = str(published_at)[:10] if published_at else ""
 
-        graph.add_impact(ImpactObservation(
-            description=summary[:300],
-            impact_type=impact_type,
-            geo_area=geo_target,
-            admin_level=admin_level,
-            severity_phase=sev_phase,
-            figures=figures,
-            source_url=url,
-            source_connector=connector,
-            confidence=confidence,
-            reported_date=_reported_date,
-            source_label=source_label,
-            credibility_tier=cred_tier,
-        ))
+        # Create one ImpactObservation per impact type found in this evidence.
+        # The primary (highest-scoring) type gets the full figures dict;
+        # secondary types get an empty figures dict to avoid double-counting.
+        for idx, impact_type in enumerate(all_impact_types):
+            graph.add_impact(ImpactObservation(
+                description=summary[:300],
+                impact_type=impact_type,
+                geo_area=geo_target,
+                admin_level=admin_level,
+                severity_phase=sev_phase,
+                figures=figures if idx == 0 else {},
+                source_url=url,
+                source_connector=connector,
+                confidence=confidence,
+                reported_date=_reported_date,
+                source_label=source_label,
+                credibility_tier=cred_tier,
+            ))
 
         # Need extraction (Rust-accelerated when available)
         if _USE_RUST:
@@ -1213,7 +1315,7 @@ def build_ontology_from_evidence(
                 geo_area=geo_target,
                 admin_level=admin_level,
                 severity_phase=sev_phase,
-                indicates_impact=impact_type.value,
+                indicates_impact=all_impact_types[0].value,
                 source_url=url,
                 reported_date=_reported_date,
                 source_label=source_label,

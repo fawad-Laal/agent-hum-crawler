@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
@@ -88,6 +88,80 @@ class FeedHealthRecord(SQLModel, table=True):
     matched_count: int = 0
 
 
+# ── Ontology persistence tables (Phase 4) ───────────────────────────
+
+
+class OntologySnapshot(SQLModel, table=True):
+    """One snapshot of the ontology graph, tied to a pipeline run."""
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: str = Field(index=True)
+    evidence_count: int = 0
+    impact_count: int = 0
+    need_count: int = 0
+    risk_count: int = 0
+    response_count: int = 0
+    geo_count: int = 0
+
+
+class ImpactRecord(SQLModel, table=True):
+    """Persisted ImpactObservation."""
+    id: int | None = Field(default=None, primary_key=True)
+    snapshot_id: int = Field(index=True)
+    description: str = ""
+    impact_type: str = ""
+    geo_area: str = ""
+    admin_level: int = 0
+    severity_phase: int = 2
+    figures_json: str = "{}"
+    source_url: str = ""
+    source_connector: str = ""
+    confidence: str = "medium"
+    reported_date: str = ""
+    source_label: str = ""
+    credibility_tier: int = 4
+
+
+class NeedRecord(SQLModel, table=True):
+    """Persisted NeedStatement."""
+    id: int | None = Field(default=None, primary_key=True)
+    snapshot_id: int = Field(index=True)
+    description: str = ""
+    need_type: str = ""
+    geo_area: str = ""
+    admin_level: int = 0
+    severity_phase: int = 2
+    indicates_impact: str = ""
+    source_url: str = ""
+    reported_date: str = ""
+    source_label: str = ""
+
+
+class RiskRecord(SQLModel, table=True):
+    """Persisted RiskStatement."""
+    id: int | None = Field(default=None, primary_key=True)
+    snapshot_id: int = Field(index=True)
+    description: str = ""
+    hazard_name: str = ""
+    geo_area: str = ""
+    horizon: str = "48h"
+    probability: str = "likely"
+    source_url: str = ""
+    reported_date: str = ""
+    source_label: str = ""
+
+
+class ResponseRecord(SQLModel, table=True):
+    """Persisted ResponseActivity."""
+    id: int | None = Field(default=None, primary_key=True)
+    snapshot_id: int = Field(index=True)
+    description: str = ""
+    actor: str = ""
+    actor_type: str = ""
+    geo_area: str = ""
+    sector: str = ""
+    source_url: str = ""
+
+
 def default_db_path() -> Path:
     return Path.home() / ".moltis" / "agent-hum-crawler" / "monitoring.db"
 
@@ -104,6 +178,7 @@ def init_db(path: Path | None = None) -> None:
     _ensure_cyclerun_columns(engine)
     _ensure_eventrecord_columns(engine)
     _ensure_rawitem_columns(engine)
+    _ensure_ontology_tables(engine)
 
 
 def _ensure_eventrecord_columns(engine) -> None:
@@ -166,6 +241,137 @@ def _ensure_rawitem_columns(engine) -> None:
                 conn.exec_driver_sql(
                     f"ALTER TABLE rawitemrecord ADD COLUMN {column} {column_type}"
                 )
+
+
+def _ensure_ontology_tables(engine) -> None:
+    """Create ontology tables if they don't exist yet."""
+    # SQLModel.metadata.create_all will handle new tables that aren't yet in the DB.
+    # This is safe to call repeatedly.
+    SQLModel.metadata.create_all(engine)
+
+
+# ── Ontology Persistence (Phase 4) ──────────────────────────────────
+
+
+def persist_ontology(engine: Any, ontology: Any) -> dict[str, int]:
+    """Persist a ``HumanitarianOntologyGraph`` into the database.
+
+    Creates a new ``OntologySnapshot`` row and bulk-inserts all impact,
+    need, risk, and response records.
+
+    Returns a counts dict: ``{impacts, needs, risks, responses}``.
+    """
+    SQLModel.metadata.create_all(engine)
+
+    now = datetime.now(timezone.utc).isoformat()
+    snapshot = OntologySnapshot(
+        created_at=now,
+        evidence_count=len(ontology.claims),
+        impact_count=len(ontology.impacts),
+        need_count=len(ontology.needs),
+        risk_count=len(ontology.risks),
+        response_count=len(ontology.responses),
+        geo_count=len(ontology.geo_areas),
+    )
+
+    with Session(engine) as session:
+        session.add(snapshot)
+        session.commit()
+        session.refresh(snapshot)
+        snap_id = int(snapshot.id or 0)
+
+        for imp in ontology.impacts:
+            session.add(ImpactRecord(
+                snapshot_id=snap_id,
+                description=imp.description[:500],
+                impact_type=imp.impact_type.value if hasattr(imp.impact_type, "value") else str(imp.impact_type),
+                geo_area=imp.geo_area,
+                admin_level=imp.admin_level,
+                severity_phase=imp.severity_phase,
+                figures_json=json.dumps(imp.figures),
+                source_url=imp.source_url,
+                source_connector=imp.source_connector,
+                confidence=imp.confidence,
+                reported_date=imp.reported_date,
+                source_label=imp.source_label,
+                credibility_tier=imp.credibility_tier,
+            ))
+
+        for need in ontology.needs:
+            session.add(NeedRecord(
+                snapshot_id=snap_id,
+                description=need.description[:500],
+                need_type=need.need_type.value if hasattr(need.need_type, "value") else str(need.need_type),
+                geo_area=need.geo_area,
+                admin_level=need.admin_level,
+                severity_phase=need.severity_phase,
+                indicates_impact=need.indicates_impact,
+                source_url=need.source_url,
+                reported_date=need.reported_date,
+                source_label=need.source_label,
+            ))
+
+        for risk in ontology.risks:
+            session.add(RiskRecord(
+                snapshot_id=snap_id,
+                description=risk.description[:500],
+                hazard_name=risk.hazard_name,
+                geo_area=risk.geo_area,
+                horizon=risk.horizon,
+                probability=risk.probability,
+                source_url=risk.source_url,
+                reported_date=risk.reported_date,
+                source_label=risk.source_label,
+            ))
+
+        for resp in ontology.responses:
+            session.add(ResponseRecord(
+                snapshot_id=snap_id,
+                description=resp.description[:500],
+                actor=resp.actor,
+                actor_type=resp.actor_type,
+                geo_area=resp.geo_area,
+                sector=resp.sector,
+                source_url=resp.source_url,
+            ))
+
+        session.commit()
+
+    return {
+        "snapshot_id": snap_id,
+        "impacts": len(ontology.impacts),
+        "needs": len(ontology.needs),
+        "risks": len(ontology.risks),
+        "responses": len(ontology.responses),
+    }
+
+
+def get_ontology_snapshots(
+    limit: int = 10, engine: Any | None = None, path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return recent ontology snapshots as dicts for trending."""
+    if engine is None:
+        engine = build_engine(path)
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        rows = list(
+            session.exec(
+                select(OntologySnapshot).order_by(OntologySnapshot.id.desc()).limit(limit)
+            )
+        )
+        return [
+            {
+                "id": r.id,
+                "created_at": r.created_at,
+                "evidence_count": r.evidence_count,
+                "impact_count": r.impact_count,
+                "need_count": r.need_count,
+                "risk_count": r.risk_count,
+                "response_count": r.response_count,
+                "geo_count": r.geo_count,
+            }
+            for r in rows
+        ]
 
 
 def persist_cycle(

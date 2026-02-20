@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import List
 
@@ -12,6 +13,7 @@ from bs4 import BeautifulSoup
 
 from ..config import RuntimeConfig
 from ..models import ContentSource, FetchResult, RawSourceItem
+from ..pdf_extract import extract_pdf_document
 from ..source_freshness import (
     evaluate_freshness,
     load_state,
@@ -21,6 +23,8 @@ from ..source_freshness import (
 )
 from ..taxonomy import match_with_reason
 from ..url_canonical import canonicalize_url
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -287,9 +291,26 @@ class FeedConnector:
         canonical_url = canonicalize_url(canonical_hint or link, client=client)
 
         if include_content:
-            page_text = self._fetch_page_text(client, link)
+            page_text, page_html = self._fetch_page_text_with_html(client, link)
             if page_text:
                 text = (text + "\n\n" + page_text).strip()
+
+            # Detect and extract PDF links from the page HTML
+            pdf_urls = self._extract_pdf_links(page_html, link) if page_html else []
+            for pdf_url in pdf_urls[:3]:  # cap at 3 PDFs per article
+                content_sources.append(ContentSource(type="document_pdf", url=pdf_url))
+                pdf_doc = extract_pdf_document(pdf_url, client=client)
+                if pdf_doc.full_text:
+                    text = (text + "\n\n" + pdf_doc.full_text).strip()
+
+            # Also check RSS enclosures for PDFs
+            for enc in getattr(entry, "enclosures", []) or []:
+                enc_url = getattr(enc, "href", "") or enc.get("href", "") if isinstance(enc, dict) else ""
+                if enc_url and str(enc_url).lower().endswith(".pdf"):
+                    content_sources.append(ContentSource(type="document_pdf", url=enc_url))
+                    pdf_doc = extract_pdf_document(str(enc_url), client=client)
+                    if pdf_doc.full_text:
+                        text = (text + "\n\n" + pdf_doc.full_text).strip()
 
         return RawSourceItem(
             connector=self.connector_name,
@@ -317,15 +338,44 @@ class FeedConnector:
         return BeautifulSoup(html_or_text, "html.parser").get_text(" ", strip=True)
 
     def _fetch_page_text(self, client: httpx.Client, url: str) -> str:
+        text, _ = self._fetch_page_text_with_html(client, url)
+        return text
+
+    def _fetch_page_text_with_html(
+        self, client: httpx.Client, url: str,
+    ) -> tuple[str, str]:
+        """Fetch a web page and return ``(extracted_text, raw_html)``."""
         try:
             response = client.get(url)
             response.raise_for_status()
         except httpx.HTTPError:
-            return ""
-        extracted = trafilatura.extract(response.text)
+            return "", ""
+        raw_html = response.text
+        extracted = trafilatura.extract(raw_html)
         if extracted:
-            return extracted.strip()
-        return BeautifulSoup(response.text, "html.parser").get_text(" ", strip=True)
+            return extracted.strip(), raw_html
+        return BeautifulSoup(raw_html, "html.parser").get_text(" ", strip=True), raw_html
+
+    @staticmethod
+    def _extract_pdf_links(html: str, base_url: str) -> list[str]:
+        """Find PDF links in an HTML page."""
+        if not html:
+            return []
+        try:
+            from urllib.parse import urljoin
+            soup = BeautifulSoup(html, "html.parser")
+            pdf_urls: list[str] = []
+            seen: set[str] = set()
+            for a in soup.find_all("a", href=True):
+                href = str(a["href"]).strip()
+                if href.lower().endswith(".pdf"):
+                    full = urljoin(base_url, href)
+                    if full not in seen:
+                        seen.add(full)
+                        pdf_urls.append(full)
+            return pdf_urls
+        except Exception:
+            return []
 
     def _extract_non_google_link(self, html_or_text: str) -> str | None:
         if not html_or_text:
