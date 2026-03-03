@@ -1,196 +1,85 @@
 /**
  * Project Phoenix — Core TypeScript Types
- * Mirrors the existing dashboard_api.py response shapes
+ * Derived from Zod schemas via z.infer — single source of truth.
+ * Import types here; define shapes in lib/schemas.ts.
  */
+
+import type { z } from "zod";
+import type {
+  qualityMetricsSchema,
+  hardeningStatusSchema,
+  cycleTrendSchema,
+  qualityTrendSchema,
+  e2eSummarySchema,
+  credibilityDistributionSchema,
+  sourceFailureSchema,
+  sourceHealthSummarySchema,
+  overviewResponseSchema,
+  reportListItemSchema,
+  reportDetailSchema,
+  sourceCheckResultSchema,
+  sourceCheckResponseSchema,
+  countrySourceSchema,
+  countrySourcesResponseSchema,
+  systemInfoResponseSchema,
+  sectionWordUsageSchema,
+  workbenchSideSchema,
+  workbenchResponseSchema,
+  workbenchProfileStoreSchema,
+  saQualityGateSchema,
+  saResponseSchema,
+  cliResultSchema,
+} from "@/lib/schemas";
 
 // ── Overview API ────────────────────────────────────────────
 
-export interface QualityMetrics {
-  cycles_analyzed: number;
-  events_analyzed: number;
-  duplicate_rate_estimate: number;
-  traceable_rate: number;
-  llm_enrichment_rate: number;
-  citation_coverage: number;
-}
-
-export interface HardeningStatus {
-  status: "pass" | "fail" | "unknown";
-  checks?: Record<string, boolean>;
-}
-
-export interface CycleTrend {
-  cycle_id: string;
-  events: number;
-  llm_enriched: number;
-  timestamp?: string;
-}
-
-export interface QualityTrend {
-  label: string;
-  duplicate_rate: number;
-  traceable_rate: number;
-  llm_rate: number;
-  citation_rate: number;
-}
-
-export interface E2ESummary {
-  timestamp: string;
-  status: string;
-  steps: Record<string, string>;
-  security_status?: string;
-}
-
+export type QualityMetrics = z.infer<typeof qualityMetricsSchema>;
+export type HardeningStatus = z.infer<typeof hardeningStatusSchema>;
+export type CycleTrend = z.infer<typeof cycleTrendSchema>;
+export type QualityTrend = z.infer<typeof qualityTrendSchema>;
+export type E2ESummary = z.infer<typeof e2eSummarySchema>;
 export type FeatureFlags = Record<string, boolean>;
-
-export interface CredibilityDistribution {
-  high: number;
-  medium: number;
-  low: number;
-  unknown: number;
-}
-
-export interface SourceHealthSummary {
-  working: number;
-  total: number;
-  top_failing: SourceFailure[];
-}
-
-export interface SourceFailure {
-  source_name: string;
-  connector: string;
-  error: string;
-  stale_streak: number;
-}
-
-export interface OverviewResponse {
-  quality: QualityMetrics;
-  source_health: SourceHealthSummary;
-  hardening: HardeningStatus;
-  cycles: CycleTrend[];
-  quality_trend: QualityTrend[];
-  latest_e2e_summary: E2ESummary | null;
-  feature_flags: FeatureFlags;
-  credibility_distribution: CredibilityDistribution | null;
-}
+export type CredibilityDistribution = z.infer<typeof credibilityDistributionSchema>;
+export type SourceFailure = z.infer<typeof sourceFailureSchema>;
+export type SourceHealthSummary = z.infer<typeof sourceHealthSummarySchema>;
+export type OverviewResponse = z.infer<typeof overviewResponseSchema>;
 
 // ── Reports API ─────────────────────────────────────────────
 
-export interface ReportListItem {
-  name: string;
-  size: number;
-  modified: string;
-}
-
-export interface ReportDetail {
-  name: string;
-  markdown: string;
-}
+export type ReportListItem = z.infer<typeof reportListItemSchema>;
+export type ReportDetail = z.infer<typeof reportDetailSchema>;
 
 // ── Source Check API ────────────────────────────────────────
 
-export interface SourceCheckResult {
-  connector: string;
-  source_name: string;
-  source_url: string;
-  status: string;
-  fetched_count: number;
-  matched_count: number;
-  error: string;
-  latest_published_at: string | null;
-  latest_age_days: number | null;
-  freshness_status: string;
-  stale_streak: number;
-  stale_action: string | null;
-  match_reasons: {
-    country_miss?: number;
-    hazard_miss?: number;
-    age_filtered?: number;
-  };
-  working: boolean;
-}
-
-export interface SourceCheckResponse {
-  status: string;
-  connector_count: number;
-  raw_item_count: number;
-  working_sources: number;
-  total_sources: number;
-  source_checks: SourceCheckResult[];
-}
+export type SourceCheckResult = z.infer<typeof sourceCheckResultSchema>;
+export type SourceCheckResponse = z.infer<typeof sourceCheckResponseSchema>;
 
 // ── Country Sources API ─────────────────────────────────────
 
-export interface CountrySource {
-  country: string;
-  feed_count: number;
-  sources: Record<string, string[]>;
-}
-
-export interface CountrySourcesResponse {
-  countries: CountrySource[];
-  global_feed_count: number;
-  global_sources: Record<string, string[]>;
-}
+export type CountrySource = z.infer<typeof countrySourceSchema>;
+export type CountrySourcesResponse = z.infer<typeof countrySourcesResponseSchema>;
 
 // ── System Info API ─────────────────────────────────────────
 
-export interface SystemInfoResponse {
-  python_version: string;
-  rust_available: boolean;
-  allowed_disaster_types: string[];
-}
+export type SystemInfoResponse = z.infer<typeof systemInfoResponseSchema>;
 
 // ── Workbench API ───────────────────────────────────────────
 
-export interface SectionWordUsage {
-  [section: string]: {
-    word_count: number;
-    limit: number;
-  };
-}
-
-export interface WorkbenchSide {
-  markdown: string;
-  section_word_usage: SectionWordUsage;
-}
-
-export interface WorkbenchResponse {
-  profile: Record<string, unknown>;
-  template: Record<string, unknown>;
-  deterministic: WorkbenchSide;
-  ai: WorkbenchSide;
-}
-
-export interface WorkbenchProfileStore {
-  presets: Record<string, Record<string, unknown>>;
-  last_profile: Record<string, unknown> | null;
-}
+export type SectionWordUsage = z.infer<typeof sectionWordUsageSchema>;
+export type WorkbenchSide = z.infer<typeof workbenchSideSchema>;
+export type WorkbenchResponse = z.infer<typeof workbenchResponseSchema>;
+export type WorkbenchProfileStore = z.infer<typeof workbenchProfileStoreSchema>;
 
 // ── Situation Analysis API ──────────────────────────────────
 
-export interface SAQualityGate {
-  dimension: string;
-  score: number;
-  max: number;
-  label: string;
-}
-
-export interface SAResponse {
-  markdown: string;
-  output_file: string;
-  quality_gate?: SAQualityGate[];
-}
+export type SAQualityGate = z.infer<typeof saQualityGateSchema>;
+export type SAResponse = z.infer<typeof saResponseSchema>;
 
 // ── CLI Result (generic command response) ──────────────────
 
-export interface CliResult {
-  status: string;
-  output?: string;
-  error?: string;
-}
+export type CliResult = z.infer<typeof cliResultSchema>;
 
-// ── Form / Command Types ────────────────────────────────────
+// ── Form / Command Types (not API responses — kept manual) ──
 
 export interface CollectionForm {
   countries: string;

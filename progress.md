@@ -52,12 +52,19 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C 
 
 ### Phase 3 — Feature Pages (Operations Module) — IN PROGRESS
 - [x] Refactored types to derive from Zod schemas via `z.infer<typeof schema>` (single source of truth)
-- [ ] Built `CountrySelect` multi-select chip component
-- [ ] Built `HazardPicker` multi-select chip component from system info
-- [ ] Built full `OperationsPage` with collection form, action buttons, result display
-- [ ] Added Shadcn primitives: Input, Label, Select, Separator, Switch
-- [ ] Added toast notifications (Sonner) for mutation feedback
-- [ ] Error boundary on `/operations` route
+- [x] Built `CountrySelect` multi-select chip component
+- [x] Built `HazardPicker` multi-select chip component from system info
+- [x] Built full `OperationsPage` with collection form, action buttons, result display
+- [x] Added Shadcn primitives: Input, Label, Separator, Switch, Collapsible
+- [x] Added toast notifications (Sonner) for mutation feedback
+- [x] Lazy-loaded route code splitting (Operations 28KB chunk, main bundle 470KB)
+- [x] SA parameters panel (collapsible) with quality gate toggle
+- [x] Full pipeline parameters panel (collapsible) with all fields
+- [x] Source check result display with per-source status, freshness badges
+- [x] SA result display with quality gate scores and markdown preview
+- [x] 55 tests passing, production build verified
+- [ ] Sources page implementation (Phase 5)
+- [ ] SA page implementation (Phase 6)
 
 ## Completed
 - Milestones 1-5 completed.
