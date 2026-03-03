@@ -69,12 +69,12 @@ function SourceCheckDisplay({ data }: { data: SourceCheckResponse }) {
   return (
     <div className="mt-4 rounded-lg bg-background/80 border border-border p-4">
       <div className="flex items-center gap-3 mb-3">
-        <Badge variant="success">{data.working_sources} working</Badge>
-        <Badge variant="outline">{data.total_sources} total</Badge>
-        <Badge variant="secondary">{data.raw_item_count} raw items</Badge>
+        <Badge variant="success">{data.working_sources ?? 0} working</Badge>
+        <Badge variant="outline">{data.total_sources ?? 0} total</Badge>
+        <Badge variant="secondary">{data.raw_item_count ?? 0} raw items</Badge>
       </div>
       <div className="max-h-64 overflow-auto space-y-1">
-        {data.source_checks.map((src) => (
+        {(data.source_checks ?? []).map((src) => (
           <div
             key={`${src.connector}-${src.source_name}`}
             className="flex items-center justify-between rounded-md px-3 py-1.5 text-sm bg-muted/20"
@@ -252,7 +252,7 @@ export function OperationsPage() {
         onSuccess: (data) => {
           setSourceCheckResult(data);
           toast.success("Source check completed", {
-            description: `${data.working_sources}/${data.total_sources} sources working`,
+            description: `${data.working_sources ?? 0}/${data.total_sources ?? 0} sources working`,
           });
         },
         onError: (err) => {

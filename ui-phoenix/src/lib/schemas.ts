@@ -121,12 +121,19 @@ export const sourceCheckResultSchema = z.object({
 
 export const sourceCheckResponseSchema = z.object({
   status: z.string(),
-  connector_count: z.number(),
-  raw_item_count: z.number(),
-  working_sources: z.number(),
-  total_sources: z.number(),
-  source_checks: z.array(sourceCheckResultSchema),
-});
+  connector_count: z.number().optional(),
+  raw_item_count: z.number().optional(),
+  working_sources: z.number().optional(),
+  total_sources: z.number().optional(),
+  stale_sources: z.number().optional(),
+  demoted_sources: z.number().optional(),
+  warnings: z.array(z.string()).optional(),
+  source_checks: z.array(sourceCheckResultSchema).optional(),
+  connector_metrics: z.array(z.record(z.string(), z.unknown())).optional(),
+  // error response fields
+  error: z.string().optional(),
+  command: z.array(z.string()).optional(),
+}).passthrough();
 
 // ── Country Sources API ─────────────────────────────────────
 

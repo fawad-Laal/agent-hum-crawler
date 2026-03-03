@@ -224,7 +224,7 @@ export function SourcesPage() {
         onError: (err) => toast.error(`Source check failed: ${err.message}`),
         onSuccess: (data) =>
           toast.success(
-            `Check complete — ${data.working_sources}/${data.total_sources} sources working`
+            `Check complete — ${data.working_sources ?? 0}/${data.total_sources ?? 0} sources working`
           ),
       }
     );
@@ -271,8 +271,8 @@ export function SourcesPage() {
       </Card>
 
       {/* Detailed results — visible after a check runs */}
-      {checkData && checkData.source_checks.length > 0 && (
-        <ResultsSection results={checkData.source_checks} />
+      {checkData && (checkData.source_checks?.length ?? 0) > 0 && (
+        <ResultsSection results={checkData.source_checks ?? []} />
       )}
 
       {/* Feed config summary */}
