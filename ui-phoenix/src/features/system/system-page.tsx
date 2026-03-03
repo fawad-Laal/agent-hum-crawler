@@ -2,8 +2,10 @@ import { useOverview } from "@/hooks/use-queries";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, ShieldCheck, FlaskRound } from "lucide-react";
+import { ShieldCheck, FlaskRound, Flag } from "lucide-react";
 import { fmtDate } from "@/lib/utils";
+import { FeatureFlagsPanel } from "@/features/system/feature-flags-panel";
+import { SecurityBaselineCard } from "@/features/system/security-baseline-card";
 
 export function SystemPage() {
   const { data: overview, isLoading } = useOverview();
@@ -97,37 +99,32 @@ export function SystemPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
+            <Flag className="h-5 w-5 text-primary" />
             Feature Flags
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : overview?.feature_flags ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {Object.entries(overview.feature_flags).map(([flag, enabled]) => (
-                <div
-                  key={flag}
-                  className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"
-                >
-                  <span
-                    className={
-                      enabled ? "text-status-pass" : "text-muted-foreground"
-                    }
-                    aria-label={`${flag}: ${enabled ? "enabled" : "disabled"}`}
-                  >
-                    {enabled ? "✓" : "✗"}
-                  </span>
-                  <span className="truncate">{flag}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              No feature flags configured.
-            </p>
-          )}
+          <FeatureFlagsPanel
+            flags={overview?.feature_flags}
+            isLoading={isLoading}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Security Baseline */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            Security Baseline
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SecurityBaselineCard
+            hardening={overview?.hardening}
+            e2eSummary={overview?.latest_e2e_summary}
+            isLoading={isLoading}
+          />
         </CardContent>
       </Card>
     </div>

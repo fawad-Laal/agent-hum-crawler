@@ -31,6 +31,7 @@ import {
   saResponseSchema,
   cliResultSchema,
   healthResponseSchema,
+  featureFlagUpdateResponseSchema,
 } from "@/lib/schemas";
 
 const API_BASE = "/api";
@@ -232,4 +233,15 @@ export async function rerunLastWorkbench(): Promise<WorkbenchResponse> {
   return apiFetch("/report-workbench/rerun-last", {
     method: "POST",
   }, workbenchResponseSchema);
+}
+
+/** Toggle a single feature flag on or off. */
+export async function updateFeatureFlag(
+  flag: string,
+  enabled: boolean,
+): Promise<{ feature_flags: Record<string, boolean> }> {
+  return apiFetch("/feature-flags", {
+    method: "POST",
+    body: JSON.stringify({ flag, enabled }),
+  }, featureFlagUpdateResponseSchema);
 }

@@ -16,6 +16,7 @@ import {
   deleteWorkbenchProfile,
   runPipeline,
   rerunLastWorkbench,
+  updateFeatureFlag,
 } from "@/lib/api";
 import type {
   CliResult,
@@ -123,6 +124,22 @@ export function useDeleteWorkbenchProfile() {
     mutationFn: deleteWorkbenchProfile,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.workbenchProfiles });
+    },
+  });
+}
+
+/** Toggle a feature flag and refresh the overview (source of truth). */
+export function useUpdateFeatureFlag() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { feature_flags: Record<string, boolean> },
+    Error,
+    { flag: string; enabled: boolean }
+  >({
+    mutationFn: ({ flag, enabled }) => updateFeatureFlag(flag, enabled),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
     },
   });
 }

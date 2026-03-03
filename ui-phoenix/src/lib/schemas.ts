@@ -202,6 +202,12 @@ export const healthResponseSchema = z.object({
   status: z.string(),
 });
 
+// ── Feature Flags ───────────────────────────────────────────
+
+export const featureFlagUpdateResponseSchema = z.object({
+  feature_flags: z.record(z.string(), z.boolean()),
+});
+
 // ── Wrapped responses ───────────────────────────────────────
 
 export const workbenchProfileStoreResponseSchema = z.object({
