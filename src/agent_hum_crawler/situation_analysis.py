@@ -935,11 +935,22 @@ def _build_admin2_row(
 
 
 def _clean_description(raw: str, max_len: int = 90) -> str:
-    """Strip HTML tags, collapse whitespace, and truncate to *max_len* chars."""
+    """Strip HTML tags, irrelevant preamble, collapse whitespace, and truncate."""
     import re as _re
     # Fast HTML strip — no need for bs4 in this hot path
     text = _re.sub(r"<[^>]+>", " ", raw)
     text = _re.sub(r"\s+", " ", text).strip()
+    # Strip common irrelevant preamble patterns (formal letters, boilerplate)
+    text = _re.sub(
+        r"^(Your Excellency[,.]?|Dear .{3,40}[,.]?|On behalf of .{3,80}[,.]?)\s*",
+        "", text, flags=_re.IGNORECASE,
+    )
+    # Remove leading dateline cruft ("CITY, 23 Feb —")
+    text = _re.sub(
+        r"^[A-Z]{2,}[,/]\s*\d{1,2}\s+\w+\s*[-–—]\s*",
+        "", text,
+    )
+    text = text.strip()
     if len(text) > max_len:
         text = text[: max_len - 1].rsplit(" ", 1)[0] + "…"
     return text
@@ -1102,7 +1113,9 @@ def _render_forecast(
 
         if risks:
             for risk in risks:
-                lines.append(f"- {risk.description}")
+                desc = _clean_description(risk.description, max_len=180)
+                if desc and len(desc) > 15:
+                    lines.append(f"- {desc}")
         elif prompts:
             for p in prompts:
                 lines.append(f"- **{p}:** _Forecast data pending._")

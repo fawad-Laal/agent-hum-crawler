@@ -78,7 +78,8 @@ _EXPECTED_SECTIONS = [
 
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+)", re.MULTILINE)
 
-_CITATION_REF_RE = re.compile(r"\[(\d+)\]")
+# Match both individual [N] and grouped [N,N,N] citation formats.
+_CITATION_REF_RE = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
 # Key figure labels we expect to find in the national impact table
 _KEY_FIGURE_LABELS = [
@@ -96,7 +97,16 @@ _KEY_FIGURE_TABLE_RE = re.compile(
     re.MULTILINE,
 )
 
+# Match various date formats in narrative text ("as of 2026", "as of 20 Feb", etc.)
 _AS_OF_RE = re.compile(r"as of \d{4}", re.IGNORECASE)
+# Match dates in table cells: ISO dates, short dates, RFC‑822 fragments, etc.
+_DATE_CELL_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4}"
+    r"|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,.]?\s+\d{1,2}\s+\w+"
+    r"|\d{1,2}/\d{1,2}/\d{2,4}",
+    re.IGNORECASE,
+)
 
 
 # ── Public API ───────────────────────────────────────────────────────
@@ -204,7 +214,11 @@ def score_situation_analysis(
                 except ValueError:
                     pass
 
-    all_refs = _CITATION_REF_RE.findall(markdown)
+    all_refs_raw = _CITATION_REF_RE.findall(markdown)
+    # Expand grouped refs: "2,3,4" → ["2", "3", "4"]
+    all_refs: list[str] = []
+    for match in all_refs_raw:
+        all_refs.extend(n.strip() for n in match.split(","))
     total_refs = len(all_refs)
     valid_refs = sum(1 for r in all_refs if int(r) in valid_numbers) if valid_numbers else total_refs
     invalid_refs = total_refs - valid_refs
@@ -248,8 +262,20 @@ def score_situation_analysis(
 
     # 6. Date attribution
     figure_section = _extract_section(markdown, "National Impact")
+    # Count "as of" prose references
     date_refs = _AS_OF_RE.findall(figure_section)
     dated_figures = len(date_refs)
+    # Also scan table rows for date-like values in the 'As of' column
+    for table_line in figure_section.splitlines():
+        table_line = table_line.strip()
+        if table_line.startswith("|") and "---" not in table_line:
+            cells = [c.strip() for c in table_line.split("|")]
+            # Table: | Category | Figure | As of | Source | Notes |
+            # After split cells[0]='' cells[1]=Category cells[2]=Figure cells[3]=As of ...
+            if len(cells) >= 4:
+                as_of_cell = cells[3]
+                if as_of_cell and as_of_cell != "—" and _DATE_CELL_RE.search(as_of_cell):
+                    dated_figures += 1
     result.date_attribution = min(1.0, dated_figures / max(1, populated_figures)) if populated_figures else 0.0
     result.details["date_attribution"] = {
         "dated_figures": dated_figures,

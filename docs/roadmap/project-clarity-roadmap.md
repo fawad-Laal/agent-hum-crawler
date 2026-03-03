@@ -455,6 +455,55 @@ Last updated: 2026-02-21
 
 **Phase 4 overall**: ✅ Complete — 220/220 Python tests, 23/23 Rust tests passing
 
+### Phase 4B — Credibility Distribution Rebalancing
+
+**Status:** Planned  
+**Priority:** High — directly affects figure accuracy for conflict/complex emergencies  
+**Trigger:** Iran SA showed 60K deaths sourced as "unknown"; credibility tier distribution skewed toward low-tier connectors for conflict contexts.
+
+**Problem Statement:**
+The current source credibility system assigns static tiers per connector (e.g., ReliefWeb = Tier 1, GDACS = Tier 2, RSS/Google = Tier 4). In conflict emergencies, high-credibility humanitarian feeds (OCHA Flash Updates, UNHCR, ICRC, ACAPS) may not be present in the connector mix, causing the system to rely on lower-tier sources for critical figures like casualty counts. Figures with empty `source_label` propagate as "unknown".
+
+| # | Task | Acceptance Criteria |
+|---|------|-------------------|
+| 4B.1 | Add OCHA Flash Update connector | Fetches OCHA Flash Updates via ReliefWeb API with `primary_type=flash_update` filter |
+| 4B.2 | Add UNHCR data portal connector | Ingests UNHCR situation reports and operational data for displacement figures |
+| 4B.3 | Add ICRC/IFRC connector | Fetches ICRC news releases and IFRC emergency appeals for conflict-affected populations |
+| 4B.4 | Add ACAPS connector | Ingests ACAPS crisis profiles, INFORM severity indices, and briefing notes |
+| 4B.5 | Implement connector weighting by context | Conflict events upweight humanitarian-specific connectors (Tiers 1-2); natural disasters keep current distribution |
+| 4B.6 | Require source attribution for high-impact figures | Figures > 10,000 (deaths, displaced, affected) require Tier 1-2 source or flagged for review |
+| 4B.7 | Add credibility distribution dashboard widget | Show per-SA credibility tier breakdown (pie chart) with alert when > 50% from Tier 4+ sources |
+
+**Success Metrics:**
+- Zero "unknown" source labels on figures > 1,000
+- ≥ 40% of evidence from Tier 1-2 sources for conflict emergencies
+- Credibility distribution visible in dashboard per-SA view
+
+### Phase 4C — Conflict Emergency Improvements
+
+**Status:** Planned  
+**Priority:** High — Iran SA exposed gaps in conflict-specific intelligence patterns  
+**Trigger:** Iran SA quality dimensions (citation density = 0, date attribution = 0, no admin coverage) revealed systematic gaps in conflict emergency handling vs. natural disaster handling.
+
+**Problem Statement:**
+The system was architected for natural disasters (cyclones, floods, earthquakes) where structured data flows (GDACS alerts, satellite imagery, damage assessments) are well-defined. Conflict emergencies produce fundamentally different data patterns: political communiqués, military situation reports, humanitarian access constraints, protection concerns, and civilian casualty estimates with high uncertainty. The current pipeline doesn't filter political/military noise, doesn't recognize conflict-specific impact categories, and doesn't handle contested or unverifiable figures.
+
+| # | Task | Acceptance Criteria |
+|---|------|-------------------|
+| 4C.1 | Add conflict-specific noise filter | Strips purely political, diplomatic, and military-operational content that doesn't carry humanitarian impact data |
+| 4C.2 | Add conflict impact taxonomy | Extends `ImpactType` enum with: `CIVILIAN_CASUALTIES`, `INTERNAL_DISPLACEMENT`, `CROSS_BORDER_DISPLACEMENT`, `ACCESS_DENIAL`, `INFRASTRUCTURE_ATTACK` |
+| 4C.3 | Implement figure uncertainty bands | Figures from conflict contexts carry `confidence_range` (low/mid/high) instead of point estimates; rendered as "X–Y estimated" in SA |
+| 4C.4 | Add conflict-specific gazetteers | Gazetteers for top conflict-affected countries: IRN ✅, SYR, YEM, UKR, MMR, ETH, PSE |
+| 4C.5 | Implement temporal conflict timeline | Track escalation/de-escalation phases; SA narrative adapts to current phase |
+| 4C.6 | Add protection-specific sector analysis | Enhanced Protection section with SGBV indicators, child protection, civilian harm monitoring |
+| 4C.7 | Filter raw article text from structured outputs | Forecast bullets and sector table summaries use cleaned/synthesized text, not raw article snippets ✅ (implemented) |
+
+**Success Metrics:**
+- Conflict SAs score ≥ 0.55 on quality gate (matching natural disaster baseline)
+- Citation density ≥ 0.5 for conflict SAs
+- Admin1/admin2 coverage for all top-10 conflict countries
+- Zero raw article text leaking into structured tables/forecasts
+
 ### Phase 5 — Frontend Rewrite (Project Phoenix)
 
 **Status:** Planned (not started)  

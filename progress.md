@@ -1,15 +1,63 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-20
-Last Updated: 2026-02-21
-Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 5 Frontend Rewrite Planned)
+Last Updated: 2026-03-02
+Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C Planned, **Phase 5 Frontend Rewrite — Phase 1+2 Complete, Phase 3 IN PROGRESS**)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
 - MVP implementation phase: 100% complete
 - Post-MVP hardening and operator tooling: in active rollout
+- **Project Phoenix (Frontend Rewrite) Phase 1 — Foundation: COMPLETE**
+- **Project Phoenix (Frontend Rewrite) Phase 2 — Data Layer: COMPLETE**
+- **Project Phoenix (Frontend Rewrite) Phase 3 — Feature Pages: IN PROGRESS**
 - Humanitarian ontology and Situation Analysis engine: implemented and validated
 - Graph ontology evidence extraction: operational with multi-pattern NLP
+- SA quality gate fixes (citation regex, date attribution, source labelling, raw text filter): applied 2026-03-02
+- Iran gazetteer added (31 provinces + districts): 2026-03-02
+- Roadmap updated with Phase 4B (Credibility Distribution) and Phase 4C (Conflict Emergency Improvements)
+
+## Project Phoenix — Frontend Rewrite (Phase 5)
+
+### Phase 1 — Foundation (Week 1 of 3) — COMPLETE ✅
+- [x] Initialized TypeScript + Vite 7 + React 19 project in `ui-phoenix/`
+- [x] Installed and configured Tailwind CSS v4.2 with dark intelligence theme
+- [x] Created Shadcn/ui primitives: Card, Badge, Button, Skeleton
+- [x] Set up React Router 7 with 7 routes: `/`, `/operations`, `/reports`, `/sources`, `/system`, `/sa`, `/settings`
+- [x] Built layout shell: Sidebar (collapsible), Header (with backend health badge), RootLayout
+- [x] Ported KPI cards to Overview page: Cycles, Events, Dup Rate, Traceable, Hardening
+- [x] Built Trend Charts (sparklines) on Overview page: Cycle Trends + Quality Rate Trends
+- [x] Built Credibility Distribution and Source Health summary on Overview page
+- [x] Created type-safe API client (`lib/api.ts`) mirroring all 15 dashboard_api.py endpoints
+- [x] Created TanStack Query hooks (`hooks/use-queries.ts`) with auto-refresh and caching
+- [x] Created Zustand UI store (`stores/ui-store.ts`) with localStorage persistence
+- [x] Created comprehensive TypeScript types (`types/index.ts`) for all API response shapes
+- [x] Created utility library (`lib/utils.ts`): cn, fmtNumber, fmtPercent, fmtDate, fmtRelativeTime
+- [x] Set up Vitest with Testing Library: 21 tests, all passing
+- [x] Reports page with live report listing from API
+- [x] System page with E2E gate summary, hardening status, feature flags
+- [x] Stub pages for Operations, Sources, SA, Settings (Phase 3-9)
+- [x] Production build verified: 22KB CSS (4.7KB gz), 368KB JS (116KB gz) — under 400KB target
+- [x] Parallel deploy configured: new app at `/v2`, old dashboard at `/dashboard`
+- [x] Error boundaries on route components
+- [x] Workbench route placeholder
+
+### Phase 2 — Data Layer & Validation — COMPLETE ✅
+- [x] Created Zod validation schemas (`lib/schemas.ts`) mirroring all API response shapes
+- [x] Wired Zod runtime validation into `apiFetch` for all endpoints
+- [x] Created Zustand form store (`stores/form-store.ts`) with localStorage persistence + migration
+- [x] Created TanStack Query mutation hooks (`hooks/use-mutations.ts`): 9 mutations with cache invalidation
+- [x] Created query key registry (`lib/query-keys.ts`) for centralized cache management
+- [x] All 15 API endpoints type-safe with runtime validation
+
+### Phase 3 — Feature Pages (Operations Module) — IN PROGRESS
+- [x] Refactored types to derive from Zod schemas via `z.infer<typeof schema>` (single source of truth)
+- [ ] Built `CountrySelect` multi-select chip component
+- [ ] Built `HazardPicker` multi-select chip component from system info
+- [ ] Built full `OperationsPage` with collection form, action buttons, result display
+- [ ] Added Shadcn primitives: Input, Label, Select, Separator, Switch
+- [ ] Added toast notifications (Sonner) for mutation feedback
+- [ ] Error boundary on `/operations` route
 
 ## Completed
 - Milestones 1-5 completed.

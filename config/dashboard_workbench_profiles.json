@@ -1,0 +1,14 @@
+{
+  "presets": {},
+  "last_profile": {
+    "countries": "Ethiopia",
+    "disaster_types": "epidemic/disease outbreak,flood,conflict emergency,drought,earthquake,cyclone/storm,heatwave",
+    "max_age_days": 30,
+    "limit_cycles": 20,
+    "limit_events": 30,
+    "report_template": "config/report_template.brief.json",
+    "country_min_events": 1,
+    "max_per_connector": 8,
+    "max_per_source": 4
+  }
+}

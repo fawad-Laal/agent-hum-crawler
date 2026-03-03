@@ -559,7 +559,14 @@ class HumanitarianOntologyGraph:
         for impact in self.impacts:
             geo_key = impact.geo_area.strip().lower()
             rd = impact.reported_date or ""
-            sl = impact.source_label or ""
+            sl = impact.source_label.strip() if impact.source_label else ""
+            # Require a meaningful source label; fall back to connector or URL
+            if not sl or sl.lower() in ("unknown", "n/a"):
+                sl = impact.source_connector or ""
+            if not sl:
+                sl = impact.source_url or ""
+            if not sl:
+                sl = "Aggregated evidence"
             for k, v in impact.figures.items():
                 if isinstance(v, (int, float)):
                     bucket_key = (geo_key, k)
