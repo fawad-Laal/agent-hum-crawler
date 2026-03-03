@@ -1,8 +1,8 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-20
-Last Updated: 2026-03-02
-Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C Planned, **Phase 5 Frontend Rewrite — Phase 1+2 Complete, Phase 3 IN PROGRESS**)
+Last Updated: 2026-03-03
+Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C Planned, **Phase 5 Frontend Rewrite — Phases 1-4 Complete, Phase 5 Next**)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -10,7 +10,8 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C 
 - Post-MVP hardening and operator tooling: in active rollout
 - **Project Phoenix (Frontend Rewrite) Phase 1 — Foundation: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 2 — Data Layer: COMPLETE**
-- **Project Phoenix (Frontend Rewrite) Phase 3 — Feature Pages: IN PROGRESS**
+- **Project Phoenix (Frontend Rewrite) Phase 3 — Feature Pages (Operations): COMPLETE**
+- **Project Phoenix (Frontend Rewrite) Phase 4 — Reports Module: COMPLETE**
 - Humanitarian ontology and Situation Analysis engine: implemented and validated
 - Graph ontology evidence extraction: operational with multi-pattern NLP
 - SA quality gate fixes (citation regex, date attribution, source labelling, raw text filter): applied 2026-03-02
@@ -50,11 +51,11 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C 
 - [x] Created query key registry (`lib/query-keys.ts`) for centralized cache management
 - [x] All 15 API endpoints type-safe with runtime validation
 
-### Phase 3 — Feature Pages (Operations Module) — IN PROGRESS
+### Phase 3 — Feature Pages (Operations Module) — COMPLETE ✅
 - [x] Refactored types to derive from Zod schemas via `z.infer<typeof schema>` (single source of truth)
 - [x] Built `CountrySelect` multi-select chip component
 - [x] Built `HazardPicker` multi-select chip component from system info
-- [x] Built full `OperationsPage` with collection form, action buttons, result display
+- [x] Built full `OperationsPage` (~740 lines) with collection form, action buttons, result display
 - [x] Added Shadcn primitives: Input, Label, Separator, Switch, Collapsible
 - [x] Added toast notifications (Sonner) for mutation feedback
 - [x] Lazy-loaded route code splitting (Operations 28KB chunk, main bundle 470KB)
@@ -62,9 +63,43 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C 
 - [x] Full pipeline parameters panel (collapsible) with all fields
 - [x] Source check result display with per-source status, freshness badges
 - [x] SA result display with quality gate scores and markdown preview
+- [x] Removed `/v2` basename — Phoenix runs standalone on port 5175
 - [x] 55 tests passing, production build verified
-- [ ] Sources page implementation (Phase 5)
-- [ ] SA page implementation (Phase 6)
+
+### Phase 4 — Reports Module — COMPLETE ✅
+- [x] Markdown renderer component (`components/ui/markdown-renderer.tsx`) — react-markdown + remark-gfm with full GFM table/list/code/blockquote styling
+- [x] Report detail page (`features/reports/report-detail-page.tsx`) — full markdown rendering, metadata parsing (date, type, word count, section count)
+- [x] Report export: Markdown download, HTML (standalone with marked.js), JSON (structured with sections/metadata), Copy to clipboard
+- [x] Report workbench (`features/reports/report-workbench.tsx`) — side-by-side AI vs Deterministic compare with split/single view modes
+- [x] Section word-budget analysis table with usage percentages and over-budget badges
+- [x] Workbench parameters form (9 fields: countries, disaster types, template, max age, limits, caps)
+- [x] Preset management modal (`features/reports/preset-manager-modal.tsx`) — save/load/delete workbench profiles via Dialog UI
+- [x] Virtualized report list (`react-virtuoso`) — auto-engages at 50+ reports, search/filter with count badges
+- [x] Tabbed layout: Reports listing + Workbench tabs
+- [x] Route `/reports/:name` wired with lazy loading and code splitting
+- [x] Vitest config fixed for ESM-only deps (react-markdown, remark-gfm) via `server.deps.inline`
+- [x] 65 tests passing (17 Phase 4 tests), production build verified
+- [x] Code-split bundles: reports-page 73KB (24KB gz), report-detail 7KB (3KB gz), markdown-renderer 159KB (48KB gz shared chunk)
+
+### Phase 5 — Sources & System — NOT STARTED
+- [ ] Sources page: source health table with freshness indicators
+- [ ] Connector diagnostics (collapsible connector cards)
+- [ ] Freshness trend chart (Recharts line chart)
+- [ ] Feature flags panel (toggle flags with API update)
+- [ ] Security baseline status card
+
+### Phase 6 — Situation Analysis — NOT STARTED
+- [ ] SA page: form + output display
+- [ ] SA quality gate visualization (6-dimension bar chart)
+- [ ] SA markdown preview with section anchors
+- [ ] SA export options (PDF, DOCX, HTML)
+- [ ] SA template selector with limits/usage display
+
+### Future Phases (7-10)
+- Phase 7: FastAPI backend rewrite (direct imports, Redis caching, JWT auth, SSE)
+- Phase 8: Real-time updates (SSE client, progress toasts, optimistic UI)
+- Phase 9: Advanced features (global search, filters, multi-workspace, settings page)
+- Phase 10: Testing & release (80% coverage, Playwright E2E, Lighthouse 90+, deploy)
 
 ## Completed
 - Milestones 1-5 completed.

@@ -24,5 +24,10 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
     css: false,
+    server: {
+      deps: {
+        inline: ['react-markdown', 'remark-gfm', 'devlop', 'micromark', 'mdast', 'unist', 'hast'],
+      },
+    },
   },
 })
