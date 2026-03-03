@@ -42,10 +42,14 @@ export function fmtDate(iso: string | null | undefined): string {
 }
 
 /** Format relative time (e.g. "2 hours ago") */
-export function fmtRelativeTime(iso: string | null | undefined): string {
-  if (!iso) return "-";
+export function fmtRelativeTime(iso: string | number | null | undefined): string {
+  if (iso === null || iso === undefined || iso === "") return "-";
   try {
-    const diff = Date.now() - new Date(iso).getTime();
+    // Accept unix timestamps (seconds or milliseconds)
+    const ms = typeof iso === "number"
+      ? (iso < 1e12 ? iso * 1000 : iso)  // seconds → ms
+      : new Date(iso).getTime();
+    const diff = Date.now() - ms;
     if (diff < 0) return "in the future";
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
@@ -55,7 +59,7 @@ export function fmtRelativeTime(iso: string | null | undefined): string {
     const days = Math.floor(hrs / 24);
     return `${days}d ago`;
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 

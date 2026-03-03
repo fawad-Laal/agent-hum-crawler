@@ -42,7 +42,7 @@ function OverviewSummary() {
   const sh = overview?.source_health;
   if (!sh) return null;
 
-  const healthPct = sh.total > 0 ? Math.round((sh.working / sh.total) * 100) : 0;
+  const healthPct = (sh.total ?? 0) > 0 ? Math.round(((sh.working ?? 0) / (sh.total ?? 1)) * 100) : 0;
   const variant: "success" | "warning" | "destructive" =
     healthPct === 100 ? "success" : healthPct >= 70 ? "warning" : "destructive";
 
@@ -50,11 +50,11 @@ function OverviewSummary() {
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg bg-muted/30 px-4 py-3 text-center">
-          <p className="text-2xl font-bold tabular-nums">{sh.working}</p>
+          <p className="text-2xl font-bold tabular-nums">{sh.working ?? 0}</p>
           <p className="text-xs text-muted-foreground">Working</p>
         </div>
         <div className="rounded-lg bg-muted/30 px-4 py-3 text-center">
-          <p className="text-2xl font-bold tabular-nums">{sh.total - sh.working}</p>
+          <p className="text-2xl font-bold tabular-nums">{(sh.total ?? 0) - (sh.working ?? 0)}</p>
           <p className="text-xs text-muted-foreground">Failing</p>
         </div>
         <div className="rounded-lg bg-muted/30 px-4 py-3 text-center">
@@ -65,13 +65,13 @@ function OverviewSummary() {
         </div>
       </div>
 
-      {sh.top_failing.length > 0 && (
+      {(sh.top_failing?.length ?? 0) > 0 && (
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
             <AlertTriangle className="h-3.5 w-3.5 text-warning" />
             Top failing sources
           </p>
-          {sh.top_failing.map((f) => (
+          {(sh.top_failing ?? []).map((f) => (
             <div
               key={`${f.connector}::${f.source_name}`}
               className="flex items-center justify-between rounded-md bg-muted/20 px-3 py-1.5 text-xs"
@@ -80,7 +80,7 @@ function OverviewSummary() {
                 <span className="text-foreground font-medium">{f.source_name}</span>
                 {" "}({f.connector})
               </span>
-              <span className="ml-2 flex-shrink-0 text-warning">
+              <span className="ml-2 shrink-0 text-warning">
                 {f.stale_streak}× stale
               </span>
             </div>
@@ -249,7 +249,7 @@ export function SourcesPage() {
               onClick={handleRunCheck}
               disabled={isPending}
               size="sm"
-              className="flex-shrink-0"
+              className="shrink-0"
             >
               {isPending ? (
                 <>

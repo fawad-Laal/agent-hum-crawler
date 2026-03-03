@@ -59,7 +59,7 @@ export function OverviewPage() {
                 icon={Copy}
                 subtitle="Duplicate estimate"
                 tone={
-                  q && q.duplicate_rate_estimate < 0.15 ? "pass" : "fail"
+                  q && (q.duplicate_rate_estimate ?? 1) < 0.15 ? "pass" : "fail"
                 }
               />
               <KPICard
@@ -68,7 +68,7 @@ export function OverviewPage() {
                 icon={Link}
                 subtitle="Source attribution"
                 tone={
-                  q && q.traceable_rate > 0.8 ? "pass" : "fail"
+                  q && (q.traceable_rate ?? 0) > 0.8 ? "pass" : "fail"
                 }
               />
               <KPICard
@@ -98,12 +98,12 @@ export function OverviewPage() {
               <CardContent className="space-y-4">
                 <TrendChart
                   label="Events per Cycle"
-                  values={overview.cycles.map((c) => c.events)}
+                  values={overview.cycles.map((c) => c.events ?? 0)}
                   color="#1591d4"
                 />
                 <TrendChart
                   label="LLM Enriched per Cycle"
-                  values={overview.cycles.map((c) => c.llm_enriched)}
+                  values={overview.cycles.map((c) => c.llm_enriched ?? 0)}
                   color="#a855f7"
                 />
               </CardContent>
@@ -117,19 +117,19 @@ export function OverviewPage() {
               <CardContent className="space-y-4">
                 <TrendChart
                   label="Duplicate Rate"
-                  values={overview.quality_trend.map((t) => t.duplicate_rate)}
+                  values={overview.quality_trend.map((t) => t.duplicate_rate ?? t.duplicate_rate_estimate ?? 0)}
                   color="#ef4444"
                   yMax={1}
                 />
                 <TrendChart
                   label="Traceable Rate"
-                  values={overview.quality_trend.map((t) => t.traceable_rate)}
+                  values={overview.quality_trend.map((t) => t.traceable_rate ?? 0)}
                   color="#1ec97e"
                   yMax={1}
                 />
                 <TrendChart
                   label="Citation Rate"
-                  values={overview.quality_trend.map((t) => t.citation_rate)}
+                  values={overview.quality_trend.map((t) => t.citation_rate ?? t.citation_coverage_rate ?? 0)}
                   color="#f59e0b"
                   yMax={1}
                 />
@@ -190,13 +190,13 @@ export function OverviewPage() {
                 {overview.source_health.total} total
               </Badge>
             </div>
-            {overview.source_health.top_failing.length > 0 && (
+            {(overview.source_health.top_failing?.length ?? 0) > 0 && (
               <div className="mt-4">
                 <p className="mb-2 text-xs font-medium text-muted-foreground">
                   Top Failing Sources
                 </p>
                 <div className="space-y-1">
-                  {overview.source_health.top_failing.map((s) => (
+                  {(overview.source_health.top_failing ?? []).map((s) => (
                     <div
                       key={s.source_name}
                       className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-1.5 text-sm"

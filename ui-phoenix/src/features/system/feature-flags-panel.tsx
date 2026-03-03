@@ -73,7 +73,7 @@ export function FeatureFlagsPanel({ flags, isLoading }: FeatureFlagsPanelProps) 
               <div className="flex items-center gap-2">
                 <Flag
                   className={cn(
-                    "h-3.5 w-3.5 flex-shrink-0",
+                    "h-3.5 w-3.5 shrink-0",
                     enabled ? "text-primary" : "text-muted-foreground"
                   )}
                 />
