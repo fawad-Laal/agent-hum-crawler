@@ -1,0 +1,191 @@
+{
+  "country": "Lebanon",
+  "iso3": "LBN",
+  "admin1": {
+    "Beirut": [
+      "Beirut",
+      "Hamra",
+      "Achrafieh",
+      "Verdun",
+      "Ras Beirut",
+      "Mar Mikhael",
+      "Bourj Hammoud",
+      "Dekwaneh",
+      "Sabra",
+      "Shatila",
+      "Karantina"
+    ],
+    "Mount Lebanon": [
+      "Baabda",
+      "Hadath",
+      "Chiyah",
+      "Ghobeiry",
+      "Hazmieh",
+      "Aley",
+      "Chouf",
+      "Deir el Qamar",
+      "Jdeideh",
+      "Metn",
+      "Beit Mery",
+      "Jounieh",
+      "Jbeil",
+      "Byblos",
+      "Kesrouane",
+      "Zouk Mosbeh",
+      "Dbayeh",
+      "Antelias",
+      "Nahr el Kalb"
+    ],
+    "North Lebanon": [
+      "Tripoli",
+      "Mina",
+      "Beddawi",
+      "Nahr el Bared camp",
+      "Zgharta",
+      "Ehden",
+      "Bsharri",
+      "Qadisha Valley",
+      "Koura",
+      "Kousba",
+      "Batroun",
+      "Miniyeh",
+      "Donniyeh",
+      "Halba",
+      "Qobayyat"
+    ],
+    "Akkar": [
+      "Halba",
+      "Qobayyat",
+      "Fnaydeq",
+      "Qaa",
+      "Wadi Khaled",
+      "Akkar el Atiqah",
+      "Tel Abbass",
+      "Rahbe",
+      "Bebnine",
+      "Minyara"
+    ],
+    "Baalbek-Hermel": [
+      "Baalbek",
+      "Hermel",
+      "Lala",
+      "Labweh",
+      "Ras Baalbek",
+      "Fakiha",
+      "Nabi Othman",
+      "Taalabaya",
+      "Duris",
+      "Yammouneh"
+    ],
+    "Bekaa": [
+      "Zahlé",
+      "Bar Elias",
+      "Chtoura",
+      "Anjar",
+      "Qab Elias",
+      "Rashaya",
+      "Yohmor",
+      "Lala",
+      "West Bekaa",
+      "Khirbet Qanafar",
+      "Saghbine",
+      "Deir el Ahmar"
+    ],
+    "South Lebanon": [
+      "Sidon",
+      "Saida",
+      "Ain el Helweh camp",
+      "Mieh Mieh camp",
+      "Jezzine",
+      "Tyre",
+      "Sour",
+      "Qana",
+      "Burj el Shimali camp",
+      "Rashidieh camp",
+      "El Buss camp",
+      "Naqoura",
+      "Khiam",
+      "Bint Jbeil",
+      "Maroun el Ras"
+    ],
+    "Nabatieh": [
+      "Nabatieh",
+      "Kfar Kila",
+      "Hasbaya",
+      "Marjeyoun",
+      "Khardali",
+      "Bint Jbeil",
+      "Ayta ash Shab",
+      "Labbouneh",
+      "Yohmour",
+      "Arnoun",
+      "Ibl el Saqi",
+      "Deir Mimas"
+    ]
+  },
+  "key_locations": {
+    "refugee_settlements": [
+      "Arsal",
+      "Bar Elias",
+      "Chtaura",
+      "Wadi Khaled",
+      "Qaa",
+      "Deir el Ahmar",
+      "Taalabaya",
+      "Saadnayel",
+      "Zahrani"
+    ],
+    "palestinian_camps": [
+      "Ain el Helweh",
+      "Mieh Mieh",
+      "Burj el Shimali",
+      "Rashidieh",
+      "El Buss",
+      "Nahr el Bared",
+      "Beddawi",
+      "Shatila",
+      "Sabra",
+      "Mar Elias",
+      "Wavel",
+      "Dbayeh"
+    ],
+    "critical_infrastructure": [
+      "Rafic Hariri International Airport",
+      "Port of Beirut",
+      "Port of Tripoli",
+      "Litani River",
+      "Bisri Dam",
+      "Zahrani Oil Installations",
+      "Deir Ammas thermal plant"
+    ],
+    "border_crossings": [
+      "Masnaa",
+      "Arida",
+      "Abboudiyeh",
+      "Qaa",
+      "Qlayaat"
+    ]
+  },
+  "hazard_profile": {
+    "primary": [
+      "conflict emergency",
+      "displacement",
+      "economic crisis"
+    ],
+    "secondary": [
+      "earthquake",
+      "flood",
+      "wildfire",
+      "industrial accident",
+      "epidemic/disease outbreak"
+    ],
+    "notes": {
+      "seismic": "Located on the Yammouneh Fault; M6+ events historically recorded.",
+      "flood": "Seasonal flooding in Bekaa Valley and coastal lowlands; January–March peak.",
+      "wildfire": "High fire risk in cedars and mountain forest zones July–October.",
+      "displacement": "Hosts ~1.5 million Syrian refugees (UNHCR est.) and ~200,000 Palestinian refugees.",
+      "blast": "Beirut Port explosion (August 2020) destroyed significant infrastructure; reconstruction ongoing.",
+      "economic": "Severe currency collapse and banking crisis since 2019; ongoing food/medicine shortages."
+    }
+  }
+}

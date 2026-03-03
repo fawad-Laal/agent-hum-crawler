@@ -170,6 +170,63 @@
           "url": "https://ethiopianmonitor.com/feed/"
         }
       ]
+    },
+    "Lebanon": {
+      "government": [],
+      "un": [
+        {
+          "name": "OCHA Lebanon ReliefWeb",
+          "url": "https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3A%22lbn%22&format=rss"
+        },
+        {
+          "name": "UNHCR Lebanon",
+          "url": "https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3A%22lbn%22+source.shortname%3AUNHCR&format=rss"
+        },
+        {
+          "name": "WHO Lebanon Disease Outbreak",
+          "url": "https://www.who.int/feeds/entity/csr/don/en/rss.xml"
+        },
+        {
+          "name": "WFP Lebanon",
+          "url": "https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3A%22lbn%22+source.shortname%3AWFP&format=rss"
+        }
+      ],
+      "ngo": [
+        {
+          "name": "Lebanon Humanitarian (ReliefWeb)",
+          "url": "https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3A%22lbn%22+disaster_type.name%3A%22Complex+Emergency%22&format=rss"
+        },
+        {
+          "name": "ICRC Lebanon",
+          "url": "https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3A%22lbn%22+source.shortname%3AICRC&format=rss"
+        }
+      ],
+      "local_news": [
+        {
+          "name": "Lebanon Crisis & Conflict (Google News)",
+          "url": "https://news.google.com/rss/search?q=Lebanon+crisis+conflict+humanitarian+displacement&hl=en-US&gl=US&ceid=US:en"
+        },
+        {
+          "name": "Lebanon Disaster & Health (Google News)",
+          "url": "https://news.google.com/rss/search?q=Lebanon+flood+earthquake+wildfire+disease+outbreak+epidemic&hl=en-US&gl=US&ceid=US:en"
+        },
+        {
+          "name": "Lebanon Refugee Crisis (Google News)",
+          "url": "https://news.google.com/rss/search?q=Lebanon+Syrian+refugee+Palestinian+camp+UNHCR&hl=en-US&gl=US&ceid=US:en"
+        },
+        {
+          "name": "L'Orient Today",
+          "url": "https://www.lorientlejour.com/rss"
+        },
+        {
+          "name": "Naharnet Lebanon",
+          "url": "https://www.naharnet.com/stories/en/rss"
+        },
+        {
+          "name": "The New Arab Lebanon",
+          "url": "https://news.google.com/rss/search?q=Lebanon+site:newarab.com&hl=en-US&gl=US&ceid=US:en"
+        }
+      ]
     }
   }
 }
