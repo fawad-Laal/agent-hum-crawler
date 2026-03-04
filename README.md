@@ -3,7 +3,7 @@
 **Moltis** is an operator-grade humanitarian disaster intelligence system that collects multi-source evidence, enriches it with an AI/LLM pipeline, and generates OCHA-style Situation Analyses and GraphRAG reports â€” all from a modern React dashboard or the CLI.
 
 > **Project Phoenix phases 1â€“6 complete** â€” 125 frontend tests, 0 TypeScript errors.  
-> **Phase 7 (FastAPI backend)** â€” skeleton started, direct-import route modules in progress.
+> **Phase 7 (FastAPI backend)** — direct-import migration complete; optional Redis job caching added.
 
 ---
 

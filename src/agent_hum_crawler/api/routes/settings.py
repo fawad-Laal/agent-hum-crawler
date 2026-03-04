@@ -1,4 +1,4 @@
-"""GET /api/system-info, GET /api/country-sources, POST /api/feature-flags."""
+"""GET /api/system-info, GET /api/country-sources, GET /api/feature-flags, POST /api/feature-flags."""
 
 from __future__ import annotations
 
@@ -71,6 +71,18 @@ def country_sources() -> dict:
 class FeatureFlagUpdate(BaseModel):
     flag: str
     enabled: bool
+
+
+@router.get("/feature-flags")
+def get_feature_flags() -> dict:
+    """Return all current feature flags."""
+    try:
+        flags: dict = json.loads(_FEATURE_FLAGS_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="feature_flags.json not found")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"Malformed feature_flags.json: {exc}")
+    return {"feature_flags": flags}
 
 
 @router.post("/feature-flags")

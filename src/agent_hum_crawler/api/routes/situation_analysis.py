@@ -35,6 +35,8 @@ class WriteSARequest(BaseModel):
 
 
 def _do_write_sa(req: WriteSARequest) -> dict:
+    from datetime import datetime, UTC
+
     from agent_hum_crawler.database import init_db
     from agent_hum_crawler.settings import load_environment
     from agent_hum_crawler.situation_analysis import write_situation_analysis
@@ -42,13 +44,7 @@ def _do_write_sa(req: WriteSARequest) -> dict:
     load_environment()
     init_db()
 
-    import subprocess, sys
-    from datetime import datetime, UTC
-    ts = subprocess.run(
-        [sys.executable, "-c",
-         "from datetime import datetime, UTC; print(datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ'))"],
-        text=True, capture_output=True, check=False, cwd=_ROOT,
-    ).stdout.strip() or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
     out_path = _REPORTS_DIR / f"situation-analysis-{ts}.md"
     _REPORTS_DIR.mkdir(parents=True, exist_ok=True)

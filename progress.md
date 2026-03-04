@@ -2,7 +2,7 @@
 
 Date: 2026-02-20
 Last Updated: 2026-03-04
-Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests, 0 TS errors) + **Phase 7 FastAPI backend skeleton started**
+Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests, 0 TS errors) + **Phase 7 FastAPI backend: direct-import migration complete, Redis job caching added**
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -14,7 +14,7 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests,
 - **Project Phoenix (Frontend Rewrite) Phase 4 — Reports Module: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 5 — Sources & System: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 6 — Situation Analysis: COMPLETE**
-- **Project Phoenix (Frontend Rewrite) Phase 7 — FastAPI Backend: SKELETON STARTED**
+- **Project Phoenix (Frontend Rewrite) Phase 7 — FastAPI Backend: direct-import migration complete, Redis caching added**
 - Humanitarian ontology and Situation Analysis engine: implemented and validated
 - Graph ontology evidence extraction: operational with multi-pattern NLP
 - SA quality gate fixes (citation regex, date attribution, source labelling, raw text filter): applied 2026-03-02
@@ -113,7 +113,7 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests,
 - **Fix**: Run `agent-hum-crawler run-cycle --countries Lebanon --disaster-types conflict` first, then re-run the SA
 - Lebanon sources ARE configured in `config/country_sources.json` (6 countries total)
 
-### Phase 7 — FastAPI Backend — SKELETON STARTED 🚧 (2026-03-04)
+### Phase 7 — FastAPI Backend — DIRECT-IMPORT MIGRATION COMPLETE ✅ (2026-03-04)
 - [x] Created `src/agent_hum_crawler/api/` package — FastAPI application factory (`app.py`)
 - [x] CORS middleware configured (Vite dev server :5175 + localhost:3000)
 - [x] Route module stubs created under `src/agent_hum_crawler/api/routes/`:
@@ -130,8 +130,15 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests,
 - [x] API docs exposed at `/api/docs` (Swagger UI) and `/api/redoc`
 - [x] `pyproject.toml` v0.2.0 with `fastapi`, `uvicorn[standard]`, `python-multipart` added
 - [x] `dashboard_api.py` updated with FastAPI import path and 375-line refactor
-- [ ] Migrate all route stubs from subprocess CLI calls → direct Python module calls
-- [ ] Redis job caching (optional stretch goal)
+- [x] Migrate all route stubs from subprocess CLI calls → direct Python module calls
+  - `situation_analysis.py` route: replaced subprocess timestamp hack with `datetime.now(UTC)` directly
+  - All other route modules (cycle, reports, workbench, overview, db, settings) already use direct imports
+- [x] Redis job caching (optional stretch goal)
+  - `RedisJobStore` class added to `job_store.py` — stores job state as Redis hashes with 24 h TTL
+  - `_make_job_store()` factory: uses `RedisJobStore` when `REDIS_URL` env var is set, transparently falls back to in-process `JobStore` if Redis connection fails
+  - `redis>=5.2.0` added as `[project.optional-dependencies] redis` in `pyproject.toml`
+  - Install with: `pip install -e .[redis]`
+- [x] `GET /api/feature-flags` endpoint added to `settings.py` (returns all flags; complements existing `POST /api/feature-flags` for updates)
 - [ ] JWT/API-key auth middleware
 
 ### Data Browser Page (2026-03-04)

@@ -30,6 +30,9 @@ dependencies = [
 dev = [
   "pytest>=8.3.3"
 ]
+redis = [
+  "redis>=5.2.0"
+]
 
 [project.scripts]
 agent-hum-crawler = "agent_hum_crawler.main:main"
