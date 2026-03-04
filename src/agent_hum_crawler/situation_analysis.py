@@ -745,14 +745,23 @@ def _render_national_impact_table(
     }
 
     dated = nat_figures_dated or {}
-    lines.append("| Category | Figure | As of | Source | Notes |")
-    lines.append("|----------|--------|-------|--------|-------|")
+    # Only include rows where a figure is actually available
+    data_rows: list[tuple[str, str, str, str]] = []
     for row in rows:
         key = _row_key_map.get(row, "")
         value = nat_figures.get(key, 0)
-        display = f"{value:,}" if value > 0 else "—"
-        as_of = dated.get(key, {}).get("as_of", "") or "—"
-        source = dated.get(key, {}).get("source", "") or "Aggregated evidence"
+        if value > 0:
+            as_of = dated.get(key, {}).get("as_of", "") or "—"
+            source = dated.get(key, {}).get("source", "") or "Aggregated evidence"
+            data_rows.append((row, f"{value:,}", as_of, source))
+
+    if not data_rows:
+        lines.append("_No national figures available from current evidence._")
+        return
+
+    lines.append("| Category | Figure | As of | Source | Notes |")
+    lines.append("|----------|--------|-------|--------|-------|")
+    for (row, display, as_of, source) in data_rows:
         lines.append(f"| {row} | {display} | {as_of} | {source} | — |")
 
 
@@ -812,29 +821,45 @@ def _render_admin1_table(
     lines.append(separator)
 
     if not admin1_agg:
-        lines.append("| _No province-level data available_ |" + " — |" * (len(columns) - 1))
+        lines.append("_No province-level data available from current evidence._")
         return
 
+    # Pre-build rows; skip provinces that have no figures at all
+    built_rows: list[list[str]] = []
     for key in sorted(admin1_agg.keys()):
         bucket = admin1_agg[key]
         name = bucket.get("name", key)
         districts = bucket.get("districts_affected", [])
         figs = bucket.get("figures", {})
+        has_any_figure = any(figs.get(k, 0) for k in (
+            "people_affected", "displaced", "deaths", "missing", "houses_affected"
+        ))
+        # Always include if there are districts or a severity signal
+        if not has_any_figure and not districts and bucket.get("max_severity", 0) == 0:
+            continue
         row = [
             name,
-            str(len(districts)),
+            str(len(districts)) if districts else "—",
             f"{figs.get('people_affected', 0):,}" if figs.get('people_affected') else "—",
             f"{figs.get('displaced', 0):,}" if figs.get('displaced') else "—",
             f"{figs.get('deaths', 0):,}" if figs.get('deaths') else "—",
             f"{figs.get('missing', 0):,}" if figs.get('missing') else "—",
             f"{figs.get('houses_affected', 0):,}" if figs.get('houses_affected') else "—",
-            f"Severity phase {bucket.get('max_severity', 0)}",
+            f"Severity phase {bucket.get('max_severity', 0)}" if bucket.get('max_severity') else "—",
             "Assessment ongoing",
         ]
-        # Pad/trim row to match columns
         while len(row) < len(columns):
             row.append("—")
-        lines.append("| " + " | ".join(row[:len(columns)]) + " |")
+        built_rows.append(row[:len(columns)])
+
+    if not built_rows:
+        lines.append("_No province-level data available from current evidence._")
+        return
+
+    lines.append(header)
+    lines.append(separator)
+    for row in built_rows:
+        lines.append("| " + " | ".join(row) + " |")
 
 
 def _render_admin2_tables(
@@ -940,6 +965,26 @@ def _clean_description(raw: str, max_len: int = 90) -> str:
     # Fast HTML strip — no need for bs4 in this hot path
     text = _re.sub(r"<[^>]+>", " ", raw)
     text = _re.sub(r"\s+", " ", text).strip()
+
+    # Strip UN/NGO document header boilerplate that precedes a useless
+    # "Please refer to the attached file" redirect sentence.
+    # Pattern: "[Country: X] [Source: Y] Please refer to ... Real content."
+    # Strip everything up to AND including the boilerplate sentence.
+    if _re.search(r"Please refer to the attached file", text, flags=_re.IGNORECASE):
+        after = _re.sub(
+            r"^.*?Please refer to the attached file[^.]*\.\s*",
+            "", text, flags=_re.IGNORECASE,
+        ).strip()
+        if after and len(after) > 20:
+            text = after
+        else:
+            return ""  # entirely boilerplate — signal caller to skip
+
+    # Also strip standalone "Country: X" / "Source: Y" header lines
+    text = _re.sub(r"^Country\s*:\s*\S+\s+", "", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"^Source\s*:\s*[^.!?\n]{1,80}\s+", "", text, flags=_re.IGNORECASE)
+    text = text.strip()
+
     # Strip common irrelevant preamble patterns (formal letters, boilerplate)
     text = _re.sub(
         r"^(Your Excellency[,.]?|Dear .{3,40}[,.]?|On behalf of .{3,80}[,.]?)\s*",
@@ -1006,32 +1051,33 @@ def _render_sector_section(
                 for n in needs:
                     geo_groups.setdefault(n.geo_area, []).append(n)
 
+                table_data_rows: list[list[str]] = []
                 for geo, group in sorted(geo_groups.items()):
                     max_sev = max(n.severity_phase for n in group)
                     sev_label = _SEVERITY_LABEL.get(max_sev, f"Phase {max_sev}")
                     report_count = str(len(group))
-                    # Summary: first non-empty description, cleaned
+                    # Summary: first non-empty cleaned description; skip boilerplate
                     descs = [n.description for n in group if n.description]
-                    summary = (
-                        _clean_description(descs[0])
-                        if descs
-                        else "See narrative below"
-                    )
+                    summary = ""
+                    for _d in descs:
+                        _cleaned = _clean_description(_d)
+                        if _cleaned:
+                            summary = _cleaned
+                            break
+                    if not summary:
+                        summary = "See narrative below"
                     if use_canonical:
-                        row = [geo, sev_label, report_count, summary]
+                        table_data_rows.append([geo, sev_label, report_count, summary])
                     else:
-                        row = [geo, summary][: len(display_cols)]
-                    lines.append("| " + " | ".join(row) + " |")
-            else:
-                lines.append(
-                    "| _No sector-specific data_ |"
-                    + " — |" * (len(display_cols) - 1)
-                )
-        else:
-            lines.append(
-                "| _No sector data_ |"
-                + " — |" * (len(display_cols) - 1)
-            )
+                        table_data_rows.append([geo, summary][: len(display_cols)])
+
+                if table_data_rows:
+                    lines.append("| " + " | ".join(display_cols) + " |")
+                    lines.append("|" + "|".join("---" for _ in display_cols) + "|")
+                    for row in table_data_rows:
+                        lines.append("| " + " | ".join(row) + " |")
+                # else: no table — narrative section below will cover it
+            # else: no needs — skip table entirely, narrative will say so
 
     # ── Narrative (LLM preferred → deterministic fallback) ──────
     narrative_key = f"sectoral_{sector_key}"
@@ -1042,10 +1088,16 @@ def _render_sector_section(
         needs = ontology.needs_by_sector(need_type)
         if needs:
             lines.append("")
-            # Bullet list of cleaned descriptions (max 5)
-            for n in needs[:5]:
+            # Bullet list of cleaned descriptions (max 5), skip boilerplate
+            _bullet_count = 0
+            for n in needs[:10]:
                 if n.description:
-                    lines.append(f"- {_clean_description(n.description, 160)}")
+                    _cleaned = _clean_description(n.description, 160)
+                    if _cleaned:
+                        lines.append(f"- {_cleaned}")
+                        _bullet_count += 1
+                        if _bullet_count >= 5:
+                            break
         elif prompts:
             lines.append("")
             for prompt in prompts:
@@ -1070,17 +1122,25 @@ def _render_outstanding_needs(
         "Shelter", "WASH", "Health", "Food", "Protection", "Education", "Logistics",
     ])
 
-    lines.append("| " + " | ".join(columns) + " |")
-    lines.append("|" + "|".join("---" for _ in columns) + "|")
-
+    outstanding_rows: list[str] = []
     for sector_label in sector_rows:
         sector_key = sector_label.lower().replace(" ", "_")
         bucket = sector_summary.get(sector_key, {})
         count = bucket.get("count", 0)
         max_sev = bucket.get("max_severity", 0)
+        if count == 0 and max_sev == 0:
+            continue  # skip sectors with no data at all
         urgent = f"Phase {max_sev}" if max_sev >= 3 else "Under review"
         medium = f"{count} needs identified" if count else "—"
-        lines.append(f"| {sector_label} | {urgent} | {medium} | — |")
+        outstanding_rows.append(f"| {sector_label} | {urgent} | {medium} | — |")
+
+    if outstanding_rows:
+        lines.append("| " + " | ".join(columns) + " |")
+        lines.append("|" + "|".join("---" for _ in columns) + "|")
+        for r in outstanding_rows:
+            lines.append(r)
+    else:
+        lines.append("_No outstanding needs data currently available._")
 
     if llm_narrative.get("outstanding_needs"):
         lines.append("")
@@ -1094,13 +1154,25 @@ def _render_forecast(
     template: dict[str, Any],
     llm_narrative: dict[str, str],
 ) -> None:
-    """Render Forecast & Risk Outlook section."""
+    """Render Forecast & Risk Outlook section.
+
+    When an LLM narrative is available it replaces the raw risk bullets
+    entirely — the LLM prose is expected to cover all horizons.
+    Raw bullets are only rendered when no LLM narrative is present.
+    """
     forecast_def = template.get("forecast_structure", {})
     horizons = forecast_def.get("horizons", [
         {"label": "48-72 hour outlook", "prompts": []},
         {"label": "7-day outlook", "prompts": []},
     ])
 
+    # ── LLM path: render narrative prose (replaces raw bullets) ──
+    if llm_narrative.get("forecast_risk"):
+        lines.append(llm_narrative["forecast_risk"])
+        lines.append("")
+        return
+
+    # ── Deterministic fallback: raw risk bullets per horizon ──
     for horizon in horizons:
         label = horizon.get("label", "Outlook")
         prompts = horizon.get("prompts", [])
@@ -1111,20 +1183,20 @@ def _render_forecast(
         horizon_key = "48h" if "48" in label else "7d"
         risks = ontology.risks_by_horizon(horizon_key)
 
+        valid_bullets = 0
         if risks:
             for risk in risks:
                 desc = _clean_description(risk.description, max_len=180)
                 if desc and len(desc) > 15:
                     lines.append(f"- {desc}")
-        elif prompts:
-            for p in prompts:
-                lines.append(f"- **{p}:** _Forecast data pending._")
-        else:
-            lines.append("- _No forecast data available._")
+                    valid_bullets += 1
+        if valid_bullets == 0:
+            if prompts:
+                for p in prompts:
+                    lines.append(f"- **{p}:** _Forecast data pending._")
+            else:
+                lines.append("- _No forecast data available._")
         lines.append("")
-
-    if llm_narrative.get("forecast_risk"):
-        lines.append(llm_narrative["forecast_risk"])
 
 
 def _render_annex(

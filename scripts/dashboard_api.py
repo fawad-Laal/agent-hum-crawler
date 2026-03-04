@@ -7,13 +7,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import subprocess
 import sys
+import threading
+import uuid
+from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import re
-from urllib.parse import urlparse
+from typing import Any, Callable
+from urllib.parse import parse_qs, urlparse
 
 from agent_hum_crawler.feature_flags import load_feature_flags
 from agent_hum_crawler.config import ALLOWED_DISASTER_TYPES
@@ -22,6 +27,29 @@ from agent_hum_crawler.source_credibility import tier_label
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
+
+
+def _monitoring_db_path() -> Path:
+    """Return the path to the monitoring database (same as database.default_db_path)."""
+    return Path.home() / ".moltis" / "agent-hum-crawler" / "monitoring.db"
+
+
+def _db_query(sql: str, params: tuple = ()) -> list[dict]:
+    """Execute a SELECT against the monitoring DB and return rows as dicts."""
+    db_path = _monitoring_db_path()
+    if not db_path.exists():
+        return []
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+
+
 E2E_DIR = ROOT / "artifacts" / "e2e"
 PROFILE_FILE = ROOT / "config" / "dashboard_workbench_profiles.json"
 COUNTRY_SOURCES_FILE = ROOT / "config" / "country_sources.json"
@@ -75,14 +103,18 @@ def _parse_json_payload(text: str) -> tuple[dict | list | None, str]:
     return None, text.strip()
 
 
-def _run_cli(args: list[str]) -> dict:
-    proc = subprocess.run(
-        [sys.executable, "-m", "agent_hum_crawler.main", *args],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+def _run_cli(args: list[str], timeout: int = 30) -> dict:
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "agent_hum_crawler.main", *args],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "command": args, "error": f"CLI timed out after {timeout}s"}
     if proc.returncode != 0:
         return {
             "status": "error",
@@ -99,6 +131,79 @@ def _run_cli(args: list[str]) -> dict:
         if warnings:
             payload["warnings"] = warnings
     return payload
+
+
+# ── In-process job store with concurrency guard ─────────────────────────────
+
+@dataclass
+class _Job:
+    job_id: str
+    status: str = "queued"  # queued | running | done | error
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class _JobStore:
+    """Thread-safe job registry with exclusive semaphore for cycles/pipelines."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._jobs: dict[str, _Job] = {}
+        # At most one heavy exclusive job (cycle / pipeline) at a time
+        self._cycle_sem = threading.Semaphore(1)
+
+    def submit(self, fn: Callable[[], dict[str, Any]], *, exclusive: bool = False) -> str:
+        """Dispatch *fn* to a daemon thread. Returns job_id immediately."""
+        job_id = uuid.uuid4().hex[:8]
+        job = _Job(job_id=job_id, status="queued")
+        with self._lock:
+            self._jobs[job_id] = job
+
+        # Capture fn in default arg to avoid late-binding closure issues
+        def _run(_fn: Callable[[], dict[str, Any]] = fn) -> None:
+            sem = self._cycle_sem if exclusive else None
+            if sem is not None and not sem.acquire(blocking=False):
+                with self._lock:
+                    job.status = "error"
+                    job.error = "Another cycle or pipeline is already running — try again shortly."
+                return
+            try:
+                with self._lock:
+                    job.status = "running"
+                result = _fn()
+                with self._lock:
+                    job.status = "done"
+                    job.result = result
+            except Exception as exc:  # noqa: BLE001
+                import traceback
+                with self._lock:
+                    job.status = "error"
+                    job.error = f"{type(exc).__name__}: {exc}"
+                traceback.print_exc()
+            finally:
+                if sem is not None:
+                    try:
+                        sem.release()
+                    except ValueError:
+                        pass
+
+        threading.Thread(target=_run, daemon=True, name=f"job-{job_id}").start()
+        return job_id
+
+    def get(self, job_id: str) -> _Job | None:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def to_response(self, job: _Job) -> dict[str, Any]:
+        base: dict[str, Any] = {"job_id": job.job_id, "status": job.status}
+        if job.status == "done" and job.result is not None:
+            base["result"] = job.result
+        if job.status == "error" and job.error is not None:
+            base["error"] = job.error
+        return base
+
+
+_JOB_STORE = _JobStore()
 
 
 def _list_reports() -> list[dict]:
@@ -401,6 +506,10 @@ def _run_workbench(profile: dict) -> dict:
 class DashboardHandler(BaseHTTPRequestHandler):
     server_version = "AHCDashboard/1.0"
 
+    def log_message(self, fmt: str, *args: object) -> None:  # noqa: N802
+        # Redirect access logs to stdout to avoid PowerShell treating stderr as fatal errors
+        print(f"[{self.address_string()}] {fmt % args}", flush=True)
+
     def _send_json(self, payload: dict | list, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -420,24 +529,72 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        try:
+            self._do_GET_inner()
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            try:
+                self._send_json({"status": "error", "error": str(exc)}, status=500)
+            except Exception:
+                pass
+
+    def _do_GET_inner(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self._send_json({"status": "ok"})
             return
+        # ── Job status polling ──────────────────────────────────────────
+        if parsed.path.startswith("/api/jobs/"):
+            job_id = parsed.path.removeprefix("/api/jobs/")
+            job = _JOB_STORE.get(job_id)
+            if not job:
+                self._send_json({"error": "job not found"}, status=404)
+                return
+            self._send_json(_JOB_STORE.to_response(job))
+            return
         if parsed.path == "/api/overview":
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             flags = load_feature_flags()
-            quality = _run_cli(["quality-report", "--limit", "10"])
-            source_health = _run_cli(["source-health", "--limit", "10"])
-            hardening = _run_cli(["hardening-gate", "--limit", "10"])
-            cycles = _run_cli(["show-cycles", "--limit", "20"])
-            e2e_summary = _latest_e2e_summary()
-            quality_trend = _quality_trend(window=10)
-            credibility = _latest_credibility_distribution()
+            # Run all expensive operations in parallel
+            _cli_tasks = {
+                "quality": ["quality-report", "--limit", "10"],
+                "source_health": ["source-health", "--limit", "10"],
+                "hardening": ["hardening-gate", "--limit", "10"],
+                "cycles": ["show-cycles", "--limit", "20"],
+            }
+            _cli_results: dict = {}
+            e2e_summary: dict = {}
+            quality_trend: list = []
+            credibility: dict = {}
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                cli_futures = {pool.submit(_run_cli, cmd, 30): key for key, cmd in _cli_tasks.items()}
+                fut_e2e = pool.submit(_latest_e2e_summary)
+                fut_trend = pool.submit(_quality_trend, 10)
+                fut_cred = pool.submit(_latest_credibility_distribution)
+                for fut in as_completed(cli_futures):
+                    key = cli_futures[fut]
+                    try:
+                        _cli_results[key] = fut.result()
+                    except Exception as exc:
+                        _cli_results[key] = {"status": "error", "error": str(exc)}
+                try:
+                    e2e_summary = fut_e2e.result()
+                except Exception:
+                    e2e_summary = {}
+                try:
+                    quality_trend = fut_trend.result()
+                except Exception:
+                    quality_trend = []
+                try:
+                    credibility = fut_cred.result()
+                except Exception:
+                    credibility = {}
             payload = {
-                "quality": quality,
-                "source_health": source_health,
-                "hardening": hardening,
-                "cycles": cycles if isinstance(cycles, list) else [],
+                "quality": _cli_results.get("quality", {}),
+                "source_health": _cli_results.get("source_health", {}),
+                "hardening": _cli_results.get("hardening", {}),
+                "cycles": _cli_results.get("cycles") if isinstance(_cli_results.get("cycles"), list) else [],
                 "quality_trend": quality_trend,
                 "latest_e2e_summary": e2e_summary,
                 "feature_flags": flags,
@@ -472,6 +629,59 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "allowed_disaster_types": sorted(ALLOWED_DISASTER_TYPES),
             })
             return
+        # ── Database query endpoints ────────────────────────────────────────
+        if parsed.path == "/api/db/cycles":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["50"])[0])
+            limit = max(1, min(limit, 200))
+            rows = _db_query(
+                "SELECT * FROM cyclerun ORDER BY id DESC LIMIT ?",
+                (limit,),
+            )
+            db_path = _monitoring_db_path()
+            self._send_json({"cycles": rows, "db_path": str(db_path), "count": len(rows)})
+            return
+        if parsed.path == "/api/db/events":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["100"])[0])
+            limit = max(1, min(limit, 500))
+            country = qs.get("country", [None])[0]
+            disaster_type = qs.get("disaster_type", [None])[0]
+            where_parts = []
+            params: list = []
+            if country:
+                where_parts.append("country = ?")
+                params.append(country)
+            if disaster_type:
+                where_parts.append("disaster_type LIKE ?")
+                params.append(f"%{disaster_type}%")
+            where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+            rows = _db_query(
+                f"SELECT * FROM eventrecord {where_clause} ORDER BY id DESC LIMIT ?",
+                tuple(params) + (limit,),
+            )
+            self._send_json({"events": rows, "count": len(rows)})
+            return
+        if parsed.path == "/api/db/raw-items":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["100"])[0])
+            limit = max(1, min(limit, 500))
+            rows = _db_query(
+                "SELECT id, cycle_id, connector, source_type, title, url, published_at FROM rawitemrecord ORDER BY id DESC LIMIT ?",
+                (limit,),
+            )
+            self._send_json({"raw_items": rows, "count": len(rows)})
+            return
+        if parsed.path == "/api/db/feed-health":
+            qs = parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["100"])[0])
+            limit = max(1, min(limit, 500))
+            rows = _db_query(
+                "SELECT * FROM feedhealthrecord ORDER BY id DESC LIMIT ?",
+                (limit,),
+            )
+            self._send_json({"feed_health": rows, "count": len(rows)})
+            return
         if parsed.path == "/api/country-sources":
             data: dict = {}
             try:
@@ -503,6 +713,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "not found"}, status=404)
 
     def do_POST(self) -> None:  # noqa: N802
+        try:
+            self._do_POST_inner()
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            try:
+                self._send_json({"status": "error", "error": str(exc)}, status=500)
+            except Exception:
+                pass
+
+    def _do_POST_inner(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/run-cycle":
             body = _json_body(self)
@@ -518,7 +739,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 str(int(body.get("max_age_days", 30))),
                 "--include-content",
             ]
-            self._send_json(_run_cli(cmd))
+            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=300), exclusive=True)
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/write-report":
             body = _json_body(self)
@@ -546,7 +768,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             ]
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
-            self._send_json(_run_cli(cmd))
+            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=300))
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/source-check":
             flags = load_feature_flags()
@@ -565,7 +788,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "--max-age-days",
                 str(int(body.get("max_age_days", 30))),
             ]
-            self._send_json(_run_cli(cmd))
+            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=120))
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/report-workbench":
             body = _json_body(self)
@@ -573,14 +797,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
             store = _load_profile_store()
             store["last_profile"] = profile
             _save_profile_store(store)
-            self._send_json(_run_workbench(profile))
+            job_id = _JOB_STORE.submit(lambda _p=profile: _run_workbench(_p))
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/report-workbench/rerun-last":
             store = _load_profile_store()
             profile = _normalize_profile(store.get("last_profile", {}))
             store["last_profile"] = profile
             _save_profile_store(store)
-            self._send_json(_run_workbench(profile))
+            job_id = _JOB_STORE.submit(lambda _p=profile: _run_workbench(_p))
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/workbench-profiles/save":
             body = _json_body(self)
@@ -650,13 +876,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 cmd.append("--use-llm")
             if bool(body.get("quality_gate", False)):
                 cmd.append("--quality-gate")
-            payload = _run_cli(cmd)
-            markdown = ""
-            if out_path.exists():
-                markdown = out_path.read_text(encoding="utf-8")
-            payload["markdown"] = markdown
-            payload["output_file"] = out_path.name
-            self._send_json(payload)
+            def _run_sa(_cmd=cmd, _out=out_path) -> dict[str, Any]:
+                result = _run_cli(_cmd, timeout=600)
+                if _out.exists():
+                    result["markdown"] = _out.read_text(encoding="utf-8")
+                else:
+                    result.setdefault("markdown", "")
+                result["output_file"] = _out.name
+                return result
+            job_id = _JOB_STORE.submit(_run_sa)
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/run-pipeline":
             body = _json_body(self)
@@ -692,20 +921,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 cmd.extend(["--max-age-days", str(int(max_age))])
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
-            payload = _run_cli(cmd)
-            self._send_json(payload)
+            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=900), exclusive=True)
+            self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         self._send_json({"error": "not found"}, status=404)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8788)
-    args = parser.parse_args()
+def _port_free(host: str, port: int) -> bool:
+    """Return True if the port is available to bind."""
+    import socket as _socket
+    probe = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    probe.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 0)
+    try:
+        probe.bind((host, port))
+        probe.close()
+        return True
+    except OSError:
+        probe.close()
+        return False
 
-    server = ThreadingHTTPServer((args.host, args.port), DashboardHandler)
-    print(json.dumps({"status": "listening", "host": args.host, "port": args.port}))
+
+def _run_legacy(host: str, port: int) -> int:
+    """Start the legacy ThreadingHTTPServer (Phase A, no FastAPI dependency)."""
+    server = ThreadingHTTPServer((host, port), DashboardHandler)
+    print(json.dumps({"status": "listening", "host": host, "port": port, "mode": "legacy"}), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -713,6 +952,58 @@ def main() -> int:
     finally:
         server.server_close()
     return 0
+
+
+def _run_fastapi(host: str, port: int) -> int:
+    """Start the FastAPI + uvicorn server (Phase B — direct calls, async jobs)."""
+    import uvicorn  # type: ignore[import]
+    from agent_hum_crawler.api.app import create_app
+
+    app = create_app()
+    print(json.dumps({"status": "listening", "host": host, "port": port, "mode": "fastapi"}), flush=True)
+    uvicorn.run(app, host=host, port=port, log_level="info")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Moltis Dashboard API server")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8788)
+    parser.add_argument(
+        "--mode",
+        choices=["auto", "fastapi", "legacy"],
+        default="auto",
+        help=(
+            "Server backend: 'fastapi' requires fastapi+uvicorn installed; "
+            "'legacy' uses stdlib http.server; 'auto' (default) prefers fastapi."
+        ),
+    )
+    args = parser.parse_args()
+
+    if not _port_free(args.host, args.port):
+        print(
+            json.dumps({
+                "status": "error",
+                "error": f"Port {args.port} already in use — kill the existing server first.",
+            }),
+            flush=True,
+        )
+        return 1
+
+    use_fastapi = False
+    if args.mode == "fastapi":
+        use_fastapi = True
+    elif args.mode == "auto":
+        try:
+            import uvicorn  # noqa: F401
+            import fastapi  # noqa: F401
+            use_fastapi = True
+        except ImportError:
+            use_fastapi = False
+
+    if use_fastapi:
+        return _run_fastapi(args.host, args.port)
+    return _run_legacy(args.host, args.port)
 
 
 if __name__ == "__main__":

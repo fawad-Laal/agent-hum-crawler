@@ -46,6 +46,39 @@ from typing import Any
 
 _log = logging.getLogger(__name__)
 
+
+def _parse_date_to_ymd(raw: str) -> str:
+    """Normalize a date string to YYYY-MM-DD.
+
+    Handles ISO-8601 (already correct), RFC-2822 (RSS feed format like
+    "Tue, 03 Mar 2026 00:00:00 +0000"), and other common formats.
+    Falls back to returning the raw string unchanged if parsing fails.
+    """
+    if not raw:
+        return ""
+    raw = raw.strip()
+    # Already ISO YYYY-MM-DD or starts with it (datetime.isoformat etc.)
+    if re.match(r"^\d{4}-\d{2}-\d{2}", raw):
+        return raw[:10]
+    # RFC-2822: "Tue, 03 Mar 2026 00:00:00 +0000"
+    try:
+        from email.utils import parsedate
+        parts = parsedate(raw)
+        if parts:
+            from datetime import date as _date
+            return _date(parts[0], parts[1], parts[2]).isoformat()
+    except Exception:
+        pass
+    # Other common formats
+    from datetime import datetime as _dt
+    for fmt in ("%d %b %Y", "%d %B %Y", "%Y/%m/%d", "%m/%d/%Y", "%d-%m-%Y"):
+        try:
+            return _dt.strptime(raw[:20], fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    # Last resort: return first 10 chars (may still be wrong but best effort)
+    return raw[:10]
+
 # ── Optional Rust acceleration ───────────────────────────────────────
 _USE_RUST = False
 _USE_RUST_FIGURES = False
@@ -1283,7 +1316,8 @@ def build_ontology_from_evidence(
             admin_level = detected_geo.admin_level
 
         # Normalize date to YYYY-MM-DD for temporal layer
-        _reported_date = str(published_at)[:10] if published_at else ""
+        raw_date = str(published_at) if published_at else ""
+        _reported_date = _parse_date_to_ymd(raw_date)
 
         # Create one ImpactObservation per impact type found in this evidence.
         # The primary (highest-scoring) type gets the full figures dict;
