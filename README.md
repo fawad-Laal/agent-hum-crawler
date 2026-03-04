@@ -1,440 +1,364 @@
-# Agent HUM Crawler
+﻿# Moltis â€” Humanitarian Disaster Intelligence Platform
 
-Dynamic disaster-intelligence monitoring assistant.
+**Moltis** is an operator-grade humanitarian disaster intelligence system that collects multi-source evidence, enriches it with an AI/LLM pipeline, and generates OCHA-style Situation Analyses and GraphRAG reports â€” all from a modern React dashboard or the CLI.
 
-## Current Highlights
-- Dynamic multi-source monitoring with country/disaster filters.
-- SQLite persistence for cycle, event, and source-health evidence.
-- GraphRAG-style long-form reporting from persisted evidence (no vector DB required).
-- Template-driven report formatting (`default`, `brief`, `detailed`).
-- AI-assisted report drafting with deterministic fallback when LLM is unavailable.
-- Deterministic quality gates for reports, LLM enrichment, hardening, and conformance.
-- **Phase 2 Intelligence Layer** (new):
-  - Temporal awareness on all ontology nodes (`reported_date`, `source_label`).
-  - Figure deduplication — MAX-per-(location, figure_key) prevents double-counting.
-  - Batch LLM enrichment — 15 items/call with strict JSON schema and single-event fallback.
-  - ISO3 geo normalization through the full pipeline (dedupe → database → reporting → ontology).
-  - Two-pass SA synthesis — core narrative then 6 sector narratives with shared context.
-  - "As of" dating on all SA figures and narrative sections.
-  - Streaming ingestion — `fetch_stream()` generator yields items page-by-page without buffering.
+> **Project Phoenix phases 1â€“6 complete** â€” 125 frontend tests, 0 TypeScript errors.  
+> **Phase 7 (FastAPI backend)** â€” skeleton started, direct-import route modules in progress.
 
-## Stack
-- Python 3.11+
-- `pydantic` for schema validation
-- `httpx` for API/web requests
-- `trafilatura` + `beautifulsoup4` for text extraction
-- `feedparser` for RSS/Atom connectors
-- `pypdf` + `pdfplumber` for document extraction (next expansion)
-- `APScheduler` for scheduling (next milestone)
-- `sqlmodel` + SQLite for cycle persistence
-- `pytest` for tests
+---
 
-## Environment
-Create `.env` with:
+## Architecture
 
-```env
-RELIEFWEB_ENABLED=true
-RELIEFWEB_APPNAME=your_approved_reliefweb_appname
-LLM_ENRICHMENT_ENABLED=false
-OPENAI_API_KEY=... # required only when LLM_ENRICHMENT_ENABLED=true
-OPENAI_MODEL=gpt-4.1-mini
-```
+| Layer | Technology |
+|---|---|
+| CLI / backend | Python 3.11+, SQLModel, SQLite (`crawler.db`) |
+| Dashboard API | `scripts/dashboard_api.py` (HTTP bridge) â†’ **`src/agent_hum_crawler/api/`** (FastAPI, in migration) |
+| Frontend | `ui-phoenix/` â€” TypeScript, React 19, Vite 7, TanStack Query v5, Zustand, Tailwind CSS v4.2, Recharts |
+| NLP core | `rust_core/` â€” PyO3 extension (figure extraction, fuzzy dedup, text classify) |
+| Tests | Backend: pytest (220+ passing) Â· Frontend: Vitest + Testing Library (125 passing) |
 
-ReliefWeb appname request: https://apidoc.reliefweb.int/parameters#appname
-If approval is pending, set `RELIEFWEB_ENABLED=false` to run fallback connectors only.
-When `LLM_ENRICHMENT_ENABLED=true`, the pipeline attempts LLM summary/severity/confidence enrichment with citation locking (`url + quote + quote_start + quote_end`). On any LLM failure, it falls back to deterministic rules.
-Citation locking is strict: `quote` must exactly equal `source_text[quote_start:quote_end]`.
-ReliefWeb connector uses API v2 (`https://api.reliefweb.int/v2/reports`) with preset+query payloads derived from selected country/disaster filters.
+---
 
-Report drafting uses `OPENAI_API_KEY` when `write-report --use-llm` is requested. If the key/model call fails, report generation falls back to deterministic rendering.
+## Quick Start
 
-## Country Source Allowlists
-- Active file: `config/country_sources.json`
-- Template: `config/country_sources.example.json`
-
-Per-country feeds from this file are merged into connector selection for `run-cycle` and `start-scheduler`.
-
-Current global local-news set includes:
-- BBC World
-- Al Jazeera English
-- AllAfrica Latest
-- Africanews
-- Africa News Agency (ANA)
-- The Guardian World
-- Reuters World (Google News Reuters query feed)
-- NYT World
-- NPR World
-
-Country-specific disaster feeds (configured in `config/country_sources.json`) now include targeted query streams for:
-- Madagascar
-- Mozambique
-- Pakistan
-- Bangladesh
-- Ethiopia
-
-Government connectors include:
-- USGS Earthquakes
-- GDACS All 7d
-- GDACS Floods 7d
-- GDACS Cyclones 7d
-
-NGO/humanitarian connectors include:
-- CARE News
-- FEWS NET Analysis Note
-- FEWS NET Weather and Agriculture Outlook
-
-## Install
+### 1 â€” Install
 
 ```powershell
 python -m pip install -e .[dev]
 ```
 
-## Commands
+Requires Python â‰¥ 3.11. Key runtime dependencies (auto-installed):
 
-Interactive intake:
+- `fastapi`, `uvicorn[standard]` â€” dashboard API server
+- `sqlmodel` â€” ORM + SQLite persistence
+- `httpx`, `feedparser`, `trafilatura`, `beautifulsoup4` â€” feed ingestion
+- `pdfplumber`, `pypdf` â€” PDF extraction
+- `APScheduler` â€” scheduled cycles
+
+### 2 â€” Configure
 
 ```powershell
-python -m agent_hum_crawler.main intake
+# Copy and fill in your keys
+cp config/country_sources.example.json config/country_sources.json
+cp config/feature_flags.example.json config/feature_flags.json
 ```
 
-Fetch ReliefWeb only:
+Create `.env` in the project root:
 
-```powershell
-python -m agent_hum_crawler.main fetch-reliefweb --countries "Pakistan,Bangladesh" --disaster-types "flood,cyclone/storm" --interval 30 --limit 20 --include-content
+```env
+RELIEFWEB_ENABLED=true
+RELIEFWEB_APPNAME=your_approved_reliefweb_appname
+LLM_ENRICHMENT_ENABLED=false
+OPENAI_API_KEY=sk-...          # only needed when LLM_ENRICHMENT_ENABLED=true
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
-Run one full monitoring cycle (ReliefWeb + government + UN + NGO + local-news feeds):
+### 3 â€” Start the dashboard
 
 ```powershell
-python -m agent_hum_crawler.main run-cycle --countries "Pakistan,Bangladesh" --disaster-types "flood,cyclone/storm,earthquake" --interval 30 --limit 10 --include-content --local-news-feeds "https://example.com/rss.xml"
-```
-
-Optional recency filter for cycle/report windows:
-
-```powershell
-python -m agent_hum_crawler.main run-cycle --countries "Pakistan" --disaster-types "flood" --limit 10 --max-age-days 30 --include-content
-```
-
-`run-cycle` returns an alert contract with these sections:
-- `critical_high_alerts`
-- `medium_updates`
-- `watchlist_signals`
-- `source_log`
-- `next_check_time`
-
-Use saved config for cycle:
-
-```powershell
-python -m agent_hum_crawler.main run-cycle --use-saved-config --limit 10
-```
-
-Show persisted cycles:
-
-```powershell
-python -m agent_hum_crawler.main show-cycles --limit 10
-```
-
-Show quality metrics from recent cycles:
-
-```powershell
-python -m agent_hum_crawler.main quality-report --limit 10
-```
-
-`quality-report` includes LLM metrics:
-- `llm_attempted_events`
-- `llm_enriched_events`
-- `llm_fallback_events`
-- `llm_enrichment_rate`
-- `citation_coverage_rate`
-- `llm_provider_error_count`
-- `llm_validation_fail_count`
-
-Show LLM quality gate summary:
-
-```powershell
-python -m agent_hum_crawler.main llm-report --limit 10 --min-llm-enrichment-rate 0.10 --min-citation-coverage-rate 0.95
-```
-
-Show connector/feed health analytics:
-
-```powershell
-python -m agent_hum_crawler.main source-health --limit 10
-```
-
-Run one-by-one source connectivity/data checks (no persistence side effects):
-
-```powershell
-python -m agent_hum_crawler.main source-check --countries "Pakistan" --disaster-types "flood" --limit 10 --max-age-days 30
-```
-
-Evaluate hardening gate thresholds:
-
-```powershell
-python -m agent_hum_crawler.main hardening-gate --limit 10 --min-llm-enrichment-rate 0.10 --min-citation-coverage-rate 0.95
-```
-
-Run an automated pilot evidence pack (N cycles + quality + health + gate):
-
-```powershell
-python -m agent_hum_crawler.main pilot-run --countries "Madagascar" --disaster-types "cyclone/storm" --limit 10 --cycles 7 --sleep-seconds 0 --include-content
-```
-
-For reproducible pilot windows in rapid back-to-back runs, reset state before pilot:
-
-```powershell
-python -m agent_hum_crawler.main pilot-run --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit 10 --cycles 7 --sleep-seconds 0 --include-content --enforce-llm-quality --reset-state-before-run
-```
-
-Run consolidated conformance report (hardening + Moltis checks):
-
-```powershell
-python -m agent_hum_crawler.main conformance-report --limit 7 --streaming-event-lifecycle pass --tool-registry-source-metadata pass --mcp-disable-builtin-fallback pass --auth-matrix-local-remote-proxy pending --proxy-hardening-configuration pending
-```
-
-Generate long-form GraphRAG report from persisted DB evidence (no vector DB required):
-
-```powershell
-python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --limit-cycles 20 --limit-events 60
-```
-
-Strict filter mode is enabled by default for reports. If selected filters return zero matches, the report stays filter-faithful and emits a structured "no evidence" report (quality-gate compatible) instead of falling back to another country/disaster window.
-
-Default output path: `reports/report-<timestamp>.md` (project-local).
-Generated reports are local artifacts and not committed (`reports/*.md` is ignored; `reports/.gitkeep` is tracked).
-
-Template-driven formatting and section-length limits can be customized in `config/report_template.json`
-or overridden with `--report-template`.
-
-`write-report` output includes:
-- `llm_used`: `true` only when AI actually produced report sections.
-- `report_quality`: pass/fail with citation density, missing section checks, and unsupported-claim checks.
-- retrieval-balance metadata (`country_min_events`, connector/source caps) in report `meta`.
-
-When AI is used, report header includes:
-- `AI Assisted: Yes`
-
-Prebuilt templates:
-
-```powershell
-# Brief donor update
-python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm --report-template config/report_template.brief.json
-
-# Detailed analyst brief
-python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm --report-template config/report_template.detailed.json
-```
-
-Template files:
-- `config/report_template.json` (default profile)
-- `config/report_template.brief.json` (short donor update)
-- `config/report_template.detailed.json` (long analyst brief)
-
-Template controls:
-- section headings
-- section word limits
-- max incident highlights
-- incident summary/quote length
-
-Enforce report quality gate (section completeness + citation density + unsupported-claim checks):
-
-```powershell
-python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --enforce-report-quality --min-citation-density 0.005
-```
-
-Retrieval balancing controls (reduce country/source bias):
-
-```powershell
-python -m agent_hum_crawler.main write-report --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" --country-min-events 1 --max-per-connector 8 --max-per-source 4
-```
-
-Citation canonicalization:
-- stores both `url` (original) and `canonical_url` per raw item/event
-- citations prefer `canonical_url` (publisher URL) when available
-
-Optional LLM final drafting:
-
-```powershell
-python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --use-llm
-```
-
-Recency filter for reports:
-
-```powershell
-python -m agent_hum_crawler.main write-report --countries "Pakistan" --disaster-types "flood" --max-age-days 30 --use-llm
-```
-
-## Feature Flags
-Centralized runtime flags are stored in:
-- `config/feature_flags.json`
-- template: `config/feature_flags.example.json`
-
-Current flags:
-- `reliefweb_enabled`
-- `llm_enrichment_enabled`
-- `report_strict_filters_default`
-- `dashboard_auto_source_check_default`
-- `source_check_endpoint_enabled`
-- `max_item_age_days_default`
-- `stale_feed_auto_warn_enabled`
-- `stale_feed_auto_demote_enabled`
-- `stale_feed_warn_after_checks`
-- `stale_feed_demote_after_checks`
-
-Environment override format:
-- `AHC_FLAG_<FLAG_NAME_UPPER>=...`
-Example: `AHC_FLAG_LLM_ENRICHMENT_ENABLED=true`
-
-Recommended live run flow:
-
-```powershell
-# 1) Collect fresh cycle evidence
-python -m agent_hum_crawler.main run-cycle --countries "Madagascar" --disaster-types "cyclone/storm" --limit 15 --include-content
-
-# 2) Generate AI-assisted brief donor report
-python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --limit-cycles 25 --limit-events 20 --use-llm --report-template config/report_template.brief.json
-
-# 3) Generate AI-assisted detailed analyst report
-python -m agent_hum_crawler.main write-report --countries "Madagascar" --disaster-types "cyclone/storm" --limit-cycles 25 --limit-events 20 --use-llm --report-template config/report_template.detailed.json
-```
-
-Run replay fixture for dry-run QA:
-
-```powershell
-python -m agent_hum_crawler.main replay-fixture --fixture tests/fixtures/replay_pakistan_flood_quake.json
-```
-
-Start scheduled monitoring (example: one test run and stop):
-
-```powershell
-python -m agent_hum_crawler.main start-scheduler --countries "Pakistan" --disaster-types "flood,earthquake" --interval 30 --limit 10 --max-runs 1
-```
-
-## Minimal React Dashboard
-Use the local dashboard to run cycles/reports and inspect quality/hardening trends.
-
-1. Start the local API bridge (wraps existing CLI commands):
-
-```powershell
+# Terminal 1 â€” API bridge (port 8788)
 python scripts/dashboard_api.py --host 127.0.0.1 --port 8788
-```
 
-2. Start React frontend:
-
-```powershell
-cd ui
+# Terminal 2 â€” React frontend (port 5175)
+cd ui-phoenix
 npm install
 npm run dev
 ```
 
-3. Open:
-- `http://localhost:5174`
+Open `http://localhost:5175` â€” the Phoenix dashboard.
 
-Current dashboard features:
-- Run `run-cycle` with country/disaster filters
-- Generate `write-report` outputs (brief/default/detailed template)
-- View recent report files and markdown preview
-- View KPI snapshot from `quality-report`, `source-health`, `hardening-gate`
-- Explain zero-match cycles with per-source match reason diagnostics (`country_miss`, `hazard_miss`, `age_filtered`)
-- View per-source freshness status (`fresh` / `stale` / `unknown`) against `Max Age Days`
-- See stale-feed streak actions (`warn` / `demote`) from centralized stale policy flags
-- Tune report retrieval balance from UI:
-  - `Country Min Events`
-  - `Max / Connector`
-  - `Max / Source`
-- View Phase 1 monitoring panels:
-  - cycle + LLM trends
-  - rolling quality-rate trends
-  - hardening threshold matrix
-  - conformance/security snapshot from latest E2E artifact
-  - source failure hotspots
-- View Phase 2 report quality workbench:
-  - one-click deterministic vs AI compare
-  - side-by-side report quality metrics
-  - section budget usage (template limits vs generated content)
-  - side-by-side markdown outputs for editorial review
-  - reusable compare presets (save/load/delete)
-  - one-click rerun of last compare profile
+> **FastAPI docs** (Phase 7 backend): `http://localhost:8788/api/docs`
+
+---
+
+## Dashboard Features (Project Phoenix)
+
+| Page | Route | Description |
+|---|---|---|
+| Overview | `/` | KPI cards, cycle trends, source health summary, credibility distribution |
+| Operations | `/operations` | Run cycles, write reports, source checks, full pipeline â€” all with form controls |
+| Reports | `/reports` | Virtualized report list, markdown viewer, HTML/JSON export, workbench compare |
+| Situation Analysis | `/sa` | OCHA-style SA generation with quality gate scores and 6-dimension chart |
+| Sources | `/sources` | Source health table, connector diagnostics, freshness trend chart |
+| System | `/system` | Feature flags panel, E2E gate summary, security baseline card |
+| Data | `/data` | **Database explorer** â€” browse Cycle Runs, Events, Raw Items, Feed Health live |
+| Settings | `/settings` | Feature toggles |
+
+---
+
+## CLI Commands
+
+### Evidence Collection
+
+```powershell
+# Single monitoring cycle â€” fetch, enrich, persist
+agent-hum-crawler run-cycle --countries Lebanon --disaster-types conflict
+
+# With recency and content extraction
+agent-hum-crawler run-cycle \
+  --countries "Pakistan,Bangladesh" \
+  --disaster-types "flood,cyclone/storm" \
+  --limit 15 --max-age-days 30 --include-content
+```
+
+### Situation Analysis
+
+```powershell
+# Generate OCHA-style SA (deterministic)
+agent-hum-crawler write-situation-analysis \
+  --countries Lebanon --disaster-types conflict \
+  --event-name "Lebanon Conflict" --period "Q1 2026"
+
+# With LLM narrative + quality gate enforcement
+agent-hum-crawler write-situation-analysis \
+  --countries Lebanon --disaster-types conflict \
+  --event-name "Lebanon Conflict" --use-llm --quality-gate
+```
+
+### Report Generation
+
+```powershell
+# Brief donor update
+agent-hum-crawler write-report \
+  --countries Madagascar --disaster-types "cyclone/storm" \
+  --report-template config/report_template.brief.json --use-llm
+
+# Detailed analyst brief with retrieval balancing
+agent-hum-crawler write-report \
+  --countries "Madagascar,Mozambique" --disaster-types "cyclone/storm,flood" \
+  --limit-cycles 25 --limit-events 20 --use-llm \
+  --country-min-events 1 --max-per-connector 8 --max-per-source 4 \
+  --report-template config/report_template.detailed.json
+```
+
+### KPI & Quality
+
+```powershell
+agent-hum-crawler quality-report --limit 10
+agent-hum-crawler source-health --limit 10
+agent-hum-crawler hardening-gate --limit 10
+agent-hum-crawler llm-report --limit 10 \
+  --min-llm-enrichment-rate 0.10 --min-citation-coverage-rate 0.95
+```
+
+### Source Diagnostics
+
+```powershell
+# One-by-one feed connectivity check (read-only)
+agent-hum-crawler source-check \
+  --countries Lebanon --disaster-types conflict --max-age-days 30
+```
+
+### Pipeline
+
+```powershell
+# Full collect â†’ enrich â†’ SA pipeline
+agent-hum-crawler run-pipeline \
+  --countries Lebanon --disaster-types conflict --use-llm
+```
+
+### Pilot & Replay
+
+```powershell
+# Automated 7-cycle evidence pack
+agent-hum-crawler pilot-run \
+  --countries "Madagascar,Mozambique" \
+  --disaster-types "cyclone/storm,flood" \
+  --cycles 7 --limit 10 --include-content --reset-state-before-run
+
+# Dry-run replay fixture
+agent-hum-crawler replay-fixture \
+  --fixture tests/fixtures/replay_pakistan_flood_quake.json
+```
+
+### Scheduled Monitoring
+
+```powershell
+agent-hum-crawler start-scheduler \
+  --countries Pakistan --disaster-types "flood,earthquake" \
+  --interval 30 --limit 10 --max-runs 1
+```
+
+---
+
+## Configuration
+
+### Country Sources (`config/country_sources.json`)
+
+```json
+{
+  "global": [ { "url": "...", "connector_type": "rss", "label": "BBC World" } ],
+  "countries": {
+    "Lebanon": [ { "url": "...", "connector_type": "rss", "label": "..." } ]
+  }
+}
+```
+
+Active countries: Madagascar, Mozambique, Pakistan, Bangladesh, Ethiopia, Lebanon.
+
+Global feeds include: BBC World, Al Jazeera, AllAfrica, Africanews, ANA, Guardian, Reuters, NYT World, NPR World.
+
+Government/humanitarian sources include USGS Earthquakes, GDACS (all/floods/cyclones 7d), CARE, FEWS NET.
+
+### Feature Flags (`config/feature_flags.json`)
+
+Centralized runtime toggles. Override via environment:
+
+```
+AHC_FLAG_LLM_ENRICHMENT_ENABLED=true
+```
+
+Key flags: `reliefweb_enabled`, `llm_enrichment_enabled`, `report_strict_filters_default`, `stale_feed_auto_warn_enabled`, `stale_feed_auto_demote_enabled`.
+
+### Report Templates
+
+| File | Use |
+|---|---|
+| `config/report_template.json` | Default balanced report |
+| `config/report_template.brief.json` | Short donor update |
+| `config/report_template.detailed.json` | Long analyst brief |
+| `config/report_template.situation_analysis.json` | OCHA SA 15-section template |
+
+---
 
 ## Tests
 
 ```powershell
+# Backend (pytest)
 pytest -q
-```
 
-Local validation gate:
+# Frontend (Vitest)
+cd ui-phoenix
+npx vitest run
 
-```powershell
-.\scripts\local-validate.ps1
-```
+# Local validation gate (pytest + compileall + E2E)
+.\scripts\local-validate.ps1          # Windows
+./scripts/local-validate.sh           # Linux/macOS
 
-Linux/macOS:
-
-```bash
-./scripts/local-validate.sh
-```
-
-This now includes a deterministic E2E regression gate with artifact capture.
-Artifacts are written to:
-- `artifacts/e2e/<UTC timestamp>/`
-- Includes Moltis security/auth evidence artifact:
-  - `06_moltis_security_check.json` (auth baseline, auth/proxy matrix, scoped API-key checks)
-
-Skip E2E when needed:
-
-```powershell
+# Skip E2E pass
 .\scripts\local-validate.ps1 -SkipE2E
 ```
 
-```bash
-SKIP_E2E=1 ./scripts/local-validate.sh
-```
+**Frontend test suite** (`ui-phoenix/tests/unit/`):
 
-## Moltis Hook Pack (Post-MVP Phase A)
-Project-local hooks are provided under `.moltis/hooks/`:
-- `llm-tool-guard` (`BeforeLLMCall`, `AfterLLMCall`)
-- `tool-safety-guard` (`BeforeToolCall`)
-- `audit-log` (`Command`, `MessageSent`, `AfterToolCall`, `BeforeToolCall`, `AfterLLMCall`)
+| File | Phase | Tests |
+|---|---|---|
+| `utils.test.ts` | 1 | 18 |
+| `schemas.test.ts` | 2 | 26 |
+| `form-store.test.ts` | 3 | 8 |
+| `routes.test.tsx` | 3 | 7 |
+| `reports-phase4.test.tsx` | 4 | 18 |
+| `phase5.test.tsx` | 5 | 26 |
+| `phase6.test.tsx` | 6 | 22 |
+| **Total** | | **125** |
 
-These are discovered by Moltis as project-local hooks.
-Use this command to verify discovery:
+E2E artifacts written to `artifacts/e2e/<UTC timestamp>/`.
+
+---
+
+## Backend API (Phase 7 â€” FastAPI)
+
+The new API module lives at `src/agent_hum_crawler/api/` and is being migrated from subprocess CLI calls to direct Python imports.
+
+**App factory**: `agent_hum_crawler.api.app:create_app()`
+
+Route modules under `src/agent_hum_crawler/api/routes/`:
+
+| Module | Endpoints |
+|---|---|
+| `health` | `GET /api/health` |
+| `overview` | `GET /api/overview`, `GET /api/system-info` |
+| `cycle` | `POST /api/run-cycle`, `POST /api/source-check` |
+| `reports` | `GET /api/reports`, `GET /api/report-content` |
+| `situation_analysis` | `POST /api/write-situation-analysis` |
+| `workbench` | `POST /api/report-workbench` |
+| `db` | `GET /api/db/cycles`, `GET /api/db/events`, `GET /api/db/raw-items`, `GET /api/db/feed-health` |
+| `settings` | `GET /api/feature-flags`, `POST /api/update-feature-flag` |
+| `jobs` | `GET /api/jobs/{id}` (async job status) |
+
+Interactive docs: `http://localhost:8788/api/docs`
+
+---
+
+## Ontology & SA Engine
+
+Built in `src/agent_hum_crawler/graph_ontology.py` and `situation_analysis.py`:
+
+- **`HumanitarianOntologyGraph`** â€” typed nodes: `HazardNode`, `ImpactObservation`, `NeedStatement`, `ResponseAction`, `RiskStatement`, `AdminArea`
+- **Multi-pattern NLP figure extraction** â€” 4 regex patterns with `max()` accumulation to prevent double-counting
+- **Country gazetteers** â€” 50+ countries with admin1/admin2 hierarchies (`config/gazetteers/`)
+- **SA quality gate** â€” 6-dimension scoring: section completeness, key figure coverage, citation accuracy/density, admin coverage, date attribution
+- **Two-pass LLM synthesis** â€” Pass 1: core narrative; Pass 2: 6 sector narratives with shared context
+- **Source credibility weighting** â€” 4-tier system: UN/OCHA â†’ NGO/Gov â†’ Major News â†’ Other
+
+---
+
+## Security & Ops
+
+### Moltis Hook Pack
+
+Project-local hooks under `.moltis/hooks/`:
+- `llm-tool-guard` â€” `BeforeLLMCall`, `AfterLLMCall`
+- `tool-safety-guard` â€” `BeforeToolCall`
+- `audit-log` â€” `Command`, `MessageSent`, `AfterToolCall`, `BeforeToolCall`, `AfterLLMCall`
 
 ```powershell
 moltis hooks list --eligible
 ```
 
-Audit output default:
-- `.moltis/logs/hook-audit.jsonl`
-
-## Moltis Security Baseline Check
-Run security/auth baseline and evidence checks:
+### Security Baseline Check
 
 ```powershell
 python scripts/moltis_security_check.py
+
+# Strict flags
+python scripts/moltis_security_check.py --expect-behind-proxy true --require-api-keys
 ```
 
-Optional strict rollout flags:
+### Hardened Profile
 
-```powershell
-# Enforce proxy posture expectation
-python scripts/moltis_security_check.py --expect-behind-proxy true
-
-# Require at least one active scoped API key
-python scripts/moltis_security_check.py --require-api-keys
-```
-
-## Moltis Hardened Profile (Post-MVP Phase B)
-Use the hardened profile template:
-- `config/moltis.hardened.example.toml`
-
-Rollout steps:
-1. Back up current config:
-```powershell
-Copy-Item $HOME\.config\moltis\moltis.toml $HOME\.config\moltis\moltis.toml.bak
-```
-2. Copy template and adapt paths/models for your machine:
 ```powershell
 Copy-Item .\config\moltis.hardened.example.toml $HOME\.config\moltis\moltis.toml
 ```
-3. Restart Moltis and verify:
-```powershell
-moltis hooks list --eligible
+
+---
+
+## Project Roadmap
+
+| Phase | Status | Description |
+|---|---|---|
+| Phases 1â€“4 | âœ… Complete | MVP: collection, enrichment, reporting, hardening |
+| Phoenix 1â€“2 | âœ… Complete | Frontend foundation + data layer |
+| Phoenix 3 | âœ… Complete | Operations command center |
+| Phoenix 4 | âœ… Complete | Reports module + workbench |
+| Phoenix 5 | âœ… Complete | Sources + system pages |
+| Phoenix 6 | âœ… Complete | Situation Analysis page, quality gate chart |
+| Phoenix 7 | ðŸš§ In progress | FastAPI backend rewrite |
+| Phoenix 8 | Planned | Real-time SSE updates |
+| Phoenix 9 | Planned | Advanced features (global search, multi-workspace) |
+| Phoenix 10 | Planned | 80% coverage, Playwright E2E, Lighthouse 90+ |
+
+Active roadmap: `docs/roadmap/project-clarity-roadmap.md`
+
+---
+
+## Repository Layout
+
 ```
+src/agent_hum_crawler/   # Python backend
+  api/                   # FastAPI app + route modules (Phase 7)
+  models.py              # SQLModel ORM
+  coordinator.py         # Pipeline orchestrator
+  situation_analysis.py  # OCHA SA generator
+  graph_ontology.py      # Humanitarian ontology + NLP
+  llm_provider.py        # LLM abstraction
+scripts/
+  dashboard_api.py       # HTTP bridge (legacy subprocess calls)
+ui-phoenix/              # React 19 + TypeScript frontend (Project Phoenix)
+config/                  # Country sources, feature flags, report templates, gazetteers
+rust_core/               # PyO3 NLP extension
+tests/                   # pytest suite (220+ tests)
+artifacts/e2e/           # E2E gate artifacts
+reports/                 # Generated report files (not committed)
+```
+

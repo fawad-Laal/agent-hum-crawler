@@ -1,8 +1,8 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-20
-Last Updated: 2026-03-03
-Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C Planned, **Phase 5 Frontend Rewrite — Phases 1-4 Complete, Phase 5 Next**)
+Last Updated: 2026-03-04
+Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests, 0 TS errors) + **Phase 7 FastAPI backend skeleton started**
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -12,11 +12,15 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C 
 - **Project Phoenix (Frontend Rewrite) Phase 2 — Data Layer: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 3 — Feature Pages (Operations): COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 4 — Reports Module: COMPLETE**
+- **Project Phoenix (Frontend Rewrite) Phase 5 — Sources & System: COMPLETE**
+- **Project Phoenix (Frontend Rewrite) Phase 6 — Situation Analysis: COMPLETE**
+- **Project Phoenix (Frontend Rewrite) Phase 7 — FastAPI Backend: SKELETON STARTED**
 - Humanitarian ontology and Situation Analysis engine: implemented and validated
 - Graph ontology evidence extraction: operational with multi-pattern NLP
 - SA quality gate fixes (citation regex, date attribution, source labelling, raw text filter): applied 2026-03-02
 - Iran gazetteer added (31 provinces + districts): 2026-03-02
 - Roadmap updated with Phase 4B (Credibility Distribution) and Phase 4C (Conflict Emergency Improvements)
+- `pyproject.toml` upgraded to v0.2.0 — added `fastapi`, `uvicorn[standard]`, `python-multipart` dependencies
 
 ## Project Phoenix — Frontend Rewrite (Phase 5)
 
@@ -81,22 +85,66 @@ Status: Post-MVP Hardening + **Project Clarity** (Phase 4 Complete, Phase 4B/4C 
 - [x] 65 tests passing (17 Phase 4 tests), production build verified
 - [x] Code-split bundles: reports-page 73KB (24KB gz), report-detail 7KB (3KB gz), markdown-renderer 159KB (48KB gz shared chunk)
 
-### Phase 5 — Sources & System — NOT STARTED
-- [ ] Sources page: source health table with freshness indicators
-- [ ] Connector diagnostics (collapsible connector cards)
-- [ ] Freshness trend chart (Recharts line chart)
-- [ ] Feature flags panel (toggle flags with API update)
-- [ ] Security baseline status card
+### Phase 5 — Sources & System — COMPLETE ✅
+- [x] Sources page: source health table with freshness indicators (`source-health-table.tsx`)
+- [x] Connector diagnostics — collapsible per-connector cards (`connector-diagnostics.tsx`), unhealthiest first
+- [x] Freshness trend chart — Recharts line chart sorted by age + stale threshold reference line (`freshness-trend-chart.tsx`)
+- [x] Feature flags panel — toggle flags via API with pending/error feedback; widened to `boolean | number | string` values (`feature-flags-panel.tsx`)
+- [x] Security baseline card — aggregates hardening gate + E2E security_status into pass/warn/fail/unknown (`security-baseline-card.tsx`)
+- [x] System page — E2E gate summary, hardening gate, flags panel, security card (`system-page.tsx`)
+- [x] Fixed `saQualityGateSchema` — backend returns a flat object (not array); old array schema caused ZodError on every SA call
+- [x] Fixed `saResponseSchema` — `quality_gate` is now the correct object schema; `output_file` optional; `.passthrough()` for extra backend fields
+- [x] Added `SAQualityGateDimension` type for Phase 6 per-dimension viz
+- [x] 26 new Phase 5 tests; corrected 2 pre-existing incorrect schema tests
+- [x] 103 tests total passing, 0 TypeScript errors
 
-### Phase 6 — Situation Analysis — NOT STARTED
-- [ ] SA page: form + output display
-- [ ] SA quality gate visualization (6-dimension bar chart)
-- [ ] SA markdown preview with section anchors
-- [ ] SA export options (PDF, DOCX, HTML)
-- [ ] SA template selector with limits/usage display
+### Phase 6 — Situation Analysis — COMPLETE ✅
+- [x] `SAQualityGateChart` — 6-dimension horizontal BarChart (Recharts); green ≥70%, yellow 50-69%, red <50%; overall score + PASS/FAIL badge; reference line at threshold
+- [x] Full `SAPage` — template picker (OCHA Full SA, Default Report, Brief Update, Detailed Brief); form with all SA params (countries, hazards, event name/type/period, limits, LLM + quality gate toggles); collapsible form card
+- [x] SA output panel — filename + word count + QG badge in header; Markdown download, HTML standalone export, Copy to clipboard
+- [x] SA markdown preview with section TOC (tabs: Preview / Sections)
+- [x] Fixed `quality_gate.details` ZodError — backend returns object (not array); `saQualityGateSchema.details` changed to `z.unknown()`
+- [x] Fixed mutation toast lifecycle — all 5 mutations emit toasts at hook level so they survive page navigation
+- [x] 22 new Phase 6 tests; 7/7 test files, 125 tests total, 0 TypeScript errors
 
-### Future Phases (7-10)
-- Phase 7: FastAPI backend rewrite (direct imports, Redis caching, JWT auth, SSE)
+### SA Empty Data Diagnosis (2026-03-04)
+- **Root cause**: `src/agent_hum_crawler/crawler.db` is 0KB — no evidence collection runs have been executed
+- **Effect**: SA runs with empty `processed_event` table → LLM generates boilerplate "no events" text → quality gate fails on key figure coverage, citation density, date attribution
+- **Fix**: Run `agent-hum-crawler run-cycle --countries Lebanon --disaster-types conflict` first, then re-run the SA
+- Lebanon sources ARE configured in `config/country_sources.json` (6 countries total)
+
+### Phase 7 — FastAPI Backend — SKELETON STARTED 🚧 (2026-03-04)
+- [x] Created `src/agent_hum_crawler/api/` package — FastAPI application factory (`app.py`)
+- [x] CORS middleware configured (Vite dev server :5175 + localhost:3000)
+- [x] Route module stubs created under `src/agent_hum_crawler/api/routes/`:
+  - `health.py` — `/api/health`
+  - `overview.py` — `/api/overview`, `/api/system-info`
+  - `cycle.py` — `/api/run-cycle`, `/api/source-check`
+  - `reports.py` — `/api/reports`, `/api/report-content`
+  - `situation_analysis.py` — `/api/write-situation-analysis`
+  - `workbench.py` — `/api/report-workbench`
+  - `db.py` — `/api/db/cycles`, `/api/db/events`, `/api/db/raw-items`, `/api/db/feed-health` *(new)*
+  - `settings.py` — `/api/feature-flags`, `/api/update-feature-flag`
+  - `jobs.py` — async job queue (`/api/jobs/<id>`, SSE-ready)
+- [x] `job_store.py` — in-process async job store for long-running pipeline calls
+- [x] API docs exposed at `/api/docs` (Swagger UI) and `/api/redoc`
+- [x] `pyproject.toml` v0.2.0 with `fastapi`, `uvicorn[standard]`, `python-multipart` added
+- [x] `dashboard_api.py` updated with FastAPI import path and 375-line refactor
+- [ ] Migrate all route stubs from subprocess CLI calls → direct Python module calls
+- [ ] Redis job caching (optional stretch goal)
+- [ ] JWT/API-key auth middleware
+
+### Data Browser Page (2026-03-04)
+- [x] `ui-phoenix/src/features/data/data-page.tsx` (625 lines) — Database Explorer
+  - Tabbed view: Cycle Runs · Events · Raw Items · Feed Health
+  - Live data via `useDbCycles`, `useDbEvents`, `useDbRawItems`, `useDbFeedHealth` hooks
+  - Inline search/filter per table, severity badges, freshness indicators
+  - Refresh button with loading state
+- [x] Route `/data` added to `routes.tsx` with lazy loading
+- [x] Sidebar navigation link added (`Database` icon)
+- [x] New query hooks + query keys + Zod schemas + TypeScript types added for all 4 DB endpoints
+
+### Future Phases (8-10)
 - Phase 8: Real-time updates (SSE client, progress toasts, optimistic UI)
 - Phase 9: Advanced features (global search, filters, multi-workspace, settings page)
 - Phase 10: Testing & release (80% coverage, Playwright E2E, Lighthouse 90+, deploy)
