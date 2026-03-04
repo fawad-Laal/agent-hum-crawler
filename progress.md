@@ -2,7 +2,7 @@
 
 Date: 2026-02-20
 Last Updated: 2026-03-04
-Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests, 0 TS errors) + **Phase 7 FastAPI backend: direct-import migration complete, Redis job caching added**
+Status: Post-MVP Hardening + **Project Phoenix Phases 1-7 Complete** (125 tests, 0 TS errors) + **Phase 8 Real-time updates: SSE stream endpoint, useJobStream hook, GlobalJobBadge, loading toasts**
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -15,6 +15,7 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests,
 - **Project Phoenix (Frontend Rewrite) Phase 5 — Sources & System: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 6 — Situation Analysis: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 7 — FastAPI Backend: direct-import migration complete, Redis caching added**
+- **Project Phoenix (Frontend Rewrite) Phase 8 — Real-time Updates: SSE job stream, live job badge, loading toasts**
 - Humanitarian ontology and Situation Analysis engine: implemented and validated
 - Graph ontology evidence extraction: operational with multi-pattern NLP
 - SA quality gate fixes (citation regex, date attribution, source labelling, raw text filter): applied 2026-03-02
@@ -151,7 +152,33 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-6 Complete** (125 tests,
 - [x] Sidebar navigation link added (`Database` icon)
 - [x] New query hooks + query keys + Zod schemas + TypeScript types added for all 4 DB endpoints
 
-### Future Phases (8-10)
+### Phase 8 — Real-time Updates — COMPLETE ✅ (2026-03-04)
+- [x] Backend: `GET /api/jobs/{job_id}/stream` — SSE endpoint in `routes/jobs.py`
+  - Pushes JSON status events every ~0.75 s until job reaches `done` or `error`
+  - Keep-alive heartbeat comments (`": ping"`) every 15 s to survive proxy timeouts
+  - `Cache-Control: no-cache`, `X-Accel-Buffering: no` headers set
+  - Hard 20-minute timeout; graceful close on job record loss
+- [x] Frontend: `stores/jobs-store.ts` — Zustand store tracking active jobs across navigation
+  - `addJob / updateJob / removeJob / activeCount()`
+  - Not persisted (in-memory only — jobs are transient by definition)
+- [x] Frontend: `hooks/use-job-stream.ts` — `useJobStream<T>(jobId, label)` hook
+  - Opens `EventSource` at `/api/jobs/{jobId}/stream`
+  - Returns `{ status, result, error, isActive }` live state
+  - Registers/updates/removes job in the jobs store
+  - Cleans up EventSource on unmount
+- [x] Frontend: `components/ui/global-job-badge.tsx` — header badge
+  - Reads jobs store, renders nothing when no jobs are active
+  - Animated pulse + `Loader2` spinner while jobs run
+  - Shows job label or "N jobs running" for multiple concurrent jobs
+- [x] Frontend: `components/layout/header.tsx` — `GlobalJobBadge` added to header
+- [x] Frontend: `hooks/use-mutations.ts` — loading toasts for all 5 long-running mutations
+  - `onMutate` → `toast.loading(…, { id })` + `addJob` to jobs store
+  - `onSuccess` → `toast.success(…, { id })` + `removeJob`
+  - `onError` → `toast.error(…, { id })` + `removeJob`
+  - Stable toast IDs (`TOAST.cycle`, `TOAST.report`, `TOAST.sa`, `TOAST.pipeline`, `TOAST.sourceCheck`)
+- JWT/API-key auth middleware — deferred
+
+### Future Phases (9-10)
 - Phase 8: Real-time updates (SSE client, progress toasts, optimistic UI)
 - Phase 9: Advanced features (global search, filters, multi-workspace, settings page)
 - Phase 10: Testing & release (80% coverage, Playwright E2E, Lighthouse 90+, deploy)

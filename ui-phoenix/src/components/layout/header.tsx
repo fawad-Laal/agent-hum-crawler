@@ -1,5 +1,6 @@
 import { useHealth } from "@/hooks/use-queries";
 import { Badge } from "@/components/ui/badge";
+import { GlobalJobBadge } from "@/components/ui/global-job-badge";
 import { RefreshCw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,9 @@ export function Header({ title }: HeaderProps) {
       <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
 
       <div className="flex items-center gap-3">
+        {/* Active background jobs */}
+        <GlobalJobBadge />
+
         {/* Backend status */}
         <Badge variant={healthVariant}>
           {healthLabel}

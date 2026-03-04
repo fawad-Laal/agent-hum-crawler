@@ -3,6 +3,10 @@
  * Type-safe mutation hooks for all POST endpoints.
  * Handles cache invalidation and error propagation.
  * All invalidation keys sourced from lib/query-keys.ts.
+ *
+ * Phase 8: loading toasts (Sonner) + global jobs store registration so
+ * GlobalJobBadge in the header shows an animated spinner while any
+ * long-running mutation is in flight.
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,31 +32,46 @@ import type {
 } from "@/types";
 import type { RunCycleParams, WriteReportParams, WriteSAParams, RunPipelineParams } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/query-keys";
+import { useJobsStore } from "@/stores/jobs-store";
+
+// ── Stable toast IDs (one per mutation type — semaphore ensures no overlap) ────
+const TOAST = {
+  cycle: "toast-run-cycle",
+  report: "toast-write-report",
+  sourceCheck: "toast-source-check",
+  sa: "toast-write-sa",
+  pipeline: "toast-run-pipeline",
+} as const;
 
 /** Trigger a collection cycle and refresh dashboard data on success. */
 export function useRunCycle() {
   const queryClient = useQueryClient();
+  const { addJob, removeJob } = useJobsStore();
 
   return useMutation<CliResult, Error, RunCycleParams>({
     mutationFn: runCycle,
     onMutate: (variables) => {
       console.group("%c[RunCycle] ▶ Starting cycle", "color:#10b981;font-weight:bold");
       console.log("📋 Params:", variables);
+      addJob(TOAST.cycle, "Running cycle");
+      toast.loading("Running collection cycle…", { id: TOAST.cycle });
     },
     onSuccess: (data, variables) => {
       console.log("✅ Success — full response:", data);
       console.log("   status:", data.status);
       console.log("   params used:", variables);
       console.groupEnd();
+      removeJob(TOAST.cycle);
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
-      toast.success("Collection cycle completed", { description: `Status: ${data.status}` });
+      toast.success("Collection cycle completed", { id: TOAST.cycle, description: `Status: ${data.status}` });
     },
     onError: (err, variables) => {
       console.error("❌ Error:", err.message);
       console.error("   params used:", variables);
       console.groupEnd();
-      toast.error("Cycle failed", { description: err.message });
+      removeJob(TOAST.cycle);
+      toast.error("Cycle failed", { id: TOAST.cycle, description: err.message });
     },
   });
 }
@@ -60,37 +79,55 @@ export function useRunCycle() {
 /** Generate a report and refresh report listing on success. */
 export function useWriteReport() {
   const queryClient = useQueryClient();
+  const { addJob, removeJob } = useJobsStore();
 
   return useMutation<CliResult, Error, WriteReportParams>({
     mutationFn: writeReport,
+    onMutate: () => {
+      addJob(TOAST.report, "Generating report");
+      toast.loading("Generating report…", { id: TOAST.report });
+    },
     onSuccess: (data) => {
+      removeJob(TOAST.report);
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
-      toast.success("Report generated", { description: `Status: ${data.status}` });
+      toast.success("Report generated", { id: TOAST.report, description: `Status: ${data.status}` });
     },
     onError: (err) => {
-      toast.error("Report failed", { description: err.message });
+      removeJob(TOAST.report);
+      toast.error("Report failed", { id: TOAST.report, description: err.message });
     },
   });
 }
 
 /** Run a source check — result is returned directly, no cache invalidation. */
 export function useRunSourceCheck() {
+  const { addJob, removeJob } = useJobsStore();
+
   return useMutation<SourceCheckResponse, Error, RunCycleParams>({
     mutationFn: runSourceCheck,
+    onMutate: () => {
+      addJob(TOAST.sourceCheck, "Checking sources");
+      toast.loading("Checking sources…", { id: TOAST.sourceCheck });
+    },
     onSuccess: (data) => {
+      removeJob(TOAST.sourceCheck);
       const total = data.total_sources ?? 0;
       const working = data.working_sources ?? 0;
       if (total === 0) {
-        toast.warning("No sources found — check your country and feed configuration");
+        toast.warning("No sources found — check your country and feed configuration", {
+          id: TOAST.sourceCheck,
+        });
       } else {
         toast[working === total ? "success" : "warning"](
-          `Source check: ${working}/${total} sources working`
+          `Source check: ${working}/${total} sources working`,
+          { id: TOAST.sourceCheck },
         );
       }
     },
     onError: (err) => {
-      toast.error("Source check failed", { description: err.message });
+      removeJob(TOAST.sourceCheck);
+      toast.error("Source check failed", { id: TOAST.sourceCheck, description: err.message });
     },
   });
 }
@@ -98,17 +135,25 @@ export function useRunSourceCheck() {
 /** Generate a situation analysis and refresh report listing. */
 export function useWriteSA() {
   const queryClient = useQueryClient();
+  const { addJob, removeJob } = useJobsStore();
 
   return useMutation<SAResponse, Error, WriteSAParams>({
     mutationFn: writeSA,
+    onMutate: () => {
+      addJob(TOAST.sa, "Generating SA");
+      toast.loading("Generating Situation Analysis…", { id: TOAST.sa });
+    },
     onSuccess: (data) => {
+      removeJob(TOAST.sa);
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
       toast.success("Situation Analysis generated", {
+        id: TOAST.sa,
         description: data.output_file ? `Saved: ${data.output_file.replace(/^.*[\/\\]/, "")}` : undefined,
       });
     },
     onError: (err) => {
-      toast.error("SA generation failed", { description: err.message });
+      removeJob(TOAST.sa);
+      toast.error("SA generation failed", { id: TOAST.sa, description: err.message });
     },
   });
 }
@@ -116,16 +161,23 @@ export function useWriteSA() {
 /** Run full pipeline (Cycle → Report → SA) and refresh dashboard. */
 export function useRunPipeline() {
   const queryClient = useQueryClient();
+  const { addJob, removeJob } = useJobsStore();
 
   return useMutation<CliResult, Error, RunPipelineParams>({
     mutationFn: runPipeline,
+    onMutate: () => {
+      addJob(TOAST.pipeline, "Running pipeline");
+      toast.loading("Running full pipeline…", { id: TOAST.pipeline });
+    },
     onSuccess: (data) => {
+      removeJob(TOAST.pipeline);
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
-      toast.success("Full pipeline completed", { description: `Status: ${data.status}` });
+      toast.success("Full pipeline completed", { id: TOAST.pipeline, description: `Status: ${data.status}` });
     },
     onError: (err) => {
-      toast.error("Pipeline failed", { description: err.message });
+      removeJob(TOAST.pipeline);
+      toast.error("Pipeline failed", { id: TOAST.pipeline, description: err.message });
     },
   });
 }
