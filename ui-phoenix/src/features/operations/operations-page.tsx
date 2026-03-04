@@ -23,7 +23,6 @@ import {
   useWriteSA,
   useRunPipeline,
 } from "@/hooks/use-mutations";
-import { toast } from "sonner";
 import {
   Radio,
   Play,
@@ -109,30 +108,48 @@ function SourceCheckDisplay({ data }: { data: SourceCheckResponse }) {
   );
 }
 
+/** Ordered display labels for the 6 SA quality-gate dimension keys. */
+const SA_QG_DIMS = [
+  { key: "section_completeness", label: "Section Completeness" },
+  { key: "key_figure_coverage", label: "Key Figure Coverage" },
+  { key: "citation_accuracy", label: "Citation Accuracy" },
+  { key: "citation_density", label: "Citation Density" },
+  { key: "admin_coverage", label: "Admin Coverage" },
+  { key: "date_attribution", label: "Date Attribution" },
+] as const;
+
 function SAResultDisplay({ data }: { data: SAResponse }) {
+  const qg = data.quality_gate;
   return (
     <div className="mt-4 rounded-lg bg-background/80 border border-border p-4">
       <div className="flex items-center gap-2 mb-2">
         <Badge variant="success">Generated</Badge>
-        <span className="text-xs text-muted-foreground">{data.output_file}</span>
+        {data.output_file && (
+          <span className="text-xs text-muted-foreground truncate">{data.output_file}</span>
+        )}
       </div>
-      {data.quality_gate && data.quality_gate.length > 0 && (
+      {qg && qg.overall_score !== undefined && (
         <div className="mt-3 space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Quality Gate
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Quality Gate
+            </span>
+            <Badge variant={qg.passed ? "success" : "destructive"}>
+              {qg.passed ? "pass" : "fail"} · {((qg.overall_score) * 10).toFixed(1)}/10
+            </Badge>
+          </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {data.quality_gate.map((dim) => (
-              <div
-                key={dim.dimension}
-                className="rounded-md bg-muted/30 px-3 py-2 text-sm"
-              >
-                <span className="text-foreground/80">{dim.label}</span>
-                <div className="mt-1 font-mono text-xs text-muted-foreground">
-                  {dim.score}/{dim.max}
+            {SA_QG_DIMS.map(({ key, label }) => {
+              const val = qg[key as keyof typeof qg] as number | undefined;
+              return val !== undefined ? (
+                <div key={key} className="rounded-md bg-muted/30 px-3 py-2 text-xs">
+                  <span className="text-foreground/80">{label}</span>
+                  <div className="mt-1 font-mono text-muted-foreground">
+                    {(val * 100).toFixed(0)}%
+                  </div>
                 </div>
-              </div>
-            ))}
+              ) : null;
+            })}
           </div>
         </div>
       )}
@@ -189,16 +206,8 @@ export function OperationsPage() {
         max_age_days: form.max_age_days,
       },
       {
-        onSuccess: (data) => {
-          setCliResult(data);
-          toast.success("Collection cycle completed", {
-            description: `Status: ${data.status}`,
-          });
-        },
-        onError: (err) => {
-          setCliResult({ status: "error", error: err.message });
-          toast.error("Cycle failed", { description: err.message });
-        },
+        onSuccess: (data) => { setCliResult(data); },
+        onError: (err) => { setCliResult({ status: "error", error: err.message }); },
       }
     );
   }, [form, runCycle]);
@@ -222,16 +231,8 @@ export function OperationsPage() {
         use_llm: form.use_llm,
       },
       {
-        onSuccess: (data) => {
-          setCliResult(data);
-          toast.success("Report generated", {
-            description: `Status: ${data.status}`,
-          });
-        },
-        onError: (err) => {
-          setCliResult({ status: "error", error: err.message });
-          toast.error("Report failed", { description: err.message });
-        },
+        onSuccess: (data) => { setCliResult(data); },
+        onError: (err) => { setCliResult({ status: "error", error: err.message }); },
       }
     );
   }, [form, writeReport]);
@@ -249,16 +250,8 @@ export function OperationsPage() {
         max_age_days: form.max_age_days,
       },
       {
-        onSuccess: (data) => {
-          setSourceCheckResult(data);
-          toast.success("Source check completed", {
-            description: `${data.working_sources ?? 0}/${data.total_sources ?? 0} sources working`,
-          });
-        },
-        onError: (err) => {
-          setCliResult({ status: "error", error: err.message });
-          toast.error("Source check failed", { description: err.message });
-        },
+        onSuccess: (data) => { setSourceCheckResult(data); },
+        onError: (err) => { setCliResult({ status: "error", error: err.message }); },
       }
     );
   }, [form, sourceCheck]);
@@ -284,16 +277,8 @@ export function OperationsPage() {
         quality_gate: form.sa_quality_gate,
       },
       {
-        onSuccess: (data) => {
-          setSAResult(data);
-          toast.success("Situation Analysis generated", {
-            description: `Output: ${data.output_file}`,
-          });
-        },
-        onError: (err) => {
-          setCliResult({ status: "error", error: err.message });
-          toast.error("SA generation failed", { description: err.message });
-        },
+        onSuccess: (data) => { setSAResult(data); },
+        onError: (err) => { setCliResult({ status: "error", error: err.message }); },
       }
     );
   }, [form, writeSA]);
@@ -318,16 +303,8 @@ export function OperationsPage() {
         use_llm: form.use_llm,
       },
       {
-        onSuccess: (data) => {
-          setCliResult(data);
-          toast.success("Full pipeline completed", {
-            description: `Status: ${data.status}`,
-          });
-        },
-        onError: (err) => {
-          setCliResult({ status: "error", error: err.message });
-          toast.error("Pipeline failed", { description: err.message });
-        },
+        onSuccess: (data) => { setCliResult(data); },
+        onError: (err) => { setCliResult({ status: "error", error: err.message }); },
       }
     );
   }, [form, runPipeline]);

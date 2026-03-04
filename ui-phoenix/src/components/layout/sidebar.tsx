@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Database,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
   { label: "Operations", path: "/operations", icon: Radio },
   { label: "Reports", path: "/reports", icon: FileText },
   { label: "Sources", path: "/sources", icon: Satellite },
+  { label: "Data", path: "/data", icon: Database },
   { label: "System", path: "/system", icon: Activity },
   { label: "Situation Analysis", path: "/sa", icon: FlaskConical },
   { label: "Settings", path: "/settings", icon: Settings },

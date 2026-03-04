@@ -26,9 +26,20 @@ import type {
   workbenchSideSchema,
   workbenchResponseSchema,
   workbenchProfileStoreSchema,
+  saQualityGateDimensionSchema,
   saQualityGateSchema,
   saResponseSchema,
   cliResultSchema,
+  dbCycleRunSchema,
+  dbCyclesResponseSchema,
+  dbEventRecordSchema,
+  dbEventsResponseSchema,
+  dbRawItemSchema,
+  dbRawItemsResponseSchema,
+  dbFeedHealthRecordSchema,
+  dbFeedHealthResponseSchema,
+  jobQueuedSchema,
+  jobStatusSchema,
 } from "@/lib/schemas";
 
 // ── Overview API ────────────────────────────────────────────
@@ -71,13 +82,32 @@ export type WorkbenchResponse = z.infer<typeof workbenchResponseSchema>;
 export type WorkbenchProfileStore = z.infer<typeof workbenchProfileStoreSchema>;
 
 // ── Situation Analysis API ──────────────────────────────────
-
-export type SAQualityGate = z.infer<typeof saQualityGateSchema>;
+/** Per-dimension entry for Phase 6 SA quality-gate visualization. */
+export type SAQualityGateDimension = z.infer<typeof saQualityGateDimensionSchema>;
+/** Flat summary object returned by the backend quality gate scorer. */export type SAQualityGate = z.infer<typeof saQualityGateSchema>;
 export type SAResponse = z.infer<typeof saResponseSchema>;
 
 // ── CLI Result (generic command response) ──────────────────
 
 export type CliResult = z.infer<typeof cliResultSchema>;
+
+// ── Database table types ─────────────────────────────────────
+
+export type DbCycleRun = z.infer<typeof dbCycleRunSchema>;
+export type DbCyclesResponse = z.infer<typeof dbCyclesResponseSchema>;
+export type DbEventRecord = z.infer<typeof dbEventRecordSchema>;
+export type DbEventsResponse = z.infer<typeof dbEventsResponseSchema>;
+export type DbRawItem = z.infer<typeof dbRawItemSchema>;
+export type DbRawItemsResponse = z.infer<typeof dbRawItemsResponseSchema>;
+export type DbFeedHealthRecord = z.infer<typeof dbFeedHealthRecordSchema>;
+export type DbFeedHealthResponse = z.infer<typeof dbFeedHealthResponseSchema>;
+
+// ── Async Job System ──────────────────────────────────────────
+
+/** 202 response when a job is enqueued. */
+export type JobQueued = z.infer<typeof jobQueuedSchema>;
+/** Polling response from GET /api/jobs/{job_id}. */
+export type JobStatus = z.infer<typeof jobStatusSchema>;
 
 // ── Form / Command Types (not API responses — kept manual) ──
 

@@ -13,7 +13,12 @@ import {
   fetchCountrySources,
   fetchWorkbenchProfiles,
   fetchHealth,
+  fetchDbCycles,
+  fetchDbEvents,
+  fetchDbRawItems,
+  fetchDbFeedHealth,
 } from "@/lib/api";
+import type { DbEventsParams } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/query-keys";
 
 /** Dashboard overview (KPIs, trends, hardening, cycles) */
@@ -79,5 +84,45 @@ export function useHealth() {
     queryFn: fetchHealth,
     refetchInterval: 60_000,
     staleTime: 15_000,
+  });
+}
+
+// ── Database hooks ──────────────────────────────────────────
+
+/** Cycle runs stored in the monitoring DB */
+export function useDbCycles(limit = 50) {
+  return useQuery({
+    queryKey: QUERY_KEYS.dbCycles(limit),
+    queryFn: () => fetchDbCycles(limit),
+    staleTime: 10_000,
+  });
+}
+
+/** Events stored in the monitoring DB, optionally filtered */
+export function useDbEvents(params: DbEventsParams = {}) {
+  const limit = params.limit ?? 100;
+  return useQuery({
+    queryKey: QUERY_KEYS.dbEvents(params),
+    queryFn: () => fetchDbEvents(params),
+    staleTime: 10_000,
+    enabled: true,
+  });
+}
+
+/** Raw items stored in the monitoring DB */
+export function useDbRawItems(limit = 100) {
+  return useQuery({
+    queryKey: QUERY_KEYS.dbRawItems(limit),
+    queryFn: () => fetchDbRawItems(limit),
+    staleTime: 30_000,
+  });
+}
+
+/** Feed health records */
+export function useDbFeedHealth(limit = 100) {
+  return useQuery({
+    queryKey: QUERY_KEYS.dbFeedHealth(limit),
+    queryFn: () => fetchDbFeedHealth(limit),
+    staleTime: 30_000,
   });
 }

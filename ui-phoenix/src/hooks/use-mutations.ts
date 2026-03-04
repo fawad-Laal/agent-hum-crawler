@@ -6,6 +6,7 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   runCycle,
   writeReport,
@@ -34,9 +35,24 @@ export function useRunCycle() {
 
   return useMutation<CliResult, Error, RunCycleParams>({
     mutationFn: runCycle,
-    onSuccess: () => {
+    onMutate: (variables) => {
+      console.group("%c[RunCycle] ▶ Starting cycle", "color:#10b981;font-weight:bold");
+      console.log("📋 Params:", variables);
+    },
+    onSuccess: (data, variables) => {
+      console.log("✅ Success — full response:", data);
+      console.log("   status:", data.status);
+      console.log("   params used:", variables);
+      console.groupEnd();
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
+      toast.success("Collection cycle completed", { description: `Status: ${data.status}` });
+    },
+    onError: (err, variables) => {
+      console.error("❌ Error:", err.message);
+      console.error("   params used:", variables);
+      console.groupEnd();
+      toast.error("Cycle failed", { description: err.message });
     },
   });
 }
@@ -47,9 +63,13 @@ export function useWriteReport() {
 
   return useMutation<CliResult, Error, WriteReportParams>({
     mutationFn: writeReport,
-    onSuccess: () => {
+    onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
+      toast.success("Report generated", { description: `Status: ${data.status}` });
+    },
+    onError: (err) => {
+      toast.error("Report failed", { description: err.message });
     },
   });
 }
@@ -58,6 +78,20 @@ export function useWriteReport() {
 export function useRunSourceCheck() {
   return useMutation<SourceCheckResponse, Error, RunCycleParams>({
     mutationFn: runSourceCheck,
+    onSuccess: (data) => {
+      const total = data.total_sources ?? 0;
+      const working = data.working_sources ?? 0;
+      if (total === 0) {
+        toast.warning("No sources found — check your country and feed configuration");
+      } else {
+        toast[working === total ? "success" : "warning"](
+          `Source check: ${working}/${total} sources working`
+        );
+      }
+    },
+    onError: (err) => {
+      toast.error("Source check failed", { description: err.message });
+    },
   });
 }
 
@@ -67,8 +101,14 @@ export function useWriteSA() {
 
   return useMutation<SAResponse, Error, WriteSAParams>({
     mutationFn: writeSA,
-    onSuccess: () => {
+    onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
+      toast.success("Situation Analysis generated", {
+        description: data.output_file ? `Saved: ${data.output_file.replace(/^.*[\/\\]/, "")}` : undefined,
+      });
+    },
+    onError: (err) => {
+      toast.error("SA generation failed", { description: err.message });
     },
   });
 }
@@ -79,9 +119,13 @@ export function useRunPipeline() {
 
   return useMutation<CliResult, Error, RunPipelineParams>({
     mutationFn: runPipeline,
-    onSuccess: () => {
+    onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.overview });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reports });
+      toast.success("Full pipeline completed", { description: `Status: ${data.status}` });
+    },
+    onError: (err) => {
+      toast.error("Pipeline failed", { description: err.message });
     },
   });
 }

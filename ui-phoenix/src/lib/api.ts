@@ -1,8 +1,13 @@
 /**
  * Project Phoenix — API Client
- * Type-safe wrapper around the existing dashboard API (port 8788).
+ * Type-safe wrapper around the Moltis dashboard API (port 8788).
  * Zod schemas validate all responses at runtime.
- * In Phase 7 this will be migrated to FastAPI endpoints.
+ *
+ * Phase B complete: long-running POST endpoints return 202 + job_id.
+ * pollJob() transparently polls GET /api/jobs/{job_id} until done,
+ * so all mutation hooks continue to resolve with their final payload types.
+ * The FastAPI backend (src/agent_hum_crawler/api/) uses direct function calls
+ * instead of subprocess — server auto-selects fastapi when installed.
  */
 
 import type {
@@ -16,6 +21,10 @@ import type {
   WorkbenchProfileStore,
   SAResponse,
   CliResult,
+  DbCyclesResponse,
+  DbEventsResponse,
+  DbRawItemsResponse,
+  DbFeedHealthResponse,
 } from "@/types";
 import type { ZodType } from "zod";
 import {
@@ -32,6 +41,12 @@ import {
   cliResultSchema,
   healthResponseSchema,
   featureFlagUpdateResponseSchema,
+  dbCyclesResponseSchema,
+  dbEventsResponseSchema,
+  dbRawItemsResponseSchema,
+  dbFeedHealthResponseSchema,
+  jobQueuedSchema,
+  jobStatusSchema,
 } from "@/lib/schemas";
 
 const API_BASE = "/api";
@@ -44,34 +59,99 @@ async function apiFetch<T>(
   schema?: ZodType<T>,
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const method = options?.method ?? (options?.body ? "POST" : "GET");
   const headers: Record<string, string> = {};
   if (options?.body) {
     headers["Content-Type"] = "application/json";
   }
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
+
+  if (import.meta.env.DEV) {
+    console.group(`%c[API] ${method} ${path}`, "color:#6366f1;font-weight:bold");
+    if (options?.body) {
+      try { console.log("📤 Request body:", JSON.parse(options.body as string)); }
+      catch { console.log("📤 Request body (raw):", options.body); }
+    }
+  }
+
+  const res = await fetch(url, { ...options, headers });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "Unknown error");
+    if (import.meta.env.DEV) {
+      console.error(`❌ HTTP ${res.status}:`, text);
+      console.groupEnd();
+    }
     throw new Error(`API ${res.status}: ${text}`);
   }
 
   const json: unknown = await res.json();
 
+  if (import.meta.env.DEV) {
+    console.log(`✅ HTTP ${res.status} — raw JSON:`, json);
+  }
+
   if (schema) {
     try {
-      return schema.parse(json);
+      const parsed = schema.parse(json);
+      if (import.meta.env.DEV) {
+        console.log("🔍 Schema-parsed result:", parsed);
+        console.groupEnd();
+      }
+      return parsed;
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.error(`[Phoenix] Schema validation failed for ${path}:`, err);
+        console.error("⚠️ Schema validation failed:", err);
+        console.groupEnd();
       }
       throw err;
     }
   }
 
+  if (import.meta.env.DEV) console.groupEnd();
+
   return json as T;
+}
+
+// ── Async job polling ───────────────────────────────────────
+
+/**
+ * Poll GET /api/jobs/{jobId} until the job is done or errors out.
+ * Returns the typed *result* field from the job status response.
+ *
+ * Mutation hooks are unchanged — they still resolve with CliResult,
+ * SAResponse, etc. The async polling is fully transparent to callers.
+ *
+ * @param jobId   Job token returned by a 202 POST endpoint.
+ * @param schema  Optional Zod schema to validate the result payload.
+ * @param opts    intervalMs (default 2000), timeoutMs (default 15 min).
+ */
+async function pollJob<T>(
+  jobId: string,
+  schema?: ZodType<T>,
+  opts?: { intervalMs?: number; timeoutMs?: number },
+): Promise<T> {
+  const intervalMs = opts?.intervalMs ?? 2000;
+  const timeoutMs = opts?.timeoutMs ?? 15 * 60 * 1000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const status = await apiFetch(`/jobs/${jobId}`, undefined, jobStatusSchema);
+
+    if (status.status === "done") {
+      const raw = status.result;
+      if (schema) return schema.parse(raw);
+      return raw as T;
+    }
+
+    if (status.status === "error") {
+      throw new Error(status.error ?? `Job ${jobId} failed`);
+    }
+
+    // Still queued or running — wait then poll again
+    await new Promise<void>((res) => setTimeout(res, intervalMs));
+  }
+
+  throw new Error(`Job ${jobId} timed out after ${timeoutMs}ms`);
 }
 
 // ── GET endpoints ───────────────────────────────────────────
@@ -115,10 +195,12 @@ export interface RunCycleParams {
 }
 
 export async function runCycle(params: RunCycleParams): Promise<CliResult> {
-  return apiFetch("/run-cycle", {
+  // POST returns 202 + job token; poll until the cycle finishes
+  const job = await apiFetch("/run-cycle", {
     method: "POST",
     body: JSON.stringify(params),
-  }, cliResultSchema);
+  }, jobQueuedSchema);
+  return pollJob<CliResult>(job.job_id, cliResultSchema, { intervalMs: 2000 });
 }
 
 export interface WriteReportParams {
@@ -135,17 +217,19 @@ export interface WriteReportParams {
 }
 
 export async function writeReport(params: WriteReportParams): Promise<CliResult> {
-  return apiFetch("/write-report", {
+  const job = await apiFetch("/write-report", {
     method: "POST",
     body: JSON.stringify(params),
-  }, cliResultSchema);
+  }, jobQueuedSchema);
+  return pollJob<CliResult>(job.job_id, cliResultSchema, { intervalMs: 3000 });
 }
 
 export async function runSourceCheck(params: RunCycleParams): Promise<SourceCheckResponse> {
-  return apiFetch("/source-check", {
+  const job = await apiFetch("/source-check", {
     method: "POST",
     body: JSON.stringify(params),
-  }, sourceCheckResponseSchema);
+  }, jobQueuedSchema);
+  return pollJob<SourceCheckResponse>(job.job_id, sourceCheckResponseSchema, { intervalMs: 2000 });
 }
 
 export interface WriteSAParams {
@@ -164,19 +248,21 @@ export interface WriteSAParams {
 }
 
 export async function writeSA(params: WriteSAParams): Promise<SAResponse> {
-  return apiFetch("/write-situation-analysis", {
+  const job = await apiFetch("/write-situation-analysis", {
     method: "POST",
     body: JSON.stringify(params),
-  }, saResponseSchema);
+  }, jobQueuedSchema);
+  return pollJob<SAResponse>(job.job_id, saResponseSchema, { intervalMs: 3000 });
 }
 
 export async function runWorkbench(
   profile: Record<string, unknown>
 ): Promise<WorkbenchResponse> {
-  return apiFetch("/report-workbench", {
+  const job = await apiFetch("/report-workbench", {
     method: "POST",
     body: JSON.stringify(profile),
-  }, workbenchResponseSchema);
+  }, jobQueuedSchema);
+  return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema, { intervalMs: 3000 });
 }
 
 export async function saveWorkbenchProfile(
@@ -223,16 +309,18 @@ export interface RunPipelineParams {
 }
 
 export async function runPipeline(params: RunPipelineParams): Promise<CliResult> {
-  return apiFetch("/run-pipeline", {
+  const job = await apiFetch("/run-pipeline", {
     method: "POST",
     body: JSON.stringify(params),
-  }, cliResultSchema);
+  }, jobQueuedSchema);
+  return pollJob<CliResult>(job.job_id, cliResultSchema, { intervalMs: 3000 });
 }
 
 export async function rerunLastWorkbench(): Promise<WorkbenchResponse> {
-  return apiFetch("/report-workbench/rerun-last", {
+  const job = await apiFetch("/report-workbench/rerun-last", {
     method: "POST",
-  }, workbenchResponseSchema);
+  }, jobQueuedSchema);
+  return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema, { intervalMs: 3000 });
 }
 
 /** Toggle a single feature flag on or off. */
@@ -244,4 +332,33 @@ export async function updateFeatureFlag(
     method: "POST",
     body: JSON.stringify({ flag, enabled }),
   }, featureFlagUpdateResponseSchema);
+}
+
+// ── Database endpoints ──────────────────────────────────────
+
+export async function fetchDbCycles(limit = 50): Promise<DbCyclesResponse> {
+  return apiFetch(`/db/cycles?limit=${limit}`, undefined, dbCyclesResponseSchema);
+}
+
+export interface DbEventsParams {
+  limit?: number;
+  country?: string;
+  disaster_type?: string;
+}
+
+export async function fetchDbEvents(params: DbEventsParams = {}): Promise<DbEventsResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set("limit", String(params.limit));
+  if (params.country) qs.set("country", params.country);
+  if (params.disaster_type) qs.set("disaster_type", params.disaster_type);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch(`/db/events${query}`, undefined, dbEventsResponseSchema);
+}
+
+export async function fetchDbRawItems(limit = 100): Promise<DbRawItemsResponse> {
+  return apiFetch(`/db/raw-items?limit=${limit}`, undefined, dbRawItemsResponseSchema);
+}
+
+export async function fetchDbFeedHealth(limit = 100): Promise<DbFeedHealthResponse> {
+  return apiFetch(`/db/feed-health?limit=${limit}`, undefined, dbFeedHealthResponseSchema);
 }

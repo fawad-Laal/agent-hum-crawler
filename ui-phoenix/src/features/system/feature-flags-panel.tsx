@@ -12,7 +12,8 @@ import { Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FeatureFlagsPanelProps {
-  flags: Record<string, boolean> | undefined;
+  /** Flags from the overview API — values may be boolean, number, or string. */
+  flags: Record<string, boolean | number | string> | undefined;
   isLoading: boolean;
 }
 
@@ -56,7 +57,9 @@ export function FeatureFlagsPanel({ flags, isLoading }: FeatureFlagsPanelProps) 
 
   return (
     <div className="space-y-1">
-      {sorted.map(([flag, enabled]) => {
+      {sorted.map(([flag, rawValue]) => {
+        // Coerce to boolean — non-zero numbers and non-empty strings count as enabled
+        const enabled = Boolean(rawValue);
         const isThisPending = isPending && variables?.flag === flag;
         const description = FLAG_DESCRIPTIONS[flag];
 
@@ -74,7 +77,7 @@ export function FeatureFlagsPanel({ flags, isLoading }: FeatureFlagsPanelProps) 
                 <Flag
                   className={cn(
                     "h-3.5 w-3.5 shrink-0",
-                    enabled ? "text-primary" : "text-muted-foreground"
+                    rawValue ? "text-primary" : "text-muted-foreground"
                   )}
                 />
                 <span className="text-sm font-medium">{flagLabel(flag)}</span>

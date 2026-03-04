@@ -5,7 +5,22 @@
  */
 
 import { z } from "zod";
+// ── Async Job System ───────────────────────────────────────
 
+/** Immediate 202 response when a long-running job is enqueued. */
+export const jobQueuedSchema = z.object({
+  job_id: z.string(),
+  status: z.enum(["queued", "running", "done", "error"]),
+});
+
+/** Polling response for GET /api/jobs/{job_id}. */
+export const jobStatusSchema = z.object({
+  job_id: z.string(),
+  status: z.enum(["queued", "running", "done", "error"]),
+  // result is the actual payload when status === "done"
+  result: z.unknown().optional(),
+  error: z.string().optional(),
+});
 // ── Overview API ────────────────────────────────────────────
 
 export const qualityMetricsSchema = z.object({
@@ -189,18 +204,36 @@ export const workbenchProfileStoreSchema = z.object({
 
 // ── Situation Analysis API ──────────────────────────────────
 
-export const saQualityGateSchema = z.object({
+// Per-dimension entry used by SA quality-gate visualizations (Phase 6)
+export const saQualityGateDimensionSchema = z.object({
   dimension: z.string(),
   score: z.number(),
   max: z.number(),
   label: z.string(),
-});
+}).passthrough();
+
+// The backend returns quality_gate as a flat summary object (not an array).
+// Shape comes from sa_quality_gate.score_situation_analysis() return value.
+export const saQualityGateSchema = z.object({
+  overall_score: z.number().optional(),
+  passed: z.boolean().optional(),
+  section_completeness: z.number().optional(),
+  key_figure_coverage: z.number().optional(),
+  citation_accuracy: z.number().optional(),
+  citation_density: z.number().optional(),
+  admin_coverage: z.number().optional(),
+  date_attribution: z.number().optional(),
+  // details can be an array OR an object depending on backend version;
+  // accept any shape to avoid ZodErrors on schema changes
+  details: z.unknown().optional(),
+}).passthrough();
 
 export const saResponseSchema = z.object({
   markdown: z.string(),
-  output_file: z.string(),
-  quality_gate: z.array(saQualityGateSchema).optional(),
-});
+  output_file: z.string().optional(),   // absent on error responses
+  quality_gate: saQualityGateSchema.optional(),
+  status: z.string().optional(),
+}).passthrough();
 
 // ── CLI Result ──────────────────────────────────────────────
 
@@ -228,3 +261,80 @@ export const workbenchProfileStoreResponseSchema = z.object({
   status: z.string().optional(),
   store: workbenchProfileStoreSchema,
 });
+
+// ── Database Table Schemas ───────────────────────────────────
+
+export const dbCycleRunSchema = z.object({
+  id: z.number(),
+  run_at: z.string(),
+  connector_count: z.number(),
+  raw_item_count: z.number(),
+  event_count: z.number(),
+  summary: z.string().optional(),
+  llm_enabled: z.union([z.boolean(), z.number()]).optional(),
+  llm_enriched_count: z.number().optional(),
+  llm_fallback_count: z.number().optional(),
+}).passthrough();
+
+export const dbCyclesResponseSchema = z.object({
+  cycles: z.array(dbCycleRunSchema),
+  count: z.number(),
+  db_path: z.string().optional(),
+});
+
+export const dbEventRecordSchema = z.object({
+  id: z.number(),
+  cycle_id: z.number(),
+  event_id: z.string(),
+  status: z.string(),
+  connector: z.string(),
+  source_type: z.string(),
+  title: z.string(),
+  url: z.string(),
+  country: z.string(),
+  disaster_type: z.string(),
+  published_at: z.string().nullable().optional(),
+  severity: z.string(),
+  confidence: z.string(),
+  summary: z.string(),
+  llm_enriched: z.union([z.boolean(), z.number()]).optional(),
+  corroboration_sources: z.number().optional(),
+}).passthrough();
+
+export const dbEventsResponseSchema = z.object({
+  events: z.array(dbEventRecordSchema),
+  count: z.number(),
+});
+
+export const dbRawItemSchema = z.object({
+  id: z.number(),
+  cycle_id: z.number(),
+  connector: z.string(),
+  source_type: z.string(),
+  title: z.string(),
+  url: z.string(),
+  published_at: z.string().nullable().optional(),
+}).passthrough();
+
+export const dbRawItemsResponseSchema = z.object({
+  raw_items: z.array(dbRawItemSchema),
+  count: z.number(),
+});
+
+export const dbFeedHealthRecordSchema = z.object({
+  id: z.number(),
+  cycle_id: z.number(),
+  connector: z.string(),
+  source_name: z.string(),
+  source_url: z.string(),
+  status: z.string(),
+  error: z.string().optional(),
+  fetched_count: z.number().optional(),
+  matched_count: z.number().optional(),
+}).passthrough();
+
+export const dbFeedHealthResponseSchema = z.object({
+  feed_health: z.array(dbFeedHealthRecordSchema),
+  count: z.number(),
+});
+

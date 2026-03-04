@@ -154,9 +154,9 @@ describe("credibilityDistributionSchema", () => {
     expect(result.high + result.medium + result.low + result.unknown).toBe(18);
   });
 
-  it("rejects missing tier", () => {
+  it("rejects non-numeric tier values", () => {
     expect(() =>
-      credibilityDistributionSchema.parse({ high: 10, medium: 5 })
+      credibilityDistributionSchema.parse({ high: "not-a-number", medium: 5 })
     ).toThrow();
   });
 });
@@ -195,16 +195,17 @@ describe("sourceCheckResponseSchema", () => {
     expect(result.source_checks[0].working).toBe(true);
   });
 
-  it("rejects missing working_sources field", () => {
-    expect(() =>
-      sourceCheckResponseSchema.parse({
-        status: "done",
-        connector_count: 1,
-        raw_item_count: 5,
-        total_sources: 3,
-        source_checks: [],
-      })
-    ).toThrow();
+  it("accepts partial response (working_sources is optional)", () => {
+    // All numeric fields on the source check response are optional
+    const result = sourceCheckResponseSchema.parse({
+      status: "done",
+      connector_count: 1,
+      raw_item_count: 5,
+      total_sources: 3,
+      source_checks: [],
+    });
+    expect(result.status).toBe("done");
+    expect(result.working_sources).toBeUndefined();
   });
 });
 
@@ -258,7 +259,7 @@ describe("workbenchProfileStoreSchema", () => {
 // ── SA Response ─────────────────────────────────────────────
 
 describe("saResponseSchema", () => {
-  it("parses valid SA response without quality gate", () => {
+  it("parses SA response without quality gate", () => {
     const result = saResponseSchema.parse({
       markdown: "# Situation Analysis",
       output_file: "sa-report.md",
@@ -267,16 +268,62 @@ describe("saResponseSchema", () => {
     expect(result.quality_gate).toBeUndefined();
   });
 
-  it("parses SA response with quality gate", () => {
+  it("parses SA response with quality gate as flat object (backend shape)", () => {
+    // Backend returns quality_gate as a dict, NOT an array
     const result = saResponseSchema.parse({
       markdown: "# SA",
       output_file: "sa.md",
-      quality_gate: [
-        { dimension: "accuracy", score: 8, max: 10, label: "Good" },
-      ],
+      quality_gate: {
+        overall_score: 7.5,
+        passed: true,
+        section_completeness: 0.9,
+        key_figure_coverage: 0.8,
+        citation_accuracy: 0.85,
+        citation_density: 0.7,
+        admin_coverage: 0.95,
+        date_attribution: 0.88,
+        details: [],
+      },
     });
-    expect(result.quality_gate).toHaveLength(1);
-    expect(result.quality_gate![0].score).toBe(8);
+    expect(result.quality_gate).toBeDefined();
+    expect(result.quality_gate!.overall_score).toBe(7.5);
+    expect(result.quality_gate!.passed).toBe(true);
+  });
+
+  it("accepts empty quality_gate object (quality_gate=false in request)", () => {
+    // When quality_gate param is false, backend returns {}
+    const result = saResponseSchema.parse({
+      markdown: "# SA",
+      output_file: "sa.md",
+      quality_gate: {},
+    });
+    expect(result.quality_gate).toBeDefined();
+    expect(result.quality_gate!.passed).toBeUndefined();
+  });
+
+  it("passes through extra backend fields (status, report_path, meta)", () => {
+    const result = saResponseSchema.parse({
+      markdown: "# SA",
+      output_file: "sa.md",
+      status: "ok",
+      report_path: "/tmp/sa-20260304.md",
+      llm_used: true,
+    });
+    expect((result as Record<string, unknown>)["status"]).toBe("ok");
+  });
+
+  it("output_file is optional (absent on error responses)", () => {
+    const result = saResponseSchema.parse({ markdown: "" });
+    expect(result.output_file).toBeUndefined();
+  });
+
+  it("rejects quality_gate as an array (wrong old shape)", () => {
+    expect(() =>
+      saResponseSchema.parse({
+        markdown: "# SA",
+        quality_gate: [{ dimension: "x", score: 1, max: 10, label: "ok" }],
+      })
+    ).toThrow();
   });
 });
 

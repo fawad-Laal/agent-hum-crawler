@@ -93,7 +93,13 @@ function OverviewSummary() {
 
 // ── Tabbed results section ─────────────────────────────────
 
-function ResultsSection({ results }: { results: SourceCheckResult[] }) {
+interface ResultsSectionProps {
+  results: SourceCheckResult[];
+  connectorCount?: number;
+  rawItemCount?: number;
+}
+
+function ResultsSection({ results, connectorCount = 0, rawItemCount = 0 }: ResultsSectionProps) {
   const working = results.filter((r) => r.working).length;
   const total = results.length;
 
@@ -105,37 +111,53 @@ function ResultsSection({ results }: { results: SourceCheckResult[] }) {
             <Activity className="h-4 w-4 text-primary" />
             Source Check Results
           </CardTitle>
-          <Badge variant={working === total ? "success" : "warning"}>
-            {working}/{total} working
-          </Badge>
+          {total > 0 ? (
+            <Badge variant={working === total ? "success" : "warning"}>
+              {working}/{total} working
+            </Badge>
+          ) : (
+            <Badge variant="outline">{connectorCount} connectors · {rawItemCount} raw items</Badge>
+          )}
         </div>
         <CardDescription>
-          {total} sources across {new Set(results.map((r) => r.connector)).size} connectors
+          {total > 0
+            ? `${total} sources across ${new Set(results.map((r) => r.connector)).size} connectors`
+            : "No source results returned — feeds may be unconfigured or erroring silently"}
         </CardDescription>
       </CardHeader>
 
       <CardContent>
-        <Tabs defaultValue="table">
-          <TabsList className="mb-4">
-            <TabsTrigger value="table">Table</TabsTrigger>
-            <TabsTrigger value="connectors">Connectors</TabsTrigger>
-            <TabsTrigger value="trend">Freshness Trend</TabsTrigger>
-          </TabsList>
-          <TabsContent value="table">
-            <SourceHealthTable sources={results} />
-          </TabsContent>
-          <TabsContent value="connectors">
-            <ConnectorDiagnostics sources={results} />
-          </TabsContent>
-          <TabsContent value="trend">
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Sources sorted freshest → stalest. Dashed line = 7-day stale threshold.
-              </p>
-              <FreshnessTrendChart sources={results} />
-            </div>
-          </TabsContent>
-        </Tabs>
+        {total === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
+            <p>No source data was returned by this check.</p>
+            <p className="text-xs">
+              Verify that at least one country is selected and that your{" "}
+              <code className="font-mono">country_sources.json</code> feeds are reachable.
+            </p>
+          </div>
+        ) : (
+          <Tabs defaultValue="table">
+            <TabsList className="mb-4">
+              <TabsTrigger value="table">Table</TabsTrigger>
+              <TabsTrigger value="connectors">Connectors</TabsTrigger>
+              <TabsTrigger value="trend">Freshness Trend</TabsTrigger>
+            </TabsList>
+            <TabsContent value="table">
+              <SourceHealthTable sources={results} />
+            </TabsContent>
+            <TabsContent value="connectors">
+              <ConnectorDiagnostics sources={results} />
+            </TabsContent>
+            <TabsContent value="trend">
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Sources sorted freshest → stalest. Dashed line = 7-day stale threshold.
+                </p>
+                <FreshnessTrendChart sources={results} />
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
       </CardContent>
     </Card>
   );
@@ -222,10 +244,19 @@ export function SourcesPage() {
       },
       {
         onError: (err) => toast.error(`Source check failed: ${err.message}`),
-        onSuccess: (data) =>
-          toast.success(
-            `Check complete — ${data.working_sources ?? 0}/${data.total_sources ?? 0} sources working`
-          ),
+        onSuccess: (data) => {
+          const total = data.total_sources ?? 0;
+          const working = data.working_sources ?? 0;
+          if (total === 0) {
+            toast.warning(
+              "No sources found — check your country and feed configuration"
+            );
+          } else {
+            toast[working === total ? "success" : "warning"](
+              `Check complete — ${working}/${total} sources working`
+            );
+          }
+        },
       }
     );
   };
@@ -271,8 +302,12 @@ export function SourcesPage() {
       </Card>
 
       {/* Detailed results — visible after a check runs */}
-      {checkData && (checkData.source_checks?.length ?? 0) > 0 && (
-        <ResultsSection results={checkData.source_checks ?? []} />
+      {checkData && (
+        <ResultsSection
+          results={checkData.source_checks ?? []}
+          connectorCount={checkData.connector_count ?? 0}
+          rawItemCount={checkData.raw_item_count ?? 0}
+        />
       )}
 
       {/* Feed config summary */}

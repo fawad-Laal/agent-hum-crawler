@@ -12,4 +12,10 @@ export const QUERY_KEYS = {
   countrySources: ["country-sources"] as const,
   workbenchProfiles: ["workbench-profiles"] as const,
   health: ["health"] as const,
+  // Database
+  dbCycles: (limit: number) => ["db", "cycles", limit] as const,
+  dbEvents: (params: { limit?: number; country?: string; disaster_type?: string }) =>
+    ["db", "events", params] as const,
+  dbRawItems: (limit: number) => ["db", "raw-items", limit] as const,
+  dbFeedHealth: (limit: number) => ["db", "feed-health", limit] as const,
 } as const;
