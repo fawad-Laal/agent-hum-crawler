@@ -39,9 +39,11 @@ from __future__ import annotations
 
 import logging
 import re
+import tomllib
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path as _Path
 from typing import Any
 
 _log = logging.getLogger(__name__)
@@ -85,7 +87,7 @@ _USE_RUST_FIGURES = False
 try:
     from .rust_accel import (
         extract_figures as _rust_extract_figures,
-        classify_impact_type as _rust_classify_impact_type,
+        classify_all_impact_types as _rust_classify_all_impact_types,
         classify_need_types as _rust_classify_need_types,
         severity_from_text as _rust_severity_from_text,
         is_risk_text as _rust_is_risk_text,
@@ -703,65 +705,99 @@ class HumanitarianOntologyGraph:
 
 # Keyword mappings for NLP-light extraction from evidence text.
 
-_IMPACT_KEYWORDS: dict[ImpactType, list[str]] = {
-    ImpactType.PEOPLE: [
-        "deaths", "killed", "fatalities", "dead", "missing",
-        "injured", "casualties", "displaced", "evacuated",
-    ],
-    ImpactType.HOUSING: [
-        "houses destroyed", "houses damaged", "homes destroyed",
-        "homes damaged", "housing", "shelter",
-    ],
-    ImpactType.INFRASTRUCTURE: [
-        "bridge", "road", "highway", "port", "airport",
-        "power", "electricity", "grid", "infrastructure",
-    ],
-    ImpactType.SERVICES: [
-        "hospital", "health facility", "clinic", "school",
-        "water supply", "sanitation",
-    ],
-    ImpactType.SYSTEMS: [
-        "market", "supply chain", "food system", "agriculture",
-        "fisheries", "livelihoods",
-    ],
-}
+# ── NLP keyword tables — loaded from config/nlp_keywords.toml ────────
+# Falls back to inline values if the TOML file is not found.
 
-_NEED_KEYWORDS: dict[NeedType, list[str]] = {
-    NeedType.FOOD_SECURITY: [
-        "food", "hunger", "nutrition", "malnutrition",
-        "famine", "food insecurity", "crop", "harvest",
-    ],
-    NeedType.HEALTH: [
-        "health", "medical", "cholera", "malaria", "dengue",
-        "disease", "epidemic", "outbreak", "medicine",
-    ],
-    NeedType.WASH: [
-        "water", "sanitation", "hygiene", "wash",
-        "contamination", "borehole", "latrine",
-    ],
-    NeedType.PROTECTION: [
-        "protection", "gbv", "child protection",
-        "trafficking", "violence",
-    ],
-    NeedType.EDUCATION: [
-        "school", "education", "learner", "student",
-        "teacher", "classroom",
-    ],
-    NeedType.SHELTER: [
-        "shelter", "housing", "accommodation", "tent",
-        "tarpaulin", "nfi",
-    ],
-    NeedType.LOGISTICS: [
-        "logistics", "transport", "access", "road",
-        "bridge", "supply",
-    ],
-}
+def _load_nlp_keywords() -> tuple[
+    dict["ImpactType", list[str]],
+    dict["NeedType", list[str]],
+    list[str],
+]:
+    """Load NLP keyword tables from config/nlp_keywords.toml."""
+    _impact_fallback: dict[ImpactType, list[str]] = {
+        ImpactType.PEOPLE: [
+            "deaths", "killed", "fatalities", "dead", "missing",
+            "injured", "casualties", "displaced", "evacuated",
+        ],
+        ImpactType.HOUSING: [
+            "houses destroyed", "houses damaged", "homes destroyed",
+            "homes damaged", "housing", "shelter",
+        ],
+        ImpactType.INFRASTRUCTURE: [
+            "bridge", "road", "highway", "port", "airport",
+            "power", "electricity", "grid", "infrastructure",
+        ],
+        ImpactType.SERVICES: [
+            "hospital", "health facility", "clinic", "school",
+            "water supply", "sanitation",
+        ],
+        ImpactType.SYSTEMS: [
+            "market", "supply chain", "food system", "agriculture",
+            "fisheries", "livelihoods",
+        ],
+    }
+    _need_fallback: dict[NeedType, list[str]] = {
+        NeedType.FOOD_SECURITY: [
+            "food", "hunger", "nutrition", "malnutrition",
+            "famine", "food insecurity", "crop", "harvest",
+        ],
+        NeedType.HEALTH: [
+            "health", "medical", "cholera", "malaria", "dengue",
+            "disease", "epidemic", "outbreak", "medicine",
+        ],
+        NeedType.WASH: [
+            "water", "sanitation", "hygiene", "wash",
+            "contamination", "borehole", "latrine",
+        ],
+        NeedType.PROTECTION: [
+            "protection", "gbv", "child protection",
+            "trafficking", "violence",
+        ],
+        NeedType.EDUCATION: [
+            "school", "education", "learner", "student",
+            "teacher", "classroom",
+        ],
+        NeedType.SHELTER: [
+            "shelter", "housing", "accommodation", "tent",
+            "tarpaulin", "nfi",
+        ],
+        NeedType.LOGISTICS: [
+            "logistics", "transport", "access", "road",
+            "bridge", "supply",
+        ],
+    }
+    _risk_fallback: list[str] = [
+        "forecast", "outlook", "prediction", "warning",
+        "alert", "expected", "anticipated", "risk",
+        "likelihood", "probability", "projection",
+    ]
+    try:
+        _toml_path = _Path(__file__).parents[2] / "config" / "nlp_keywords.toml"
+        with open(_toml_path, "rb") as _f:
+            _kw = tomllib.load(_f)
+        _impact_raw = _kw.get("impact", {})
+        _need_raw = _kw.get("need", {})
+        _risk_kw: list[str] = _kw.get("risk", {}).get("keywords", _risk_fallback)
+        _impact: dict[ImpactType, list[str]] = {
+            it: _impact_raw[it.value]
+            for it in ImpactType
+            if it.value in _impact_raw
+        }
+        _need: dict[NeedType, list[str]] = {
+            nt: _need_raw[nt.value]
+            for nt in NeedType
+            if nt.value in _need_raw
+        }
+        if not _impact:
+            _impact = _impact_fallback
+        if not _need:
+            _need = _need_fallback
+        return _impact, _need, _risk_kw
+    except Exception:
+        return _impact_fallback, _need_fallback, _risk_fallback
 
-_RISK_KEYWORDS = [
-    "forecast", "outlook", "prediction", "warning",
-    "alert", "expected", "anticipated", "risk",
-    "likelihood", "probability", "projection",
-]
+
+_IMPACT_KEYWORDS, _NEED_KEYWORDS, _RISK_KEYWORDS = _load_nlp_keywords()
 
 _RESPONSE_ACTOR_KEYWORDS: dict[str, str] = {
     "un": "un_agency",
@@ -1294,13 +1330,15 @@ def build_ontology_from_evidence(
         sev_phase = _map_severity_to_phase(severity)
 
         # Multi-impact: one ImpactObservation per detected impact type.
-        # Rust path: single dominant type (Rust classifier is single-label).
-        # Python path: all matching types via _classify_all_impact_types.
         if _USE_RUST:
-            _rust_it = _rust_classify_impact_type(combined)
-            try:
-                all_impact_types = [ImpactType(_rust_it)]
-            except ValueError:
+            _rust_types = _rust_classify_all_impact_types(combined)
+            all_impact_types: list[ImpactType] = []
+            for _rt in _rust_types:
+                try:
+                    all_impact_types.append(ImpactType(_rt))
+                except ValueError:
+                    pass
+            if not all_impact_types:
                 all_impact_types = [ImpactType.PEOPLE]
         else:
             all_impact_types = _classify_all_impact_types(combined)

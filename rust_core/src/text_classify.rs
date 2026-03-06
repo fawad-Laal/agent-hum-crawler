@@ -1,113 +1,20 @@
 //! Text classification — keyword matching for humanitarian impacts, needs, severity.
 //!
-//! Replaces Python dict-scan loops with compiled Rust pattern matching.
+//! Keyword tables are generated at compile time from `config/nlp_keywords.toml`
+//! by `build.rs`; this file includes the generated constants via `include!`.
+//! This ensures Rust and Python always share the same keyword definitions.
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use regex::Regex;
 
-// ── Impact type keywords ────────────────────────────────────────────
-
-struct KeywordSet {
-    label: &'static str,
-    keywords: &'static [&'static str],
-}
-
-static IMPACT_KEYWORDS: &[KeywordSet] = &[
-    KeywordSet {
-        label: "people_impact",
-        keywords: &[
-            "deaths", "killed", "fatalities", "dead", "missing",
-            "injured", "casualties", "displaced", "evacuated",
-        ],
-    },
-    KeywordSet {
-        label: "housing_lc_impact",
-        keywords: &[
-            "houses destroyed", "houses damaged", "homes destroyed",
-            "homes damaged", "housing", "shelter",
-        ],
-    },
-    KeywordSet {
-        label: "infrastructure_impact",
-        keywords: &[
-            "bridge", "road", "highway", "port", "airport",
-            "power", "electricity", "grid", "infrastructure",
-        ],
-    },
-    KeywordSet {
-        label: "services_impact",
-        keywords: &[
-            "hospital", "health facility", "clinic", "school",
-            "water supply", "sanitation",
-        ],
-    },
-    KeywordSet {
-        label: "systems_impact",
-        keywords: &[
-            "market", "supply chain", "food system", "agriculture",
-            "fisheries", "livelihoods",
-        ],
-    },
-];
-
-static NEED_KEYWORDS: &[KeywordSet] = &[
-    KeywordSet {
-        label: "food_security",
-        keywords: &[
-            "food", "hunger", "nutrition", "malnutrition",
-            "famine", "food insecurity", "crop", "harvest",
-        ],
-    },
-    KeywordSet {
-        label: "health",
-        keywords: &[
-            "health", "medical", "cholera", "malaria", "dengue",
-            "disease", "epidemic", "outbreak", "medicine",
-        ],
-    },
-    KeywordSet {
-        label: "wash",
-        keywords: &[
-            "water", "sanitation", "hygiene", "wash",
-            "contamination", "borehole", "latrine",
-        ],
-    },
-    KeywordSet {
-        label: "protection",
-        keywords: &[
-            "protection", "gbv", "child protection",
-            "trafficking", "violence",
-        ],
-    },
-    KeywordSet {
-        label: "education",
-        keywords: &[
-            "school", "education", "learner", "student",
-            "teacher", "classroom",
-        ],
-    },
-    KeywordSet {
-        label: "shelter",
-        keywords: &[
-            "shelter", "housing", "accommodation", "tent",
-            "tarpaulin", "nfi",
-        ],
-    },
-    KeywordSet {
-        label: "logistics",
-        keywords: &[
-            "logistics", "transport", "access", "road",
-            "bridge", "supply",
-        ],
-    },
-];
-
-static RISK_KEYWORDS: &[&str] = &[
-    "forecast", "outlook", "prediction", "warning",
-    "alert", "expected", "anticipated", "risk",
-    "likelihood", "probability", "projection",
-];
+// ── Generated keyword data (from config/nlp_keywords.toml via build.rs) ─────
+//
+//   IMPACT_KEYWORD_DATA : &[(&str, &[&str])]  — (label, keywords) pairs
+//   NEED_KEYWORD_DATA   : &[(&str, &[&str])]  — (label, keywords) pairs
+//   RISK_KEYWORD_DATA   : &[&str]             — flat keyword list
+//
+include!(concat!(env!("OUT_DIR"), "/keywords.rs"));
 
 static RESPONSE_ACTORS: &[(&str, &str)] = &[
     ("un", "un_agency"),
@@ -135,59 +42,86 @@ static RESPONSE_ACTORS: &[(&str, &str)] = &[
 // ── Word-boundary regex builder ─────────────────────────────────────
 
 fn contains_keyword(haystack: &str, keyword: &str) -> bool {
-    // Simple substring for multi-word, word-boundary for single-word
+    // Multi-word phrases: simple substring (already specific enough)
     if keyword.contains(' ') {
-        haystack.contains(keyword)
+        return haystack.contains(keyword);
+    }
+    // Single-word: require a word-START boundary so "road" doesn't match
+    // "railroad", but allow any suffix so "bridge" matches "bridges".
+    if let Some(pos) = haystack.find(keyword) {
+        pos == 0 || !haystack.as_bytes()[pos - 1].is_ascii_alphanumeric()
     } else {
-        // Build a boundary-aware check
-        if let Some(pos) = haystack.find(keyword) {
-            let before_ok = pos == 0
-                || !haystack.as_bytes()[pos - 1].is_ascii_alphanumeric();
-            let after_pos = pos + keyword.len();
-            let after_ok = after_pos >= haystack.len()
-                || !haystack.as_bytes()[after_pos].is_ascii_alphanumeric();
-            before_ok && after_ok
-        } else {
-            false
-        }
+        false
     }
 }
 
-/// Classify the dominant impact type from text.
+/// Classify the *dominant* impact type from text (single-label).
 ///
-/// Returns one of: "people_impact", "housing_lc_impact",
-/// "infrastructure_impact", "services_impact", "systems_impact".
+/// Returns one of: `"people_impact"`, `"housing_lc_impact"`,
+/// `"infrastructure_impact"`, `"services_impact"`, `"systems_impact"`.
 #[pyfunction]
 pub fn classify_impact_type(text: &str) -> String {
     let haystack = text.to_lowercase();
     let mut best_label = "people_impact";
     let mut best_score = 0i32;
 
-    for kset in IMPACT_KEYWORDS {
-        let score: i32 = kset
-            .keywords
+    for &(label, keywords) in IMPACT_KEYWORD_DATA {
+        let score = keywords
             .iter()
-            .filter(|kw| contains_keyword(&haystack, kw))
+            .filter(|&&kw| contains_keyword(&haystack, kw))
             .count() as i32;
         if score > best_score {
             best_score = score;
-            best_label = kset.label;
+            best_label = label;
         }
     }
     best_label.to_string()
 }
 
-/// Find all need types mentioned in text.
+/// Find **all** impact types with keyword matches, ordered by score (multi-label).
 ///
-/// Returns a list of need type strings, e.g. ["food_security", "wash"].
+/// A single Flash Update may mention deaths (people), destroyed bridges
+/// (infrastructure), and damaged clinics (services).  This function returns all
+/// matching types so callers can create one `ImpactObservation` per type.
+/// Falls back to `["people_impact"]` when nothing matches.
+#[pyfunction]
+pub fn classify_all_impact_types(py: Python<'_>, text: &str) -> PyResult<Py<PyList>> {
+    let haystack = text.to_lowercase();
+    let mut scored: Vec<(&str, i32)> = Vec::new();
+
+    for &(label, keywords) in IMPACT_KEYWORD_DATA {
+        let score = keywords
+            .iter()
+            .filter(|&&kw| contains_keyword(&haystack, kw))
+            .count() as i32;
+        if score > 0 {
+            scored.push((label, score));
+        }
+    }
+
+    if scored.is_empty() {
+        let list = PyList::new_bound(py, &["people_impact"]);
+        return Ok(list.unbind());
+    }
+
+    // Descending by score; stable insertion order for ties
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    let labels: Vec<&str> = scored.iter().map(|(label, _)| *label).collect();
+    let list = PyList::new_bound(py, labels);
+    Ok(list.unbind())
+}
+
+/// Find all need types mentioned in text (multi-label).
+///
+/// Returns a list of need type strings, e.g. `["food_security", "wash"]`.
 #[pyfunction]
 pub fn classify_need_types(py: Python<'_>, text: &str) -> PyResult<Py<PyList>> {
     let haystack = text.to_lowercase();
-    let mut found: Vec<String> = Vec::new();
+    let mut found: Vec<&str> = Vec::new();
 
-    for kset in NEED_KEYWORDS {
-        if kset.keywords.iter().any(|kw| contains_keyword(&haystack, kw)) {
-            found.push(kset.label.to_string());
+    for &(label, keywords) in NEED_KEYWORD_DATA {
+        if keywords.iter().any(|&kw| contains_keyword(&haystack, kw)) {
+            found.push(label);
         }
     }
 
@@ -231,11 +165,11 @@ pub fn severity_from_text(text: &str) -> i32 {
     1
 }
 
-/// Check if text contains risk/forecast keywords.
+/// Return `true` if text contains risk or forecast language.
 #[pyfunction]
 pub fn is_risk_text(text: &str) -> bool {
     let h = text.to_lowercase();
-    RISK_KEYWORDS.iter().any(|kw| h.contains(kw))
+    RISK_KEYWORD_DATA.iter().any(|&kw| h.contains(kw))
 }
 
 /// Detect a response actor from text.
@@ -304,6 +238,29 @@ mod tests {
             classify_impact_type("houses destroyed and homes damaged"),
             "housing_lc_impact"
         );
+    }
+
+    #[test]
+    fn test_classify_all_multi() {
+        pyo3::prepare_freethreaded_python();
+        let result = Python::with_gil(|py| {
+            let list = classify_all_impact_types(py, "52 killed, 3 bridges destroyed, hospital collapsed").unwrap();
+            let bound = list.bind(py);
+            bound.iter().map(|i| i.extract::<String>().unwrap()).collect::<Vec<_>>()
+        });
+        assert!(result.contains(&"people_impact".to_string()), "expected people_impact in {result:?}");
+        assert!(result.len() >= 2, "expected >= 2 impact types, got {result:?}");
+    }
+
+    #[test]
+    fn test_classify_all_fallback() {
+        pyo3::prepare_freethreaded_python();
+        let result = Python::with_gil(|py| {
+            let list = classify_all_impact_types(py, "general update with no keywords").unwrap();
+            let bound = list.bind(py);
+            bound.iter().map(|i| i.extract::<String>().unwrap()).collect::<Vec<_>>()
+        });
+        assert_eq!(result, vec!["people_impact".to_string()]);
     }
 
     #[test]

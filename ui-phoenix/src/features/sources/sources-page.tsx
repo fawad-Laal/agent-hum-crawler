@@ -21,6 +21,7 @@ import { useFormStore } from "@/stores/form-store";
 import { SourceHealthTable } from "@/features/sources/source-health-table";
 import { ConnectorDiagnostics } from "@/features/sources/connector-diagnostics";
 import { FreshnessTrendChart } from "@/components/charts/freshness-trend-chart";
+import { ExtractionDiagnosticsPanel } from "@/features/sources/extraction-diagnostics-panel";
 import type { SourceCheckResult } from "@/types";
 import {
   Satellite,
@@ -29,6 +30,7 @@ import {
   Plug,
   TrendingUp,
   AlertTriangle,
+  Microscope,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -324,6 +326,23 @@ export function SourcesPage() {
         </CardHeader>
         <CardContent>
           <CountryFeedsSummary />
+        </CardContent>
+      </Card>
+
+      {/* Extraction telemetry diagnostics (Phase 9.5) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Microscope className="h-4 w-4 text-primary" />
+            Extraction Diagnostics
+          </CardTitle>
+          <CardDescription>
+            Telemetry from fetch results — ok-rate, yield, and top errors by
+            connector and extraction method.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ExtractionDiagnosticsPanel />
         </CardContent>
       </Card>
     </div>

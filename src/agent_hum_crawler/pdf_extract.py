@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,7 @@ class ExtractedDocument:
     tables: list[ExtractedTable] = field(default_factory=list)
     page_count: int = 0
     extraction_method: str = ""  # "pdfplumber", "pypdf", or ""
+    duration_ms: int = 0  # wall-clock extraction time in milliseconds (Phase 9.3)
 
     @property
     def has_tables(self) -> bool:
@@ -105,10 +107,11 @@ def extract_pdf_document(
     Returns an empty ``ExtractedDocument`` on any failure so callers can
     safely ignore PDFs that don't cooperate.
     """
+    t0 = time.monotonic()
     try:
         pdf_bytes = _download(url, client=client, timeout=timeout, max_bytes=max_bytes)
         if not pdf_bytes:
-            return ExtractedDocument()
+            return ExtractedDocument(duration_ms=int((time.monotonic() - t0) * 1000))
         doc = _extract_pdfplumber_doc(pdf_bytes, max_pages=max_pages)
         if not doc.text:
             fallback_text = _extract_pypdf(pdf_bytes, max_pages=max_pages)
@@ -118,10 +121,11 @@ def extract_pdf_document(
                 page_count=doc.page_count,
                 extraction_method="pypdf" if fallback_text else "",
             )
+        doc.duration_ms = int((time.monotonic() - t0) * 1000)
         return doc
     except Exception:
         logger.debug("PDF extraction failed for %s", url, exc_info=True)
-        return ExtractedDocument()
+        return ExtractedDocument(duration_ms=int((time.monotonic() - t0) * 1000))
 
 
 def extract_pdf_text(

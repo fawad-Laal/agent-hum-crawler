@@ -12,7 +12,13 @@ from .conformance import evaluate_moltis_conformance
 from .cycle import run_cycle_once, run_source_check
 from .feature_flags import get_feature_flag
 from .alerts import build_alert_contract
-from .database import build_quality_report, build_source_health_report, get_recent_cycles, init_db
+from .database import (
+    build_extraction_diagnostics_report,
+    build_quality_report,
+    build_source_health_report,
+    get_recent_cycles,
+    init_db,
+)
 from .hardening import evaluate_hardening_gate, evaluate_llm_quality_gate
 from .intake import run_intake
 from .pilot import run_pilot
@@ -455,6 +461,16 @@ def cmd_run_pipeline(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extraction_report(args: argparse.Namespace) -> int:
+    """Print a JSON extraction-telemetry diagnostics report (Phase 9.4)."""
+    report = build_extraction_diagnostics_report(
+        limit_cycles=args.limit_cycles,
+        connector=args.connector or None,
+    )
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-hum-crawler")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -726,6 +742,24 @@ def build_parser() -> argparse.ArgumentParser:
     pipe_parser.add_argument("--max-per-connector", type=int, default=8)
     pipe_parser.add_argument("--max-per-source", type=int, default=4)
     pipe_parser.set_defaults(func=cmd_run_pipeline)
+
+    # ── extraction-report (Phase 9.4) ─────────────────────────────────
+    extract_parser = subparsers.add_parser(
+        "extraction-report",
+        help="Show per-connector/method extraction telemetry diagnostics",
+    )
+    extract_parser.add_argument(
+        "--limit-cycles",
+        type=int,
+        default=20,
+        help="Analyse extraction records from the most recent N cycles (default: 20)",
+    )
+    extract_parser.add_argument(
+        "--connector",
+        default="",
+        help="Filter to a single connector name (e.g. 'reliefweb')",
+    )
+    extract_parser.set_defaults(func=cmd_extraction_report)
 
     return parser
 

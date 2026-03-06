@@ -8,8 +8,25 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class ContentSource(BaseModel):
-    type: Literal["web_page", "document_pdf", "document_html"]
+    type: Literal["web_page", "document_pdf", "document_html", "document_docx", "document_xlsx"]
     url: HttpUrl
+
+
+class ExtractionEvent(BaseModel):
+    """In-flight telemetry for a single document extraction attempt.
+
+    Populated by connectors during fetch and persisted by ``persist_cycle``
+    as an ``ExtractionRecord`` row (Phase 9.3).
+    """
+
+    attachment_url: str
+    connector: str
+    downloaded: bool = False
+    status: Literal["ok", "empty", "failed", "skipped"]
+    method: str  # "pdfplumber" | "pypdf" | "trafilatura" | "bs4" | "none"
+    char_count: int = 0
+    duration_ms: int = 0
+    error: str = ""
 
 
 class RawSourceItem(BaseModel):
@@ -27,6 +44,9 @@ class RawSourceItem(BaseModel):
     source_label: str | None = None
     content_mode: Literal["link-level", "content-level"] = "link-level"
     content_sources: List[ContentSource] = Field(default_factory=list)
+    extraction_events: List[ExtractionEvent] = Field(default_factory=list)
+    # Phase 9.1: original external source URL from ReliefWeb 'origin' field
+    origin_url: str | None = None
 
 
 class FetchResult(BaseModel):

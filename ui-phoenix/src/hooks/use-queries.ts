@@ -17,8 +17,9 @@ import {
   fetchDbEvents,
   fetchDbRawItems,
   fetchDbFeedHealth,
+  fetchExtractionDiagnostics,
 } from "@/lib/api";
-import type { DbEventsParams } from "@/lib/api";
+import type { DbEventsParams, ExtractionDiagnosticsParams } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/query-keys";
 
 /** Dashboard overview (KPIs, trends, hardening, cycles) */
@@ -123,6 +124,15 @@ export function useDbFeedHealth(limit = 100) {
   return useQuery({
     queryKey: QUERY_KEYS.dbFeedHealth(limit),
     queryFn: () => fetchDbFeedHealth(limit),
+    staleTime: 30_000,
+  });
+}
+
+/** Extraction telemetry diagnostics (Phase 9.5) */
+export function useExtractionDiagnostics(params: ExtractionDiagnosticsParams = {}) {
+  return useQuery({
+    queryKey: QUERY_KEYS.extractionDiagnostics(params),
+    queryFn: () => fetchExtractionDiagnostics(params),
     staleTime: 30_000,
   });
 }

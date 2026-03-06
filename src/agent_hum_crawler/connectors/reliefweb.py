@@ -13,8 +13,8 @@ import trafilatura
 from bs4 import BeautifulSoup
 
 from ..config import RuntimeConfig
-from ..models import ContentSource, FetchResult, RawSourceItem
-from ..pdf_extract import extract_pdf_document, extract_pdf_text
+from ..attachment_extract import extract_attachment, mime_to_doctype, resolve_mime
+from ..models import ContentSource, ExtractionEvent, FetchResult, RawSourceItem
 from ..source_freshness import evaluate_freshness, load_state, save_state, should_demote, update_source_state
 from ..taxonomy import match_with_reason
 from ..url_canonical import canonicalize_url
@@ -297,6 +297,9 @@ class ReliefWebConnector:
                     "body",
                     "body-html",
                     "file",
+                    # Phase 9.1: richer report metadata
+                    "headline",   # headline.title + headline.summary for narrative merge
+                    "origin",     # original external source URL
                     # Extra metadata for enrichment
                     "disaster.name",
                     "format.name",
@@ -336,8 +339,25 @@ class ReliefWebConnector:
         if not url:
             return None
 
+        # Phase 9.1: headline fields for deterministic narrative merge
+        headline = fields.get("headline") or {}
+        headline_title = (headline.get("title") or "").strip() if isinstance(headline, dict) else ""
+        headline_summary = (headline.get("summary") or "").strip() if isinstance(headline, dict) else ""
+
+        # Phase 9.1: origin URL (original external source)
+        origin_data = fields.get("origin")
+        origin_url: str | None = None
+        if isinstance(origin_data, dict):
+            origin_url = str(origin_data["url"]) if origin_data.get("url") else None
+        elif isinstance(origin_data, str) and origin_data:
+            origin_url = origin_data
+
         body_html = fields.get("body-html") or fields.get("body") or ""
         text = self._extract_text(body_html)
+
+        # Deterministic merge: headline.summary prepended (more concise than body)
+        if headline_summary:
+            text = (headline_summary + "\n\n" + text).strip()
 
         countries = [c.get("name", "").strip() for c in fields.get("country", []) if c.get("name")]
 
@@ -356,30 +376,70 @@ class ReliefWebConnector:
         ]
         source_label = ", ".join(source_names[:3]) if source_names else None
 
+        # Phase 9.1: headline.title takes precedence over title (more specific)
+        effective_title = headline_title or title
+
         content_sources = [ContentSource(type="web_page", url=url)]
+        extraction_events: list[ExtractionEvent] = []
 
         if include_content:
             fetched_text = self._fetch_page_text(client, url)
             if fetched_text:
                 text = (text + "\n\n" + fetched_text).strip()
 
+            # Phase 9.2: MIME-first attachment extraction loop
             for f in fields.get("file", []) or []:
                 file_url = f.get("url")
-                if file_url and str(file_url).lower().endswith(".pdf"):
-                    content_sources.append(ContentSource(type="document_pdf", url=file_url))
-                    # Extract text + tables from PDF
-                    pdf_doc = extract_pdf_document(str(file_url), client=client)
-                    if pdf_doc.full_text:
-                        text = (text + "\n\n" + pdf_doc.full_text).strip()
-                elif file_url:
-                    content_sources.append(ContentSource(type="document_html", url=file_url))
+                if not file_url:
+                    continue
+
+                declared_mime = f.get("mimetype") or None
+                fname = f.get("filename") or None
+                mime = resolve_mime(declared_mime=declared_mime, filename=fname, url=str(file_url))
+                doc_type = mime_to_doctype(mime)
+
+                if doc_type in ("document_pdf", "document_docx", "document_xlsx", "document_html"):
+                    content_sources.append(ContentSource(type=doc_type, url=file_url))
+                    attach_doc = extract_attachment(
+                        str(file_url),
+                        declared_mime=declared_mime,
+                        filename=fname,
+                        client=client,
+                    )
+                    ev_status = (
+                        "skipped" if attach_doc.extraction_method == "skipped"
+                        else "ok" if attach_doc.full_text
+                        else "empty"
+                    )
+                    extraction_events.append(ExtractionEvent(
+                        attachment_url=str(file_url),
+                        connector="reliefweb",
+                        downloaded=attach_doc.extraction_method not in ("skipped", "none"),
+                        status=ev_status,
+                        method=attach_doc.extraction_method or "none",
+                        char_count=len(attach_doc.full_text),
+                        duration_ms=attach_doc.duration_ms,
+                    ))
+                    if attach_doc.full_text:
+                        text = (text + "\n\n" + attach_doc.full_text).strip()
+                else:
+                    # Unknown / unsupported MIME — record as skipped (no download)
+                    extraction_events.append(ExtractionEvent(
+                        attachment_url=str(file_url),
+                        connector="reliefweb",
+                        downloaded=False,
+                        status="skipped",
+                        method="none",
+                        char_count=0,
+                        duration_ms=0,
+                    ))
 
         return RawSourceItem(
             connector="reliefweb",
             source_type="humanitarian",
             url=url,
             canonical_url=canonicalize_url(str(url), client=client),
-            title=title,
+            title=effective_title,
             published_at=published_at,
             country_candidates=[c for c in countries if c],
             text=text,
@@ -387,6 +447,8 @@ class ReliefWebConnector:
             source_label=source_label,
             content_mode="content-level" if include_content else "link-level",
             content_sources=content_sources,
+            extraction_events=extraction_events,
+            origin_url=origin_url,
         )
 
     def _extract_date(self, fields: dict) -> str | None:

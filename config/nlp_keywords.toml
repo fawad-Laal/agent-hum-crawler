@@ -1,0 +1,47 @@
+# NLP keyword tables for humanitarian text classification.
+#
+# Single source of truth — consumed by TWO paths:
+#   1. Rust build.rs  → generates rust_core/src/generated_keywords.rs (compile-time)
+#   2. Python graph_ontology.py → loaded via tomllib at import time (run-time)
+#
+# NEVER edit the generated Rust file or the Python _IMPACT_KEYWORDS/_NEED_KEYWORDS
+# dicts directly.  Make all keyword changes here.
+
+# ── Impact classification ─────────────────────────────────────────────
+
+[impact]
+people_impact         = ["deaths", "killed", "fatalities", "dead", "missing",
+                         "injured", "casualties", "displaced", "evacuated"]
+housing_lc_impact     = ["houses destroyed", "houses damaged", "homes destroyed",
+                         "homes damaged", "housing", "shelter"]
+infrastructure_impact = ["bridge", "road", "highway", "port", "airport",
+                         "power", "electricity", "grid", "infrastructure"]
+services_impact       = ["hospital", "health facility", "clinic", "school",
+                         "water supply", "sanitation"]
+systems_impact        = ["market", "supply chain", "food system", "agriculture",
+                         "fisheries", "livelihoods"]
+
+# ── Need classification ───────────────────────────────────────────────
+
+[need]
+food_security = ["food", "hunger", "nutrition", "malnutrition",
+                 "famine", "food insecurity", "crop", "harvest"]
+health        = ["health", "medical", "cholera", "malaria", "dengue",
+                 "disease", "epidemic", "outbreak", "medicine"]
+wash          = ["water", "sanitation", "hygiene", "wash",
+                 "contamination", "borehole", "latrine"]
+protection    = ["protection", "gbv", "child protection",
+                 "trafficking", "violence"]
+education     = ["school", "education", "learner", "student",
+                 "teacher", "classroom"]
+shelter       = ["shelter", "housing", "accommodation", "tent",
+                 "tarpaulin", "nfi"]
+logistics     = ["logistics", "transport", "access", "road",
+                 "bridge", "supply"]
+
+# ── Risk / forecast detection ─────────────────────────────────────────
+
+[risk]
+keywords = ["forecast", "outlook", "prediction", "warning",
+            "alert", "expected", "anticipated", "risk",
+            "likelihood", "probability", "projection"]

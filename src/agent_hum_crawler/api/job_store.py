@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
@@ -39,9 +40,18 @@ class Job:
     """A single tracked background task."""
 
     job_id: str
-    status: str = "queued"          # queued | running | done | error
+    job_type: str = "generic"   # cycle | write-report | source-check | sa | workbench | pipeline
+    status: str = "queued"     # queued | running | done | error
     result: dict[str, Any] | None = None
     error: str | None = None
+    queued_at: float = field(default_factory=time.monotonic)
+    started_at: float | None = None
+    completed_at: float | None = None
+
+
+# ── In-memory TTL for completed/error jobs ──────────────────────────────
+
+_IN_PROCESS_JOB_TTL = 300  # 5 minutes (R15)
 
 
 # â”€â”€ Shared TTL constant for Redis-cached jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -57,6 +67,8 @@ class _JobBackend(Protocol):
         fn: Callable[[], dict[str, Any]],
         *,
         exclusive: bool = False,
+        job_type: str = "generic",
+        llm: bool = False,
     ) -> str: ...
 
     def get(self, job_id: str) -> Job | None: ...

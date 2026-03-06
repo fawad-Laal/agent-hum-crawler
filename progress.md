@@ -1,8 +1,8 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-20
-Last Updated: 2026-03-04
-Status: Post-MVP Hardening + **Project Phoenix Phases 1-7 Complete** (125 tests, 0 TS errors) + **Phase 8 Real-time updates: SSE stream endpoint, useJobStream hook, GlobalJobBadge, loading toasts**
+Last Updated: 2026-03-06
+Status: Post-MVP Hardening + **Project Phoenix Phases 1-9 Complete** (129 Vitest tests, 305 pytest tests, 0 TS errors) + **Phase 9 DONE: Rust/Python NLP alignment, security baseline critical state, extraction telemetry, diagnostics API/UI**
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -16,6 +16,7 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-7 Complete** (125 tests,
 - **Project Phoenix (Frontend Rewrite) Phase 6 — Situation Analysis: COMPLETE**
 - **Project Phoenix (Frontend Rewrite) Phase 7 — FastAPI Backend: direct-import migration complete, Redis caching added**
 - **Project Phoenix (Frontend Rewrite) Phase 8 — Real-time Updates: SSE job stream, live job badge, loading toasts**
+- **Phase 6.1 (R1) — Batch enrichment wired into `cycle.py`**: `enrich_events_batch()` is now primary path; single-item fallback on exception; `llm_mode=batch|single_fallback|disabled` in cycle stats/summary; 3 new batch enrichment tests (7/7 passing in `test_llm_enrichment.py`)
 - Humanitarian ontology and Situation Analysis engine: implemented and validated
 - Graph ontology evidence extraction: operational with multi-pattern NLP
 - SA quality gate fixes (citation regex, date attribution, source labelling, raw text filter): applied 2026-03-02
@@ -178,10 +179,20 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-7 Complete** (125 tests,
   - Stable toast IDs (`TOAST.cycle`, `TOAST.report`, `TOAST.sa`, `TOAST.pipeline`, `TOAST.sourceCheck`)
 - JWT/API-key auth middleware — deferred
 
-### Future Phases (9-10)
-- Phase 8: Real-time updates (SSE client, progress toasts, optimistic UI)
-- Phase 9: Advanced features (global search, filters, multi-workspace, settings page)
-- Phase 10: Testing & release (80% coverage, Playwright E2E, Lighthouse 90+, deploy)
+### Phase 9 — Analysis-Driven Intelligence & Observability — COMPLETE ✅ (2026-03-06)
+- [x] 9.1 ReliefWeb fields + narrative merge (body_html, embedded figures, source credibility)
+- [x] 9.2 MIME-first attachment parsing via MarkItDown (`attachment_extract.py`)
+- [x] 9.3 Extraction telemetry: per-field hit/miss counters, cycle summary stats
+- [x] 9.4 Diagnostics API + CLI (`/api/diagnostics/extraction`, `run-source-check --diagnostics`)
+- [x] 9.5 Phoenix diagnostics UI (ExtractionTelemetryCard, SourceDiagnosticsPanel)
+- [x] 9.6 API/job observability: adaptive polling, elapsed timings, per-operation status
+- [x] 9.7 Orchestration consolidation: job_type enum, LLM semaphore (R14), TTL purge (R15)
+- [x] 9.8 Security baseline semantics: `critical` state (R17), `deriveLevel()`, tooltips for all 5 states
+- [x] 9.9 Rust/Python NLP alignment: `classify_all_impact_types` PyO3 export, `nlp_keywords.toml` single source, `build.rs` codegen, 34 drift-guard tests, left-boundary keyword matching
+- **Totals: 129 Vitest tests (0 TS errors), 305 pytest tests**
+
+### Future Phase (10)
+- **Phase 10 — Testing & Release**: 80% coverage, Playwright E2E, Lighthouse 90+, WCAG 2.1 AA, production deployment
 
 ## Completed
 - Milestones 1-5 completed.

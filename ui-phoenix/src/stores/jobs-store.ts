@@ -11,6 +11,8 @@ export type JobStatus = "queued" | "running" | "done" | "error";
 interface JobEntry {
   label: string;
   status: JobStatus;
+  /** Client-side timestamp (ms since epoch) when addJob was called — used for elapsed display (R18). */
+  startedAt: number;
 }
 
 interface JobsState {
@@ -18,6 +20,7 @@ interface JobsState {
   addJob: (id: string, label: string) => void;
   updateJob: (id: string, status: JobStatus) => void;
   removeJob: (id: string) => void;
+  getJob: (id: string) => JobEntry | undefined;
   /** Number of jobs currently queued or running. */
   activeCount: () => number;
 }
@@ -27,7 +30,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
 
   addJob: (id, label) =>
     set((s) => ({
-      jobs: { ...s.jobs, [id]: { label, status: "queued" } },
+      jobs: { ...s.jobs, [id]: { label, status: "queued", startedAt: Date.now() } },
     })),
 
   updateJob: (id, status) =>
@@ -42,6 +45,8 @@ export const useJobsStore = create<JobsState>((set, get) => ({
       delete next[id];
       return { jobs: next };
     }),
+
+  getJob: (id) => get().jobs[id],
 
   activeCount: () => {
     const { jobs } = get();

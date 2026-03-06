@@ -21,6 +21,7 @@ fn moltis_rust_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Text classification
     m.add_function(wrap_pyfunction!(text_classify::classify_impact_type, m)?)?;
+    m.add_function(wrap_pyfunction!(text_classify::classify_all_impact_types, m)?)?;
     m.add_function(wrap_pyfunction!(text_classify::classify_need_types, m)?)?;
     m.add_function(wrap_pyfunction!(text_classify::severity_from_text, m)?)?;
     m.add_function(wrap_pyfunction!(text_classify::is_risk_text, m)?)?;

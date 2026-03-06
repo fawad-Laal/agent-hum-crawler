@@ -38,6 +38,10 @@ import type {
   dbRawItemsResponseSchema,
   dbFeedHealthRecordSchema,
   dbFeedHealthResponseSchema,
+  extractionConnectorStatSchema,
+  extractionMethodStatSchema,
+  extractionErrorSchema,
+  extractionDiagnosticsResponseSchema,
   jobQueuedSchema,
   jobStatusSchema,
 } from "@/lib/schemas";
@@ -101,6 +105,13 @@ export type DbRawItem = z.infer<typeof dbRawItemSchema>;
 export type DbRawItemsResponse = z.infer<typeof dbRawItemsResponseSchema>;
 export type DbFeedHealthRecord = z.infer<typeof dbFeedHealthRecordSchema>;
 export type DbFeedHealthResponse = z.infer<typeof dbFeedHealthResponseSchema>;
+
+// ── Extraction Diagnostics (Phase 9.5) ──────────────────────────────
+
+export type ExtractionConnectorStat = z.infer<typeof extractionConnectorStatSchema>;
+export type ExtractionMethodStat = z.infer<typeof extractionMethodStatSchema>;
+export type ExtractionError = z.infer<typeof extractionErrorSchema>;
+export type ExtractionDiagnosticsResponse = z.infer<typeof extractionDiagnosticsResponseSchema>;
 
 // ── Async Job System ──────────────────────────────────────────
 

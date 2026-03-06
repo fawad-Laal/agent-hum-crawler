@@ -70,6 +70,20 @@ def classify_impact_type(text: str) -> str:
     return _classify_impact_type(text).value
 
 
+def classify_all_impact_types(text: str) -> list[str]:
+    """Find ALL impact types in text (multi-label), ordered by score.
+
+    Returns a list of ImpactType string values, e.g.
+    ``["people_impact", "infrastructure_impact"]``.  Falls back to
+    ``["people_impact"]`` when nothing matches.
+    """
+    if _RUST_AVAILABLE:
+        return list(_rc.classify_all_impact_types(text))
+
+    from .graph_ontology import _classify_all_impact_types
+    return [t.value for t in _classify_all_impact_types(text)]
+
+
 def classify_need_types(text: str) -> list[str]:
     """Find all need types mentioned in text.
 

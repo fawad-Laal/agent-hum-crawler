@@ -271,6 +271,53 @@ describe("SecurityBaselineCard", () => {
     expect(screen.getByText("Partial Compliance")).toBeInTheDocument();
   });
 
+  it("shows critical state when both hardening and e2e security fail", () => {
+    // R17: combined fail must never be silently downgraded to warn
+    renderWithProviders(
+      <SecurityBaselineCard
+        hardening={{ status: "fail", checks: { tls: false } }}
+        e2eSummary={{ timestamp: "2026-03-01T10:00:00Z", security_status: "fail" }}
+        isLoading={false}
+      />
+    );
+    expect(screen.getByText("Critical Failure")).toBeInTheDocument();
+  });
+
+  it("renders tooltip reason text for pass state", () => {
+    renderWithProviders(
+      <SecurityBaselineCard
+        hardening={{ status: "pass" }}
+        e2eSummary={null}
+        isLoading={false}
+      />
+    );
+    expect(
+      screen.getByText(/all hardening gates passed/i)
+    ).toBeInTheDocument();
+  });
+
+  it("renders tooltip reason text for critical state", () => {
+    renderWithProviders(
+      <SecurityBaselineCard
+        hardening={{ status: "fail" }}
+        e2eSummary={{ timestamp: "2026-03-01T10:00:00Z", security_status: "fail" }}
+        isLoading={false}
+      />
+    );
+    expect(
+      screen.getByText(/immediate action required/i)
+    ).toBeInTheDocument();
+  });
+
+  it("renders tooltip reason text for unknown state", () => {
+    renderWithProviders(
+      <SecurityBaselineCard hardening={undefined} e2eSummary={null} isLoading={false} />
+    );
+    expect(
+      screen.getByText(/no hardening data available/i)
+    ).toBeInTheDocument();
+  });
+
   it("renders hardening check grid entries", () => {
     renderWithProviders(
       <SecurityBaselineCard

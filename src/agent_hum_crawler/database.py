@@ -9,7 +9,7 @@ from typing import Any, List
 
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-from .models import ProcessedEvent, RawSourceItem
+from .models import ExtractionEvent, ProcessedEvent, RawSourceItem
 
 
 class CycleRun(SQLModel, table=True):
@@ -86,6 +86,23 @@ class FeedHealthRecord(SQLModel, table=True):
     error: str = ""
     fetched_count: int = 0
     matched_count: int = 0
+
+
+class ExtractionRecord(SQLModel, table=True):
+    """Per-document extraction telemetry persisted during persist_cycle (Phase 9.3)."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    cycle_id: int = Field(index=True)
+    connector: str = Field(index=True)
+    source_url: str        # parent item URL (joins to rawitemrecord.url)
+    attachment_url: str    # specific document URL extracted
+    downloaded: bool = False
+    status: str            # "ok" | "empty" | "failed" | "skipped"
+    method: str            # "pdfplumber" | "pypdf" | "trafilatura" | "bs4" | "none"
+    char_count: int = 0
+    duration_ms: int = 0
+    error: str = ""
+    created_at: str = ""
 
 
 # ── Ontology persistence tables (Phase 4) ───────────────────────────
@@ -438,6 +455,7 @@ def persist_cycle(
                 )
             )
 
+        now_str = datetime.now(timezone.utc).isoformat()
         for raw_item in raw_items:
             session.add(
                 RawItemRecord(
@@ -448,9 +466,25 @@ def persist_cycle(
                     url=str(raw_item.url),
                     canonical_url=str(raw_item.canonical_url) if raw_item.canonical_url else None,
                     published_at=raw_item.published_at,
-                    payload_json=json.dumps(raw_item.model_dump(mode="json")),
+                    payload_json=json.dumps(raw_item.model_dump(mode="json", exclude={"extraction_events"})),
                 )
             )
+            for ev in raw_item.extraction_events:
+                session.add(
+                    ExtractionRecord(
+                        cycle_id=cycle_id,
+                        connector=ev.connector,
+                        source_url=str(raw_item.url),
+                        attachment_url=ev.attachment_url,
+                        downloaded=ev.downloaded,
+                        status=ev.status,
+                        method=ev.method,
+                        char_count=ev.char_count,
+                        duration_ms=ev.duration_ms,
+                        error=ev.error,
+                        created_at=now_str,
+                    )
+                )
 
         for metric in connector_metrics or []:
             connector = str(metric.get("connector", "unknown"))
@@ -675,3 +709,172 @@ def build_source_health_report(limit_cycles: int = 10, path: Path | None = None)
             "connectors": connectors,
             "sources": sources,
         }
+
+
+def build_extraction_diagnostics_report(
+    *,
+    limit_cycles: int = 20,
+    connector: str | None = None,
+    path: Path | None = None,
+) -> dict:
+    """Aggregate extraction telemetry for the diagnostics dashboard (Phase 9.4).
+
+    Returns a summary dict with:
+    - ``total_records``: int
+    - ``by_status``: {status → count}
+    - ``by_connector``: list of per-connector stats sorted by ok_rate asc
+    - ``by_method``: list of per-method stats
+    - ``top_errors``: top-10 (connector, method, error) combos by frequency
+    - ``low_yield_connectors``: connectors where ok_rate < 0.50
+    """
+    from collections import defaultdict
+
+    engine = build_engine(path)
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        # Anchor cycle window to most recent N cycles
+        recent_cycle_ids: list[int] = []
+        cycle_rows = session.exec(
+            select(CycleRun.id).order_by(CycleRun.id.desc()).limit(limit_cycles)  # type: ignore[attr-defined]
+        ).all()
+        recent_cycle_ids = [r for r in cycle_rows]
+
+        stmt = select(ExtractionRecord)
+        if recent_cycle_ids:
+            stmt = stmt.where(ExtractionRecord.cycle_id.in_(recent_cycle_ids))  # type: ignore[attr-defined]
+        if connector is not None:
+            stmt = stmt.where(ExtractionRecord.connector == connector)
+        records = session.exec(stmt).all()
+
+    if not records:
+        return {
+            "total_records": 0,
+            "cycles_analyzed": len(recent_cycle_ids),
+            "by_status": {},
+            "by_connector": [],
+            "by_method": [],
+            "top_errors": [],
+            "low_yield_connectors": [],
+        }
+
+    # ── aggregate ────────────────────────────────────────────────────
+    from collections import Counter
+
+    status_counter: Counter[str] = Counter()
+    # connector → {status → count, char_sum, dur_sum, char_n, dur_n}
+    conn_agg: dict[str, dict] = defaultdict(
+        lambda: {"ok": 0, "empty": 0, "failed": 0, "skipped": 0,
+                 "char_sum": 0, "char_n": 0, "dur_sum": 0, "dur_n": 0}
+    )
+    method_agg: dict[str, dict] = defaultdict(
+        lambda: {"total": 0, "ok": 0, "failed": 0, "char_sum": 0, "char_n": 0}
+    )
+    error_counter: Counter[tuple[str, str, str]] = Counter()
+
+    for r in records:
+        s = r.status or "unknown"
+        status_counter[s] += 1
+
+        ca = conn_agg[r.connector]
+        if s in ca:
+            ca[s] += 1
+        if r.char_count and r.char_count > 0:
+            ca["char_sum"] += r.char_count
+            ca["char_n"] += 1
+        if r.duration_ms and r.duration_ms > 0:
+            ca["dur_sum"] += r.duration_ms
+            ca["dur_n"] += 1
+
+        ma = method_agg[r.method or "unknown"]
+        ma["total"] += 1
+        if s == "ok":
+            ma["ok"] += 1
+        if s == "failed":
+            ma["failed"] += 1
+        if r.char_count and r.char_count > 0:
+            ma["char_sum"] += r.char_count
+            ma["char_n"] += 1
+
+        if s == "failed" and r.error:
+            # Normalise noisy error messages to first 120 chars
+            err_key = r.error[:120].strip()
+            error_counter[(r.connector, r.method or "unknown", err_key)] += 1
+
+    # ── build connector list ──────────────────────────────────────────
+    by_connector = []
+    for conn_name, ca in conn_agg.items():
+        total = ca["ok"] + ca["empty"] + ca["failed"] + ca["skipped"]
+        ok_rate = round(ca["ok"] / max(1, total), 4)
+        by_connector.append({
+            "connector": conn_name,
+            "total": total,
+            "ok": ca["ok"],
+            "empty": ca["empty"],
+            "failed": ca["failed"],
+            "skipped": ca["skipped"],
+            "ok_rate": ok_rate,
+            "avg_char_count": round(ca["char_sum"] / max(1, ca["char_n"])),
+            "avg_duration_ms": round(ca["dur_sum"] / max(1, ca["dur_n"])),
+        })
+    by_connector.sort(key=lambda x: x["ok_rate"])
+
+    # ── build method list ─────────────────────────────────────────────
+    by_method = []
+    for meth, ma in method_agg.items():
+        by_method.append({
+            "method": meth,
+            "total": ma["total"],
+            "ok": ma["ok"],
+            "failed": ma["failed"],
+            "ok_rate": round(ma["ok"] / max(1, ma["total"]), 4),
+            "avg_char_count": round(ma["char_sum"] / max(1, ma["char_n"])),
+        })
+    by_method.sort(key=lambda x: -x["total"])
+
+    # ── top errors ────────────────────────────────────────────────────
+    top_errors = [
+        {"connector": conn_name, "method": meth, "error": err, "count": cnt}
+        for (conn_name, meth, err), cnt in error_counter.most_common(10)
+    ]
+
+    # ── low-yield connectors ──────────────────────────────────────────
+    low_yield = [c["connector"] for c in by_connector if c["ok_rate"] < 0.50 and c["total"] >= 3]
+
+    return {
+        "total_records": len(records),
+        "cycles_analyzed": len(recent_cycle_ids),
+        "by_status": dict(status_counter),
+        "by_connector": by_connector,
+        "by_method": by_method,
+        "top_errors": top_errors,
+        "low_yield_connectors": low_yield,
+    }
+
+
+def get_extraction_records(
+    *,
+    cycle_id: int | None = None,
+    connector: str | None = None,
+    status: str | None = None,
+    limit: int = 500,
+    path: Path | None = None,
+) -> list[dict]:
+    """Query extraction telemetry records (Phase 9.3).
+
+    Optionally filter by *cycle_id*, *connector*, and/or *status*
+    (``"ok"`` | ``"empty"`` | ``"failed"`` | ``"skipped"``).
+    Returns plain dicts suitable for JSON serialisation.
+    """
+    engine = build_engine(path)
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        stmt = select(ExtractionRecord)
+        if cycle_id is not None:
+            stmt = stmt.where(ExtractionRecord.cycle_id == cycle_id)
+        if connector is not None:
+            stmt = stmt.where(ExtractionRecord.connector == connector)
+        if status is not None:
+            stmt = stmt.where(ExtractionRecord.status == status)
+        stmt = stmt.limit(limit)
+        rows = session.exec(stmt).all()
+    return [r.model_dump() for r in rows]

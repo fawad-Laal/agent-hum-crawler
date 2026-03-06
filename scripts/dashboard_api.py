@@ -11,8 +11,9 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +24,7 @@ from urllib.parse import parse_qs, urlparse
 from agent_hum_crawler.feature_flags import load_feature_flags
 from agent_hum_crawler.config import ALLOWED_DISASTER_TYPES
 from agent_hum_crawler.source_credibility import tier_label
+from agent_hum_crawler.database import build_extraction_diagnostics_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,55 +137,126 @@ def _run_cli(args: list[str], timeout: int = 30) -> dict:
 
 # ── In-process job store with concurrency guard ─────────────────────────────
 
+# Completed/error jobs older than this are purged on the next submit()
+_JOB_TTL_SECONDS = 300  # 5 minutes  (R15)
+
+
 @dataclass
 class _Job:
     job_id: str
-    status: str = "queued"  # queued | running | done | error
+    job_type: str = "generic"  # cycle | write-report | source-check | sa | workbench | pipeline
+    status: str = "queued"    # queued | running | done | error
     result: dict[str, Any] | None = None
     error: str | None = None
+    queued_at: float = field(default_factory=time.monotonic)
+    started_at: float | None = None
+    completed_at: float | None = None
 
 
 class _JobStore:
-    """Thread-safe job registry with exclusive semaphore for cycles/pipelines."""
+    """Thread-safe job registry with exclusive + per-type semaphores.  (R13-R15)
+
+    - *exclusive* jobs (cycle, pipeline) share one semaphore — only one runs
+      at a time, returning an actionable 409 error when full.
+    - LLM-backed jobs (sa, write-report with LLM, pipeline with LLM) share
+      a separate semaphore — returns actionable 429 when full.  (R14)
+    - Completed/error jobs older than _JOB_TTL_SECONDS are purged on each
+      submit() call to bound memory usage.  (R15)
+    - Timing fields (queued_at, started_at, completed_at) are tracked so the
+      API can surface elapsed_ms and wait_ms to operators.  (R18)
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, _Job] = {}
         # At most one heavy exclusive job (cycle / pipeline) at a time
         self._cycle_sem = threading.Semaphore(1)
+        # At most one LLM-backed job at a time (SA, write-report+LLM, pipeline+LLM)
+        self._llm_sem = threading.Semaphore(1)
 
-    def submit(self, fn: Callable[[], dict[str, Any]], *, exclusive: bool = False) -> str:
+    def _purge(self) -> None:
+        """Remove stale completed/error jobs (called under self._lock)."""
+        threshold = time.monotonic() - _JOB_TTL_SECONDS
+        stale = [
+            jid
+            for jid, j in self._jobs.items()
+            if j.status in ("done", "error")
+            and j.completed_at is not None
+            and j.completed_at < threshold
+        ]
+        for jid in stale:
+            del self._jobs[jid]
+
+    def submit(
+        self,
+        fn: Callable[[], dict[str, Any]],
+        *,
+        exclusive: bool = False,
+        job_type: str = "generic",
+        llm: bool = False,
+    ) -> str:
         """Dispatch *fn* to a daemon thread. Returns job_id immediately."""
         job_id = uuid.uuid4().hex[:8]
-        job = _Job(job_id=job_id, status="queued")
+        job = _Job(job_id=job_id, job_type=job_type)
         with self._lock:
+            self._purge()
             self._jobs[job_id] = job
 
         # Capture fn in default arg to avoid late-binding closure issues
         def _run(_fn: Callable[[], dict[str, Any]] = fn) -> None:
-            sem = self._cycle_sem if exclusive else None
-            if sem is not None and not sem.acquire(blocking=False):
+            cycle_sem = self._cycle_sem if exclusive else None
+            llm_sem = self._llm_sem if llm else None
+
+            if cycle_sem is not None and not cycle_sem.acquire(blocking=False):
                 with self._lock:
                     job.status = "error"
-                    job.error = "Another cycle or pipeline is already running — try again shortly."
+                    job.completed_at = time.monotonic()
+                    job.error = (
+                        "409: Another cycle or pipeline is already running "
+                        "\u2014 try again shortly."
+                    )
                 return
+
+            if llm_sem is not None and not llm_sem.acquire(blocking=False):
+                if cycle_sem is not None:
+                    try:
+                        cycle_sem.release()
+                    except ValueError:
+                        pass
+                with self._lock:
+                    job.status = "error"
+                    job.completed_at = time.monotonic()
+                    job.error = (
+                        "429: An LLM job is already in progress "
+                        "\u2014 try again once it completes."
+                    )
+                return
+
             try:
                 with self._lock:
                     job.status = "running"
+                    job.started_at = time.monotonic()
                 result = _fn()
                 with self._lock:
                     job.status = "done"
+                    job.completed_at = time.monotonic()
                     job.result = result
             except Exception as exc:  # noqa: BLE001
                 import traceback
                 with self._lock:
                     job.status = "error"
+                    job.completed_at = time.monotonic()
                     job.error = f"{type(exc).__name__}: {exc}"
                 traceback.print_exc()
             finally:
-                if sem is not None:
+                if cycle_sem is not None:
                     try:
-                        sem.release()
+                        cycle_sem.release()
+                    except ValueError:
+                        pass
+                if llm_sem is not None:
+                    try:
+                        llm_sem.release()
                     except ValueError:
                         pass
 
@@ -195,7 +268,20 @@ class _JobStore:
             return self._jobs.get(job_id)
 
     def to_response(self, job: _Job) -> dict[str, Any]:
-        base: dict[str, Any] = {"job_id": job.job_id, "status": job.status}
+        now = time.monotonic()
+        base: dict[str, Any] = {
+            "job_id": job.job_id,
+            "job_type": job.job_type,
+            "status": job.status,
+        }
+        # Operator-facing timing (R18)
+        if job.started_at is not None:
+            ref = job.completed_at if job.completed_at is not None else now
+            base["elapsed_ms"] = round((ref - job.started_at) * 1000)
+        if job.started_at is not None:
+            base["wait_ms"] = round(
+                (job.started_at - job.queued_at) * 1000
+            )
         if job.status == "done" and job.result is not None:
             base["result"] = job.result
         if job.status == "error" and job.error is not None:
@@ -682,6 +768,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             )
             self._send_json({"feed_health": rows, "count": len(rows)})
             return
+        if parsed.path == "/api/db/extraction-diagnostics":
+            qs = parse_qs(parsed.query)
+            limit_cycles = int(qs.get("limit_cycles", ["20"])[0])
+            limit_cycles = max(1, min(limit_cycles, 100))
+            connector = qs.get("connector", [None])[0] or None
+            try:
+                report = build_extraction_diagnostics_report(
+                    limit_cycles=limit_cycles,
+                    connector=connector,
+                )
+                self._send_json(report)
+            except Exception as exc:  # noqa: BLE001
+                self._send_json({"error": str(exc)}, status=500)
+            return
         if parsed.path == "/api/country-sources":
             data: dict = {}
             try:
@@ -739,7 +839,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 str(int(body.get("max_age_days", 30))),
                 "--include-content",
             ]
-            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=300), exclusive=True)
+            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=300), exclusive=True, job_type="cycle")
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/write-report":
@@ -768,7 +868,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             ]
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
-            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=300))
+            job_id = _JOB_STORE.submit(
+                lambda _c=cmd: _run_cli(_c, timeout=300),
+                job_type="write-report",
+                llm=bool(body.get("use_llm", False)),
+            )
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/source-check":
@@ -788,7 +892,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "--max-age-days",
                 str(int(body.get("max_age_days", 30))),
             ]
-            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=120))
+            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=120), job_type="source-check")
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/report-workbench":
@@ -797,7 +901,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             store = _load_profile_store()
             store["last_profile"] = profile
             _save_profile_store(store)
-            job_id = _JOB_STORE.submit(lambda _p=profile: _run_workbench(_p))
+            job_id = _JOB_STORE.submit(lambda _p=profile: _run_workbench(_p), job_type="workbench")
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/report-workbench/rerun-last":
@@ -805,7 +909,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             profile = _normalize_profile(store.get("last_profile", {}))
             store["last_profile"] = profile
             _save_profile_store(store)
-            job_id = _JOB_STORE.submit(lambda _p=profile: _run_workbench(_p))
+            job_id = _JOB_STORE.submit(lambda _p=profile: _run_workbench(_p), job_type="workbench")
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/workbench-profiles/save":
@@ -884,7 +988,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     result.setdefault("markdown", "")
                 result["output_file"] = _out.name
                 return result
-            job_id = _JOB_STORE.submit(_run_sa)
+            job_id = _JOB_STORE.submit(
+                _run_sa,
+                job_type="sa",
+                llm=bool(body.get("use_llm", False)),
+            )
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         if parsed.path == "/api/run-pipeline":
@@ -921,7 +1029,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 cmd.extend(["--max-age-days", str(int(max_age))])
             if bool(body.get("use_llm", False)):
                 cmd.append("--use-llm")
-            job_id = _JOB_STORE.submit(lambda _c=cmd: _run_cli(_c, timeout=900), exclusive=True)
+            job_id = _JOB_STORE.submit(
+                lambda _c=cmd: _run_cli(_c, timeout=900),
+                exclusive=True,
+                job_type="pipeline",
+                llm=bool(body.get("use_llm", False)),
+            )
             self._send_json({"job_id": job_id, "status": "queued"}, status=202)
             return
         self._send_json({"error": "not found"}, status=404)

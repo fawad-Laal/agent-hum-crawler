@@ -20,6 +20,7 @@ Date: 2026-02-21
 
 | Document | Location |
 |----------|----------|
+| Deep Analysis (March 2026) | [../analysis/moltis_deep_analysis_march2026.md](../analysis/moltis_deep_analysis_march2026.md) |
 | Frontend Audit Report | [../analysis/frontend-audit-report.md](../analysis/frontend-audit-report.md) |
 | SA Quality Root Cause Analysis | [../analysis/sa-improvement-analysis.md](../analysis/sa-improvement-analysis.md) |
 | LLM Intelligence Layer v1 Spec | [../../specs/15-llm-intelligence-layer-v1.md](../../specs/15-llm-intelligence-layer-v1.md) |

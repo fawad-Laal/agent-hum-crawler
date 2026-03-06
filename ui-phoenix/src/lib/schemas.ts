@@ -16,11 +16,15 @@ export const jobQueuedSchema = z.object({
 /** Polling response for GET /api/jobs/{job_id}. */
 export const jobStatusSchema = z.object({
   job_id: z.string(),
+  job_type: z.string().optional(),
   status: z.enum(["queued", "running", "done", "error"]),
   // result is the actual payload when status === "done"
   result: z.unknown().optional(),
   error: z.string().optional(),
-});
+  // Operator-facing timing (R18) — populated once job starts
+  elapsed_ms: z.number().optional(),
+  wait_ms: z.number().optional(),
+}).passthrough();
 // ── Overview API ────────────────────────────────────────────
 
 export const qualityMetricsSchema = z.object({
@@ -336,5 +340,45 @@ export const dbFeedHealthRecordSchema = z.object({
 export const dbFeedHealthResponseSchema = z.object({
   feed_health: z.array(dbFeedHealthRecordSchema),
   count: z.number(),
+});
+
+// ── Extraction Diagnostics (Phase 9.5) ──────────────────────────
+
+export const extractionConnectorStatSchema = z.object({
+  connector: z.string(),
+  total: z.number(),
+  ok: z.number(),
+  empty: z.number(),
+  failed: z.number(),
+  skipped: z.number(),
+  ok_rate: z.number(),
+  avg_char_count: z.number(),
+  avg_duration_ms: z.number(),
+}).passthrough();
+
+export const extractionMethodStatSchema = z.object({
+  method: z.string(),
+  total: z.number(),
+  ok: z.number(),
+  failed: z.number(),
+  ok_rate: z.number(),
+  avg_char_count: z.number(),
+}).passthrough();
+
+export const extractionErrorSchema = z.object({
+  connector: z.string(),
+  method: z.string(),
+  error: z.string(),
+  count: z.number(),
+});
+
+export const extractionDiagnosticsResponseSchema = z.object({
+  total_records: z.number(),
+  cycles_analyzed: z.number(),
+  by_status: z.record(z.string(), z.number()),
+  by_connector: z.array(extractionConnectorStatSchema),
+  by_method: z.array(extractionMethodStatSchema),
+  top_errors: z.array(extractionErrorSchema),
+  low_yield_connectors: z.array(z.string()),
 });
 

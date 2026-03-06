@@ -15,7 +15,7 @@ from .connectors import (
 )
 from .database import persist_cycle
 from .dedupe import detect_changes
-from .llm_enrichment import enrich_events_with_llm
+from .llm_enrichment import enrich_events_batch, enrich_events_with_llm
 from .models import ProcessedEvent, RawSourceItem
 from .settings import get_reliefweb_appname, is_llm_enrichment_enabled, is_reliefweb_enabled
 from .source_registry import load_registry
@@ -217,8 +217,9 @@ def run_cycle_once(
     )
 
     events = dedupe.events
-    llm_stats = {
+    llm_stats: dict = {
         "enabled": False,
+        "llm_mode": "disabled",
         "attempted_count": 0,
         "enriched_count": 0,
         "fallback_count": len(events),
@@ -227,13 +228,24 @@ def run_cycle_once(
         "insufficient_text_count": len(events),
     }
     if is_llm_enrichment_enabled():
-        events, llm_stats = enrich_events_with_llm(events, all_items)
+        try:
+            events, llm_stats = enrich_events_batch(events, all_items)
+            if not llm_stats.get("enabled"):
+                # Batch returned disabled (no API key) — events already unchanged
+                llm_stats["llm_mode"] = "disabled"
+            else:
+                llm_stats["llm_mode"] = "batch"
+        except Exception as _batch_exc:  # noqa: BLE001
+            print(f"Warning: batch enrichment failed ({_batch_exc}), falling back to single-item mode")
+            events, llm_stats = enrich_events_with_llm(events, all_items)
+            llm_stats["llm_mode"] = "single_fallback"
 
     summary = (
         f"Cycle complete: items={len(all_items)}, events={len(dedupe.events)}, "
         f"new={sum(1 for e in dedupe.events if e.status == 'new')}, "
         f"updated={sum(1 for e in dedupe.events if e.status == 'updated')}, "
         f"llm_enrichment_used={str(llm_stats['enabled']).lower()}, "
+        f"llm_mode={llm_stats.get('llm_mode', 'disabled')}, "
         f"llm_enriched={llm_stats['enriched_count']}, llm_fallback={llm_stats['fallback_count']}, "
         f"age_filtered_out={age_filtered_out}"
     )

@@ -25,6 +25,7 @@ import type {
   DbEventsResponse,
   DbRawItemsResponse,
   DbFeedHealthResponse,
+  ExtractionDiagnosticsResponse,
 } from "@/types";
 import type { ZodType } from "zod";
 import {
@@ -45,6 +46,7 @@ import {
   dbEventsResponseSchema,
   dbRawItemsResponseSchema,
   dbFeedHealthResponseSchema,
+  extractionDiagnosticsResponseSchema,
   jobQueuedSchema,
   jobStatusSchema,
 } from "@/lib/schemas";
@@ -118,23 +120,38 @@ async function apiFetch<T>(
  * Poll GET /api/jobs/{jobId} until the job is done or errors out.
  * Returns the typed *result* field from the job status response.
  *
- * Mutation hooks are unchanged — they still resolve with CliResult,
- * SAResponse, etc. The async polling is fully transparent to callers.
+ * Adaptive back-off (R16): polls start at 1 s, doubling each time up to a
+ * configurable cap (default 10 s).  This halves request volume for long jobs
+ * vs the previous fixed-interval approach.
  *
- * @param jobId   Job token returned by a 202 POST endpoint.
- * @param schema  Optional Zod schema to validate the result payload.
- * @param opts    intervalMs (default 2000), timeoutMs (default 15 min).
+ * Cancellation: pass an AbortSignal via opts.signal to stop polling when the
+ * caller navigates away or unmounts.
+ *
+ * @param jobId     Job token returned by a 202 POST endpoint.
+ * @param schema    Optional Zod schema to validate the result payload.
+ * @param opts      minIntervalMs, maxIntervalMs, timeoutMs, signal.
  */
 async function pollJob<T>(
   jobId: string,
   schema?: ZodType<T>,
-  opts?: { intervalMs?: number; timeoutMs?: number },
+  opts?: {
+    minIntervalMs?: number;
+    maxIntervalMs?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  },
 ): Promise<T> {
-  const intervalMs = opts?.intervalMs ?? 2000;
-  const timeoutMs = opts?.timeoutMs ?? 15 * 60 * 1000;
+  const minMs = opts?.minIntervalMs ?? 1_000;
+  const maxMs = opts?.maxIntervalMs ?? 10_000;
+  const timeoutMs = opts?.timeoutMs ?? 15 * 60 * 1_000;
   const deadline = Date.now() + timeoutMs;
+  let currentInterval = minMs;
 
   while (Date.now() < deadline) {
+    if (opts?.signal?.aborted) {
+      throw new DOMException(`Job ${jobId} polling aborted`, "AbortError");
+    }
+
     const status = await apiFetch(`/jobs/${jobId}`, undefined, jobStatusSchema);
 
     if (status.status === "done") {
@@ -147,8 +164,17 @@ async function pollJob<T>(
       throw new Error(status.error ?? `Job ${jobId} failed`);
     }
 
-    // Still queued or running — wait then poll again
-    await new Promise<void>((res) => setTimeout(res, intervalMs));
+    // Still queued or running — adaptive back-off wait
+    await new Promise<void>((res, rej) => {
+      const timer = setTimeout(res, currentInterval);
+      opts?.signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        rej(new DOMException(`Job ${jobId} polling aborted`, "AbortError"));
+      }, { once: true });
+    });
+
+    // Double the interval, capped at maxMs
+    currentInterval = Math.min(currentInterval * 2, maxMs);
   }
 
   throw new Error(`Job ${jobId} timed out after ${timeoutMs}ms`);
@@ -200,7 +226,7 @@ export async function runCycle(params: RunCycleParams): Promise<CliResult> {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
-  return pollJob<CliResult>(job.job_id, cliResultSchema, { intervalMs: 2000 });
+  return pollJob<CliResult>(job.job_id, cliResultSchema);
 }
 
 export interface WriteReportParams {
@@ -221,7 +247,7 @@ export async function writeReport(params: WriteReportParams): Promise<CliResult>
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
-  return pollJob<CliResult>(job.job_id, cliResultSchema, { intervalMs: 3000 });
+  return pollJob<CliResult>(job.job_id, cliResultSchema);
 }
 
 export async function runSourceCheck(params: RunCycleParams): Promise<SourceCheckResponse> {
@@ -229,7 +255,7 @@ export async function runSourceCheck(params: RunCycleParams): Promise<SourceChec
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
-  return pollJob<SourceCheckResponse>(job.job_id, sourceCheckResponseSchema, { intervalMs: 2000 });
+  return pollJob<SourceCheckResponse>(job.job_id, sourceCheckResponseSchema);
 }
 
 export interface WriteSAParams {
@@ -252,7 +278,7 @@ export async function writeSA(params: WriteSAParams): Promise<SAResponse> {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
-  return pollJob<SAResponse>(job.job_id, saResponseSchema, { intervalMs: 3000 });
+  return pollJob<SAResponse>(job.job_id, saResponseSchema);
 }
 
 export async function runWorkbench(
@@ -262,7 +288,7 @@ export async function runWorkbench(
     method: "POST",
     body: JSON.stringify(profile),
   }, jobQueuedSchema);
-  return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema, { intervalMs: 3000 });
+  return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema);
 }
 
 export async function saveWorkbenchProfile(
@@ -313,14 +339,14 @@ export async function runPipeline(params: RunPipelineParams): Promise<CliResult>
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
-  return pollJob<CliResult>(job.job_id, cliResultSchema, { intervalMs: 3000 });
+  return pollJob<CliResult>(job.job_id, cliResultSchema);
 }
 
 export async function rerunLastWorkbench(): Promise<WorkbenchResponse> {
   const job = await apiFetch("/report-workbench/rerun-last", {
     method: "POST",
   }, jobQueuedSchema);
-  return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema, { intervalMs: 3000 });
+  return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema);
 }
 
 /** Toggle a single feature flag on or off. */
@@ -361,4 +387,19 @@ export async function fetchDbRawItems(limit = 100): Promise<DbRawItemsResponse> 
 
 export async function fetchDbFeedHealth(limit = 100): Promise<DbFeedHealthResponse> {
   return apiFetch(`/db/feed-health?limit=${limit}`, undefined, dbFeedHealthResponseSchema);
+}
+
+export interface ExtractionDiagnosticsParams {
+  limit_cycles?: number;
+  connector?: string;
+}
+
+export async function fetchExtractionDiagnostics(
+  params: ExtractionDiagnosticsParams = {},
+): Promise<ExtractionDiagnosticsResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit_cycles) qs.set("limit_cycles", String(params.limit_cycles));
+  if (params.connector) qs.set("connector", params.connector);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch(`/db/extraction-diagnostics${query}`, undefined, extractionDiagnosticsResponseSchema);
 }

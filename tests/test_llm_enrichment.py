@@ -1,4 +1,10 @@
-from agent_hum_crawler.llm_enrichment import enrich_events_with_llm
+import pytest
+
+from agent_hum_crawler.llm_enrichment import (
+    _call_batch_llm,
+    enrich_events_batch,
+    enrich_events_with_llm,
+)
 from agent_hum_crawler.models import ProcessedEvent, RawSourceItem
 
 
@@ -133,5 +139,80 @@ def test_enrichment_fallback_on_invalid_severity() -> None:
     enriched, stats = enrich_events_with_llm([event], [raw_item], complete_fn=fake_complete)
     assert stats["fallback_count"] == 1
     assert stats["validation_fail_count"] == 1
+    assert enriched[0].llm_enriched is False
+    assert enriched[0].summary == "Initial summary"
+
+
+# ── Batch enrichment tests ────────────────────────────────────────────
+
+
+def test_batch_enrichment_disabled_when_no_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """enrich_events_batch returns (events unchanged, enabled=False) when no API key."""
+    import agent_hum_crawler.llm_enrichment as m
+
+    monkeypatch.setattr(m, "get_openai_api_key", lambda: None)
+
+    event = _sample_event()
+    raw_item = _sample_raw_item()
+    enriched, stats = enrich_events_batch([event], [raw_item])
+
+    assert stats["enabled"] is False
+    assert stats["reason"] == "no_api_key"
+    assert len(enriched) == 1
+    # Event returned unchanged — not enriched
+    assert enriched[0].llm_enriched is False
+
+
+def test_batch_enrichment_success_via_mock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """enrich_events_batch applies enriched data when _call_batch_llm succeeds."""
+    import agent_hum_crawler.llm_enrichment as m
+
+    monkeypatch.setattr(m, "get_openai_api_key", lambda: "sk-test")
+    monkeypatch.setattr(
+        m,
+        "_call_batch_llm",
+        lambda _key, payload: {
+            "items": [
+                {
+                    "index": 0,
+                    "summary": "Batch enriched: 12,000 displaced in Toamasina.",
+                    "severity": "high",
+                    "confidence": "high",
+                }
+            ]
+        },
+    )
+
+    event = _sample_event()
+    raw_item = _sample_raw_item()
+    enriched, stats = enrich_events_batch([event], [raw_item])
+
+    assert stats["enabled"] is True
+    assert stats["mode"] == "batch"
+    assert stats["enriched_count"] == 1
+    assert stats["fallback_count"] == 0
+    assert stats["batches_sent"] == 1
+    assert enriched[0].llm_enriched is True
+    assert enriched[0].summary == "Batch enriched: 12,000 displaced in Toamasina."
+    assert enriched[0].severity == "high"
+    assert enriched[0].confidence == "high"
+
+
+def test_batch_enrichment_per_batch_fallback_on_provider_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When _call_batch_llm raises, the whole batch falls back to original events unchanged."""
+    import agent_hum_crawler.llm_enrichment as m
+
+    monkeypatch.setattr(m, "get_openai_api_key", lambda: "sk-test")
+    monkeypatch.setattr(m, "_call_batch_llm", lambda *_: (_ for _ in ()).throw(RuntimeError("timeout")))
+
+    event = _sample_event()
+    raw_item = _sample_raw_item()
+    enriched, stats = enrich_events_batch([event], [raw_item])
+
+    assert stats["enabled"] is True
+    assert stats["provider_error_count"] == 1
+    assert stats["fallback_count"] == 1
+    assert stats["enriched_count"] == 0
+    # Event returned unchanged — original summary preserved
     assert enriched[0].llm_enriched is False
     assert enriched[0].summary == "Initial summary"

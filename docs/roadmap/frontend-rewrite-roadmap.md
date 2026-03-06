@@ -1,4 +1,4 @@
-# Frontend Rewrite Roadmap — Agent HUM Crawler
+﻿# Frontend Rewrite Roadmap â€” Agent HUM Crawler
 
 **Date:** February 21, 2026  
 **Status:** Active  
@@ -19,11 +19,11 @@ This roadmap defines a **complete frontend rewrite** for the Agent HUM Crawler p
 - Rewrite timeline (5-6 months) comparable to incremental refactor with better outcome
 
 **Strategic Objectives:**
-1. **Scalability** — Support 50+ countries, 1000+ reports, 100+ concurrent users
-2. **Maintainability** — Enable 5-10 developers to work in parallel without conflicts
-3. **User Experience** — Real-time updates, advanced search/filter, responsive design
-4. **Production Readiness** — Authentication, monitoring, error recovery, data export
-5. **Developer Velocity** — Type safety, component library, testing infrastructure
+1. **Scalability** â€” Support 50+ countries, 1000+ reports, 100+ concurrent users
+2. **Maintainability** â€” Enable 5-10 developers to work in parallel without conflicts
+3. **User Experience** â€” Real-time updates, advanced search/filter, responsive design
+4. **Production Readiness** â€” Authentication, monitoring, error recovery, data export
+5. **Developer Velocity** â€” Type safety, component library, testing infrastructure
 
 ---
 
@@ -92,38 +92,38 @@ This roadmap defines a **complete frontend rewrite** for the Agent HUM Crawler p
 
 ```
 ui/
-├── src/
-│   ├── components/          # Reusable UI components
-│   │   ├── layout/          # Header, Sidebar, Layout shells
-│   │   ├── charts/          # TrendChart, BarChart, Sparkline
-│   │   ├── forms/           # CountrySelect, HazardPicker, DateRange
-│   │   ├── tables/          # DataTable, SourceTable, ReportTable
-│   │   └── ui/              # Shadcn/ui primitives (Button, Card, etc.)
-│   ├── features/            # Feature modules
-│   │   ├── overview/        # Dashboard home (KPIs, trends)
-│   │   ├── operations/      # Run Cycle, Source Check, Collection
-│   │   ├── reports/         # Write Report, Report List, Preview
-│   │   ├── situation-analysis/ # Write SA, SA Output, Quality Gate
-│   │   ├── workbench/       # AI vs Deterministic, Presets, Compare
-│   │   ├── sources/         # Source Health, Connector Diagnostics
-│   │   ├── system/          # Hardening, E2E, Security, Conformance
-│   │   └── settings/        # User Preferences, Feature Flags
-│   ├── hooks/               # Custom hooks (useOverview, useSources, etc.)
-│   ├── lib/                 # Utilities, API client, validators
-│   ├── stores/              # Zustand stores (formStore, uiStore)
-│   ├── types/               # TypeScript types
-│   ├── routes.tsx           # Route definitions
-│   ├── App.tsx              # Root component (Router + Layout)
-│   └── main.tsx             # Entry point
-├── public/                  # Static assets
-├── tests/                   # Frontend tests
-│   ├── unit/                # Component unit tests
-│   ├── integration/         # Feature integration tests
-│   └── e2e/                 # Playwright E2E tests (future)
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── tailwind.config.js
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ components/          # Reusable UI components
+â”‚   â”‚   â”œâ”€â”€ layout/          # Header, Sidebar, Layout shells
+â”‚   â”‚   â”œâ”€â”€ charts/          # TrendChart, BarChart, Sparkline
+â”‚   â”‚   â”œâ”€â”€ forms/           # CountrySelect, HazardPicker, DateRange
+â”‚   â”‚   â”œâ”€â”€ tables/          # DataTable, SourceTable, ReportTable
+â”‚   â”‚   â””â”€â”€ ui/              # Shadcn/ui primitives (Button, Card, etc.)
+â”‚   â”œâ”€â”€ features/            # Feature modules
+â”‚   â”‚   â”œâ”€â”€ overview/        # Dashboard home (KPIs, trends)
+â”‚   â”‚   â”œâ”€â”€ operations/      # Run Cycle, Source Check, Collection
+â”‚   â”‚   â”œâ”€â”€ reports/         # Write Report, Report List, Preview
+â”‚   â”‚   â”œâ”€â”€ situation-analysis/ # Write SA, SA Output, Quality Gate
+â”‚   â”‚   â”œâ”€â”€ workbench/       # AI vs Deterministic, Presets, Compare
+â”‚   â”‚   â”œâ”€â”€ sources/         # Source Health, Connector Diagnostics
+â”‚   â”‚   â”œâ”€â”€ system/          # Hardening, E2E, Security, Conformance
+â”‚   â”‚   â””â”€â”€ settings/        # User Preferences, Feature Flags
+â”‚   â”œâ”€â”€ hooks/               # Custom hooks (useOverview, useSources, etc.)
+â”‚   â”œâ”€â”€ lib/                 # Utilities, API client, validators
+â”‚   â”œâ”€â”€ stores/              # Zustand stores (formStore, uiStore)
+â”‚   â”œâ”€â”€ types/               # TypeScript types
+â”‚   â”œâ”€â”€ routes.tsx           # Route definitions
+â”‚   â”œâ”€â”€ App.tsx              # Root component (Router + Layout)
+â”‚   â””â”€â”€ main.tsx             # Entry point
+â”œâ”€â”€ public/                  # Static assets
+â”œâ”€â”€ tests/                   # Frontend tests
+â”‚   â”œâ”€â”€ unit/                # Component unit tests
+â”‚   â”œâ”€â”€ integration/         # Feature integration tests
+â”‚   â””â”€â”€ e2e/                 # Playwright E2E tests (future)
+â”œâ”€â”€ package.json
+â”œâ”€â”€ tsconfig.json
+â”œâ”€â”€ vite.config.ts
+â””â”€â”€ tailwind.config.js
 ```
 
 ### 3.3 Component Breakdown
@@ -145,7 +145,7 @@ ui/
 
 ## 4. Implementation Phases
 
-### Phase 1 — Foundation (Weeks 1-3)
+### Phase 1 â€” Foundation (Weeks 1-3)
 
 **Goal:** Set up TypeScript, Shadcn/ui, React Router, basic layout structure.
 
@@ -162,7 +162,7 @@ ui/
 
 ---
 
-### Phase 2 — Data Layer (Weeks 4-5)
+### Phase 2 â€” Data Layer (Weeks 4-5)
 
 **Goal:** Implement TanStack Query, migrate API client, add Zustand stores.
 
@@ -179,7 +179,7 @@ ui/
 
 ---
 
-### Phase 3 — Operations Module (Weeks 6-7)
+### Phase 3 â€” Operations Module (Weeks 6-7)
 
 **Goal:** Migrate Command Center to `/operations` route.
 
@@ -197,7 +197,7 @@ ui/
 
 ---
 
-### Phase 4 — Reports Module (Weeks 8-9)
+### Phase 4 â€” Reports Module (Weeks 8-9)
 
 **Goal:** Build `/reports` route with list, preview, export, and workbench.
 
@@ -214,7 +214,7 @@ ui/
 
 ---
 
-### Phase 5 — Sources & System (Weeks 10-11)
+### Phase 5 â€” Sources & System (Weeks 10-11)
 
 **Goal:** Build `/sources` and `/system` routes.
 
@@ -231,7 +231,7 @@ ui/
 
 ---
 
-### Phase 6 — Situation Analysis (Weeks 12-13)
+### Phase 6 â€” Situation Analysis (Weeks 12-13)
 
 **Goal:** Build `/sa` route with quality gate visualization.
 
@@ -248,7 +248,7 @@ ui/
 
 ---
 
-### Phase 7 — Backend Rewrite (Weeks 14-16)
+### Phase 7 â€” Backend Rewrite (Weeks 14-16)
 
 **Goal:** Replace ThreadingHTTPServer with FastAPI + direct imports + caching.
 
@@ -266,14 +266,14 @@ ui/
 
 ---
 
-### Phase 8 — Real-time Updates (Weeks 17-18)
+### Phase 8 â€” Real-time Updates (Weeks 17-18)
 
 **Goal:** Implement SSE-based live updates for cycle/report progress.
 
 | # | Task | Acceptance Criteria |
 |---|------|-------------------|
 | 8.1 | Add SSE client in frontend | `useSSE` hook connects to `/api/v1/events` |
-| 8.2 | Add progress toasts | Real-time cycle progress (evidence → ontology → report) |
+| 8.2 | Add progress toasts | Real-time cycle progress (evidence â†’ ontology â†’ report) |
 | 8.3 | Add live source health updates | Auto-refresh source table when new checks run |
 | 8.4 | Add optimistic UI updates | Mutate cache before API response for instant feedback |
 | 8.5 | Add notification center | Toast queue with dismiss, undo, history |
@@ -283,35 +283,45 @@ ui/
 
 ---
 
-### Phase 9 — Advanced Features (Weeks 19-21)
-
-**Goal:** Add search, filters, multi-workspace, collaboration.
-
-| # | Task | Acceptance Criteria |
-|---|------|-------------------|
-| 9.1 | Add global search | Fuzzy search across reports, sources, events |
-| 9.2 | Add advanced filters | Date range, disaster type, country, credibility tier |
-| 9.3 | Add multi-workspace support | Switch between country profiles, save workspaces |
-| 9.4 | Add user preferences | Dark mode, compact view, default filters |
-| 9.5 | Add report annotations | Inline comments, highlight sections (future collab) |
-| 9.6 | Add comparison views | Compare 2+ reports side-by-side |
-
-**Deliverable:** Advanced search, filters, multi-workspace, user preferences.
+### Phase 9 - Analysis-Driven Intelligence & Observability (Weeks 19-21)
+**Goal:** Execute March 2026 validated analysis findings with implementation traceability from roadmap task -> analysis ID -> code/tests.
+**Primary implementation reference:**
+- [Deep Analysis - March 2026](../analysis/moltis_deep_analysis_march2026.md)
+- [MarkItDown Repository](https://github.com/microsoft/markitdown)
+**Developer rule (required):**
+- Every Phase 9 PR must cite one or more analysis IDs in PR description/test notes (R22-R29, R16-R18, R13-R15).
+| # | Workstream | Detailed Tasks | Acceptance Criteria | Analysis Reference |
+|---|------------|----------------|---------------------|--------------------|
+| 9.1 | ReliefWeb fields + narrative merge | Expand ReliefWeb fields (headline.title, headline.summary, file.mimetype, file.filename, file.description, origin) and implement deterministic text merge precedence | Connector persists richer report metadata with no regression in fetch stability | R22, R23 | ✅ Done 2026-03-04 |
+| 9.2 | MIME-first attachment parsing with MarkItDown | Parse attachments by MIME first, extension fallback second; download full attachment bytes, then run MarkItDown (`markitdown[pdf,docx,xlsx]`) as primary converter with fallback extractors | Attachment parse coverage increases; unsupported types are explicitly tracked as skipped; PDF parse success target >=90% with `char_count >= 500` | R24, R25 | ✅ Done 2026-03-04 |
+| 9.3 | Extraction telemetry model | Persist extraction diagnostics (`downloaded`, `status`, `method`, `char_count`, `duration_ms`, `error`) per attachment/document | Backend exposes reliable per-cycle extraction quality telemetry and method lineage (`markitdown` vs fallback) | R26 | ✅ Done 2026-03-04 |
+| 9.4 | Diagnostics API + CLI | Add extraction diagnostics endpoint and CLI (extraction-report) for operators | Operators can identify top parser failures and low-yield sources in one query/command | R27, R28 | ✅ Done 2026-03-04 |
+| 9.5 | Phoenix diagnostics UI | Add Sources/System diagnostics panel for extraction success rate, format mix, top errors, trend lines | UI provides actionable extraction health and regression visibility | R29 | ✅ Done 2026-03-05 |
+| 9.6 | API/job observability | Add adaptive polling/backoff and surface job stage timings in UI | Reduced polling load and better operator visibility of long-running jobs | R16, R18 | ✅ Done 2026-03-05 |
+| 9.7 | Orchestration consolidation | Route long workflows through shared coordinator/service contracts; enforce queue policy for heavy jobs | Reduced duplicated orchestration logic; predictable concurrency behavior | R13, R14, R15 | ✅ Done 2026-03-05 |
+| 9.8 | Security baseline semantics | Refine `security-baseline-card.tsx` state mapping: promote combined hardening-fail + E2E-fail to explicit `critical` state; add tooltip text explaining pass/warn/fail reason | Combined failure is never silently downgraded to `warn`; tooltip renders for all three states | R17 | ✅ Done 2026-03-05 |
+| 9.9 | Rust/Python NLP alignment | (1) Add `classify_all_impact_types(text) → Vec<String>` to `rust_core/src/text_classify.rs` (multi-label, matching Python's contract); expose via PyO3 + `rust_accel.py`. (2) Remove the blended workaround in `graph_ontology.py` — Rust path uses the new multi-label function directly. (3) Add drift-guard pytest that runs every NLP function (impact, need, severity, risk, figures) on 20 fixed sentences and asserts Rust == Python output. (4) Extract keyword tables to `config/nlp_keywords.toml`; `build.rs` codegen step generates Rust constants and Python dict from the single source. | `TestMultiImpact` passes natively via Rust with no Python supplement; drift-guard catches any future keyword-set divergence; zero duplicate keyword definitions in source tree | — | ✅ Done 2026-03-06 |
+**Developer checklist:**
+1. Link roadmap task and analysis IDs in code/PR.
+2. Add or update tests for connector/API/UI contract changes.
+3. Add diagnostics fields/events for behavior changes.
+4. Update docs with implemented analysis references.
+**Deliverable:** Production-ready extraction intelligence + monitoring layer with analysis-linked developer workflow.
 
 ---
 
-### Phase 10 — Testing & Release (Weeks 22-24)
+### Phase 10 — Testing & Release (Weeks 22-24) 🔜 **NEXT — Starting 2026-03-06**
 
 **Goal:** Achieve 80% test coverage, performance benchmarks, production deployment.
 
-| # | Task | Acceptance Criteria |
-|---|------|-------------------|
-| 10.1 | Write unit tests | 80% coverage for components, hooks, utils |
-| 10.2 | Write integration tests | Test feature workflows (run cycle → view report) |
-| 10.3 | Add Playwright E2E tests | Full user journeys (5-10 scenarios) |
-| 10.4 | Performance audit | Lighthouse score 90+, LCP < 2.5s |
-| 10.5 | Accessibility audit | WCAG 2.1 AA compliance, keyboard nav |
-| 10.6 | Production deployment | Deploy to staging, then production with CI/CD |
+| # | Task | Acceptance Criteria | Status |
+|---|------|-------------------|--------|
+| 10.1 | Write unit tests | 80% coverage for components, hooks, utils (`@vitest/coverage-v8`) | 🔜 Next |
+| 10.2 | Write integration tests | Test feature workflows (run cycle → view report) | Not started |
+| 10.3 | Add Playwright E2E tests | Full user journeys (5-10 scenarios) | Not started |
+| 10.4 | Performance audit | Lighthouse score 90+, LCP < 2.5s | Not started |
+| 10.5 | Accessibility audit | WCAG 2.1 AA compliance, keyboard nav | Not started |
+| 10.6 | Production deployment | Deploy to staging, then production with CI/CD | Not started |
 
 **Deliverable:** Fully tested, performant, accessible app deployed to production.
 
@@ -337,7 +347,7 @@ ui/
 
 ### 5.2 Data Migration
 
-**No database migration required** — all data remains in SQLite + filesystem (reports/).
+**No database migration required** â€” all data remains in SQLite + filesystem (reports/).
 
 **API Contract Changes:**
 - FastAPI endpoints use RESTful conventions (`/api/v1/cycles`, `/api/v1/reports/{id}`)
@@ -428,16 +438,16 @@ ui/
 
 | Phase | Weeks | FTE (devs) | Total Dev-Weeks |
 |-------|-------|------------|-----------------|
-| Phase 1 — Foundation | 3 | 1 | 3 |
-| Phase 2 — Data Layer | 2 | 1 | 2 |
-| Phase 3 — Operations | 2 | 1 | 2 |
-| Phase 4 — Reports | 2 | 1 | 2 |
-| Phase 5 — Sources/System | 2 | 1 | 2 |
-| Phase 6 — Situation Analysis | 2 | 1 | 2 |
-| Phase 7 — Backend Rewrite | 3 | 1-2 | 4 |
-| Phase 8 — Real-time | 2 | 1 | 2 |
-| Phase 9 — Advanced Features | 3 | 1 | 3 |
-| Phase 10 — Testing/Release | 3 | 1-2 | 4 |
+| Phase 1 â€” Foundation | 3 | 1 | 3 |
+| Phase 2 â€” Data Layer | 2 | 1 | 2 |
+| Phase 3 â€” Operations | 2 | 1 | 2 |
+| Phase 4 â€” Reports | 2 | 1 | 2 |
+| Phase 5 â€” Sources/System | 2 | 1 | 2 |
+| Phase 6 â€” Situation Analysis | 2 | 1 | 2 |
+| Phase 7 â€” Backend Rewrite | 3 | 1-2 | 4 |
+| Phase 8 â€” Real-time | 2 | 1 | 2 |
+| Phase 9 - Analysis-Driven Intelligence & Observability | 3 | 1 | 3 |
+| Phase 10 â€” Testing/Release | 3 | 1-2 | 4 |
 | **Total** | **24 weeks** | **1-2** | **26 dev-weeks** |
 
 **Calendar Time:**
@@ -467,7 +477,7 @@ ui/
 **Pros:** Lower risk, no rewrite overhead, incremental delivery  
 **Cons:** Cannot fix foundational issues (no routing, data layer, state management), 6-12 month timeline similar to rewrite without architectural benefits
 
-**Decision:** **Rejected** — Technical debt too deep for incremental approach.
+**Decision:** **Rejected** â€” Technical debt too deep for incremental approach.
 
 ---
 
@@ -478,7 +488,7 @@ ui/
 **Pros:** 50-75% faster development, built-in components, auth, data connectors  
 **Cons:** Vendor lock-in, limited customization, poor TypeScript support, cannot self-host Retool
 
-**Decision:** **Rejected** — Too constrained for humanitarian intelligence platform.
+**Decision:** **Rejected** â€” Too constrained for humanitarian intelligence platform.
 
 ---
 
@@ -489,7 +499,7 @@ ui/
 **Pros:** SEO-friendly, better performance, RSC, API routes  
 **Cons:** Additional learning curve, overkill for internal dashboard, no SEO requirement
 
-**Decision:** **Deferred** — Stick with React + Vite for team familiarity. Reassess if public-facing frontend needed.
+**Decision:** **Deferred** â€” Stick with React + Vite for team familiarity. Reassess if public-facing frontend needed.
 
 ---
 
@@ -524,3 +534,5 @@ ui/
 **Approval Required:** Stakeholder sign-off on 6-month timeline and resource allocation.
 
 **Contact:** Project lead for questions or alternative proposals.
+
+

@@ -18,4 +18,6 @@ export const QUERY_KEYS = {
     ["db", "events", params] as const,
   dbRawItems: (limit: number) => ["db", "raw-items", limit] as const,
   dbFeedHealth: (limit: number) => ["db", "feed-health", limit] as const,
+  extractionDiagnostics: (params: { limit_cycles?: number; connector?: string }) =>
+    ["db", "extraction-diagnostics", params] as const,
 } as const;

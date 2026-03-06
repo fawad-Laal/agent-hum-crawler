@@ -21,7 +21,7 @@ This document defines the **Reduced++ Architecture** for the Situation Analysis 
 | 3 | Empty admin tables for Ethiopia | Ethiopia gazetteer + P-code normalization |
 | 4 | Raw text in forecasts | Synthesized risk outlook via schema-locked LLM pass |
 | 5 | No date awareness | Temporal layer on all graph nodes + "as of" rendering |
-| 6 | PDFs never extracted | Docling OCR integration in ReliefWeb connector |
+| 6 | PDFs never extracted | MarkItDown-based document extraction in ReliefWeb connector |
 | 7 | Figure deduplication absent | Deterministic clustering (same metric + geo + scope + window) |
 | 8 | No JSON schema on SA LLM | Strict `json_schema` on every LLM call |
 | 9 | Niger/Nigeria substring bug | ISO3 + P-code normalization, word-boundary matching |
@@ -108,8 +108,9 @@ Canonical key across deduplication, entity linking, citation tracking.
 
 | Layer | Engine | When |
 |-------|--------|------|
-| **Primary** | Docling (MIT, local) | All PDFs — headings, tables, paragraphs, layout-aware |
-| **Fallback** | Tesseract | Only if Docling output is empty or low-confidence |
+| **Primary** | MarkItDown (`markitdown[pdf]`) | All downloaded PDFs — convert to markdown/text before NLP |
+| **Fallback** | Existing PDF extractors (`pdfplumber`/`pypdf`) | If MarkItDown output is empty or low-yield |
+| **Fallback (optional)** | Azure Document Intelligence mode | Difficult scanned/layout-heavy PDFs when enabled |
 
 **Output contract:**
 
@@ -386,7 +387,7 @@ Extended beyond named-storm regex:
 
 | Deferred Item | Rationale | Trigger for Reconsideration |
 |---------------|-----------|----------------------------|
-| OCR Agent | Docling service layer is sufficient | Layout extraction quality degrades |
+| OCR Agent | MarkItDown + fallback service layer is sufficient | Layout extraction quality degrades |
 | Triage Agent | Batch enrichment handles classification | Relevance scoring needs per-item reasoning |
 | Entity Linking Agent | Deterministic dedup handles figures | Cross-entity relationships needed |
 | QA Agent | Two-pass synthesis is sufficient | Cross-sector hallucination persists |
@@ -398,7 +399,7 @@ Extended beyond named-storm regex:
 
 ## 8. Progress Tracker
 
-Last updated: 2026-02-21
+Last updated: 2026-03-04
 
 ### Phase 1 — Foundation
 
@@ -506,9 +507,9 @@ The system was architected for natural disasters (cyclones, floods, earthquakes)
 
 ### Phase 5 — Frontend Rewrite (Project Phoenix)
 
-**Status:** Planned (not started)  
-**Timeline:** 24 weeks (6 months with 1-2 developers)  
-**Scope:** Complete frontend rewrite addressing 5 critical architectural issues in current 1795-line monolithic dashboard.  
+**Status:** Phases 1–8 Complete ✅ — Phase 9 (Analysis-Driven Intelligence & Observability) in planning  
+**Timeline:** 24 weeks total — Phases 1–8 delivered by 2026-03-04; Phase 9 starting next  
+**Scope:** Complete frontend rewrite + backend FastAPI migration + real-time SSE updates. Phase 9 adds extraction telemetry, diagnostics UI, and orchestration hardening derived from the March 2026 deep analysis.  
 **Documentation:** [Frontend Rewrite Roadmap](frontend-rewrite-roadmap.md) | [Frontend Audit Report](../analysis/frontend-audit-report.md)
 
 **Critical Issues Addressed:**
@@ -563,6 +564,43 @@ The system was architected for natural disasters (cyclones, floods, earthquakes)
 - Gradual cutover after Phase 10 complete
 - Backward-compatible API shim during transition
 
+### Phase 6 — Pipeline & Data Hardening
+
+**Status:** Planned  
+**Priority:** Medium — addresses systemic scalability and data quality gaps confirmed by March 2026 deep analysis  
+**Reference:** [Deep Analysis - March 2026](../analysis/moltis_deep_analysis_march2026.md) — §1, §2, §3, §4, §7  
+**Trigger:** Phase 5 (Phoenix) Phases 1-8 stable; backend starts seeing DB growth beyond 50 cycles.
+
+**Problem Statement:**  
+The March 2026 revalidation identified five systemic gaps not addressed by Phases 1-5:  
+(1) `cycle.py` still calls per-item enrichment despite `enrich_events_batch()` existing — higher LLM cost and latency;  
+(2) `build_graph_context()` loads all events then filters in Python — scales poorly;  
+(3) `RawItemRecord.payload_json` is parsed row-by-row at query time — wasted CPU;  
+(4) Ontology list scans and no per-node provenance weighting — future bottleneck;  
+(5) README/docs drift from actual defaults — onboarding friction.
+
+| # | Task | Description | Acceptance Criteria | Analysis Ref |
+|---|------|-------------|---------------------|--------------|
+| 6.1 | Wire batch enrichment into `cycle.py` | Replace `enrich_events_with_llm()` call in `run_cycle_once()` with `enrich_events_batch()`; single-item fallback on provider/schema failure; add `llm_mode=batch|single` to cycle output metrics | Same inputs produce ≥20% fewer LLM calls in logs; no regression in enrichment rate | R1 | ✅ Done 2026-03-04 |
+| 6.2 | Add `analysis_excerpt` to `EventRecord` | New TEXT column (1000-2000 chars); ingestion pipeline fills from full-text before 320-char `summary` truncation; `build_graph_context()` prefers `analysis_excerpt` when present | `build_graph_context()` uses longer excerpt; `summary` unchanged for UI display | R2 |
+| 6.3 | Enrichment policy by source confidence | Low-trust connectors (Tier 3-4) get shorter excerpt budget; ReliefWeb/UN/government connectors get larger budget | Excerpt budget varies by source credibility tier; no regression in quality gate scores | R3 |
+| 6.4 | Push core filters to SQL in `build_graph_context()` | Apply country / disaster_type / date filters as SQL `WHERE` clauses; keep scoring/balancing logic in Python | `write-report` and `write-situation-analysis` median latency improved on DB with ≥50 cycles | R4 |
+| 6.5 | Add extracted columns to `RawItemRecord` | New columns: `text_excerpt` TEXT, `text_char_count` INTEGER, `extraction_method` TEXT, `has_attachments` INTEGER; populate at ingest time | Columns populated on new ingestions; no row-by-row JSON parse in report/SA query path | R5 |
+| 6.6 | Add DB indexes | Add composite indexes: `eventrecord(cycle_id, country, disaster_type)`, `eventrecord(cycle_id, url)`, `rawitemrecord(cycle_id, url)`; use `CREATE INDEX IF NOT EXISTS` in `init_db()` migration | Profile shows lower query time for `build_graph_context()` on large datasets | R6 |
+| 6.7 | Extraction confidence scoring | Derive score from char count, boilerplate ratio, source tier; persist as `extraction_confidence` FLOAT on `RawItemRecord` | Dashboard can filter/sort by extraction confidence; low-confidence items identifiable per cycle | R7 |
+| 6.8 | Secondary converter fallback | For HTML extraction with char_count below threshold, try secondary converter (e.g. trafilatura → bs4 strip → plain text); feature-flagged | Average useful chars per item improves on ReliefWeb-heavy runs | R8 |
+| 6.9 | Optional in-memory ontology indexes | After `build_ontology_from_evidence()`, build dict indexes: `geo→impacts`, `need_type→needs`, `horizon→risks`; use for O(1) sectoral lookups during SA rendering | Ontology query operations measurably faster on evidence sets >500 items | R10 |
+| 6.10 | Geo canonicalization pipeline | Exact gazetteer match first; fuzzy fallback with confidence threshold; store raw + canonical names side-by-side on `GeoArea` | "Addis Abeba" and "Addis Ababa" both resolve to same canonical admin node | R11 |
+| 6.11 | Per-node evidence strength score | Weighted blend of source credibility tier, corroboration count, recency; stored on `ImpactObservation`; used in bullet/table row selection | Narrative selection weighted by strength; deterministic runs stable for synonym geo inputs | R12 |
+| 6.12 | Documentation accuracy pass | Audit README runtime defaults against `database.py` and `settings.py`; fix DB path description, architecture claims, encoding artifacts; add verification checklist to PR template | README matches actual runtime defaults; no mojibake in core docs | R19, R20, R21 |
+
+**Success Metrics:**
+- Cycle LLM call count reduced ≥20% vs. per-item mode (same inputs)
+- `write-report` median latency improved on DB with ≥50 cycles
+- Zero raw JSON payload parsed at report/SA query time for new-style rows
+- Geo synonyms resolve to canonical admin nodes in SA output
+- README/docs accuracy verified against code constants
+
 ---
 
 ## 9. Implementation Phases
@@ -574,7 +612,7 @@ The system was architected for natural disasters (cyclones, floods, earthquakes)
 | # | Task | Acceptance Criteria |
 |---|------|-------------------|
 | 1.1 | Add ReliefWeb pagination + `appname` enforcement | Fetches > 200 results; fails fast without appname |
-| 1.2 | Integrate Docling OCR for PDF extraction | Flash Update PDFs return structured text + tables |
+| 1.2 | Integrate MarkItDown-first PDF extraction | Flash Update PDFs return non-empty extracted text with fallback metadata |
 | 1.3 | Fix country substring matching (word-boundary) | "Niger" does NOT match "Nigeria" |
 | 1.4 | Add Ethiopia gazetteer (`config/gazetteers/ethiopia.json`) | Ethiopia admin1/admin2 tables populated |
 | 1.5 | Add strict JSON schema to SA LLM calls | All SA LLM responses validate against schema |
@@ -640,6 +678,8 @@ Reduced++ delivers the **quality jump** at 10× lower cost and complexity than f
 
 | Document | Purpose |
 |----------|---------|
+| [Deep Analysis - March 2026](../analysis/moltis_deep_analysis_march2026.md) | Revalidated findings and implementation priorities (ReliefWeb extraction, telemetry, observability) |
+| [MarkItDown](https://github.com/microsoft/markitdown) | Primary library for downloaded PDF/Office document conversion |
 | [SA Quality Analysis](../analysis/sa-improvement-analysis.md) | Root cause analysis of all SA defects |
 | [MVP Roadmap (archived)](archive/mvp-roadmap.md) | Previous phase — all milestones closed |
 | [Frontend Roadmap (archived)](archive/frontend-roadmap.md) | Previous phase — baseline through SA UI |
