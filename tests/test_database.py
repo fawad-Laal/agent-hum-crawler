@@ -1,16 +1,78 @@
 from pathlib import Path
 
+import pytest
 from sqlmodel import Session, select
 
 from agent_hum_crawler.database import (
     EventRecord,
     build_engine,
     build_source_health_report,
+    default_db_path,
+    get_data_root,
     get_recent_cycles,
     init_db,
     persist_cycle,
+    verify_schema_drift,
 )
 from agent_hum_crawler.models import ProcessedEvent, RawSourceItem
+
+
+# ── 6B.3: storage-path centralisation ─────────────────────────────────────
+
+
+def test_get_data_root_default() -> None:
+    """Default root is ~/.moltis/agent-hum-crawler when env var is absent."""
+    expected = Path.home() / ".moltis" / "agent-hum-crawler"
+    assert get_data_root() == expected
+
+
+def test_get_data_root_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """MOLTIS_DATA_ROOT overrides the default root."""
+    monkeypatch.setenv("MOLTIS_DATA_ROOT", str(tmp_path))
+    assert get_data_root() == tmp_path
+
+
+def test_default_db_path_uses_data_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """default_db_path() is data_root / monitoring.db."""
+    monkeypatch.setenv("MOLTIS_DATA_ROOT", str(tmp_path))
+    assert default_db_path() == tmp_path / "monitoring.db"
+
+
+# ── 6B.4: schema drift verification ───────────────────────────────────────
+
+
+def test_verify_schema_drift_no_db(tmp_path: Path) -> None:
+    """Returns a single warning when the database file doesn't exist."""
+    absent = tmp_path / "nonexistent.db"
+    warnings = verify_schema_drift(absent)
+    assert len(warnings) == 1
+    assert "not found" in warnings[0].lower()
+
+
+def test_verify_schema_drift_in_sync(tmp_path: Path) -> None:
+    """Returns no warnings for a freshly initialised database."""
+    db = tmp_path / "monitoring.db"
+    init_db(db)
+    warnings = verify_schema_drift(db)
+    assert warnings == [], f"Unexpected drift warnings: {warnings}"
+
+
+def test_verify_schema_drift_detects_missing_column(tmp_path: Path) -> None:
+    """Reports a missing column when the live table is missing columns vs the model."""
+    import sqlite3
+
+    db = tmp_path / "monitoring.db"
+    # Build a minimal cyclerun table that is missing most model columns
+    conn = sqlite3.connect(str(db))
+    try:
+        conn.execute("CREATE TABLE cyclerun (id INTEGER PRIMARY KEY, run_at TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    warnings = verify_schema_drift(db)
+    cyclerun_warnings = [w for w in warnings if "cyclerun" in w]
+    assert cyclerun_warnings, "Expected drift warnings for cyclerun but got none"
 
 
 def test_persist_cycle(tmp_path: Path) -> None:

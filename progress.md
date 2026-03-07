@@ -1,8 +1,8 @@
 # Progress Tracker - Dynamic Disaster Intelligence Assistant
 
 Date: 2026-02-20
-Last Updated: 2026-03-06
-Status: Post-MVP Hardening + **Project Phoenix Phases 1-9 Complete** (129 Vitest tests, 305 pytest tests, 0 TS errors) + **Phase 9 DONE: Rust/Python NLP alignment, security baseline critical state, extraction telemetry, diagnostics API/UI**
+Last Updated: 2026-03-07
+Status: Post-MVP Hardening + **Project Phoenix Phases 1-9 Complete** + **Phase 10.1 Coverage Infrastructure DONE** + **Phase 10.2 Bug-Fix Sprint DONE** (272 Vitest tests, 311 pytest tests, 0 TS errors)
 
 ## Overall Progress
 - Documentation and specification phase: 100% complete
@@ -193,6 +193,74 @@ Status: Post-MVP Hardening + **Project Phoenix Phases 1-9 Complete** (129 Vitest
 
 ### Future Phase (10)
 - **Phase 10 — Testing & Release**: 80% coverage, Playwright E2E, Lighthouse 90+, WCAG 2.1 AA, production deployment
+
+#### Phase 10.1 — Coverage Infrastructure & Unit Tests (2026-03-07)
+- [x] Installed `@vitest/coverage-v8@4.0.18` (provider matching vitest version)
+- [x] Added `coverage` config block to `vite.config.ts`: provider v8, include `src/**/*.{ts,tsx}`, exclude `main.tsx`/`vite-env.d.ts`
+- [x] `tests/unit/api-client.test.ts` — 30 tests covering `lib/api.ts`: apiFetch success/error/schema-fail, pollJob done/error/back-off, all 12 GET functions, all 10 POST functions including 202+pollJob pattern
+- [x] `tests/unit/stores.test.ts` — 19 tests covering `stores/jobs-store.ts` (14 tests: addJob, updateJob, removeJob, getJob, activeCount, full lifecycle) and `stores/ui-store.ts` (5 tests: initial state, toggleSidebar, setSidebarOpen)
+- [x] `tests/unit/query-keys.test.ts` — 16 tests covering all QUERY_KEYS static keys and factory functions
+- [x] `tests/unit/hooks.test.tsx` — 32 tests covering all 10 mutation hooks (`use-mutations.ts`) and all 12 query hooks (`use-queries.ts`) including DB hooks (useDbCycles, useDbEvents, useDbRawItems, useDbFeedHealth)
+- [x] `tests/unit/layout-components.test.tsx` — 27 tests covering `ErrorBoundary` (reset, custom fallback), `Header` (health states, refresh), `Sidebar` (open/collapsed, toggle), `RootLayout` (title derivation, ml-60/ml-16), `GlobalJobBadge` (null/single/multi-job, elapsed timer)
+- [x] Coverage thresholds ratcheted: stmts 51%, branches 43%, funcs 43%, lines 53%
+- **Totals: 12 test files, 253 tests (up from 194), 0 TypeScript errors**
+- **Coverage: stmts 51.3% / branches 43.13% / funcs 43.4% / lines 53.11% (up from 41.65%/37.9%/32.65%/42.89%)**
+- **Key files now at 100%: header.tsx, root-layout.tsx, sidebar.tsx, global-job-badge.tsx, use-queries.ts, query-keys.ts, jobs-store.ts, ui-store.ts, error-boundary.tsx**
+
+#### Phase 10.2 — Bug-Fix Sprint (2026-03-07) ✅
+
+All 7 bugs from roadmap items 10A and 6B fixed in strict sequence. Operating rule applied throughout: *no item accepted as complete without measurable acceptance evidence*.
+
+**10A.1 / 6B.1 — Missing `/api/db/extraction-diagnostics` route**
+- [x] Added `GET /api/db/extraction-diagnostics` endpoint to `src/agent_hum_crawler/api/routes/db.py`; proxies to existing `build_extraction_diagnostics_report()` in `database.py`
+- [x] Acceptance: 2 new `useExtractionDiagnostics` tests in `hooks.test.tsx` (params forwarding + response structure) ✅
+
+**10A.3 — Real backend job_id threading**
+- [x] All 7 long-running functions in `api.ts` accept optional `onJobQueued?: (jobId: string) => void` callback fired after the 202 is received
+- [x] All 5 mutation hooks in `use-mutations.ts` use `useRef<string | null>` to capture the real backend `job_id`; `addJob()` and `removeJob()` now use the real id (not the `TOAST.*` placeholder)
+- [x] `onMutate` emits `toast.loading` only; `onJobQueued` callback registers the real id in the jobs store
+- [x] Acceptance: 2 new tests in `hooks.test.tsx` — "registers REAL backend job_id" + "removes job by real backend job_id" ✅
+
+**6B.2 — Job TTL cleanup**
+- [x] Added `job.completed_at = time.monotonic()` in both `done` and `error` branches of `job_store.py`'s `_run()`
+- [x] Added `_purge()` method (evicts completed/error jobs older than `_IN_PROCESS_JOB_TTL = 300 s`)
+- [x] `_purge()` called inside `submit()` under the lock before adding the new job
+
+**10A.2 — Feature-flag type coercion**
+- [x] Replaced `Boolean(rawValue)` in `feature-flags-panel.tsx` with type-aware `isBoolLike` / `enabled` logic covering `boolean`, `0/1` numeric, `"true"/"false"` string, and `"0"/"1"` string (old `Boolean("false") === true` bug fixed)
+- [x] Render logic: Switch for bool-like values; `<Badge variant="secondary">` showing `String(rawValue)` for non-bool-like values
+- [x] Acceptance: 9 coercion tests + 3 structure tests in new `feature-flags-panel.test.tsx` (12/12) ✅
+
+**10A.4 — Toast ownership moved to hook**
+- [x] `useUpdateFeatureFlag` in `use-mutations.ts` now owns the full toast lifecycle (`onMutate` loading, `onSuccess` success, `onError` error) using stable id `TOAST.featureFlag`
+- [x] Removed `toast` import and per-call `onSuccess`/`onError` callbacks from `feature-flags-panel.tsx`; `toggle()` call simplified
+- [x] Acceptance: 3 new tests in `hooks.test.tsx` — loading/success/error toast ownership ✅
+
+**10A.5 — Targeted tests**
+- [x] `hooks.test.tsx`: 39 tests total (was 32); 7 new tests covering 10A.1 contract (×2), 10A.3 real job_id (×2), 10A.4 toast ownership (×3)
+- [x] `feature-flags-panel.test.tsx`: new file, 12/12 tests passing — bool coercion (×9), structure/UX (×3)
+
+**6B.3 — Centralize storage path**
+- [x] Added `get_data_root() -> Path` to `database.py` — respects `MOLTIS_DATA_ROOT` env var, falls back to `~/.moltis/agent-hum-crawler`
+- [x] `default_db_path()` now delegates to `get_data_root()`
+- [x] Deleted `_db_path()` from `routes/db.py` — replaced with `default_db_path()` import
+- [x] Deleted `_monitoring_db_path()` from `scripts/dashboard_api.py` — replaced with `default_db_path()` import
+- [x] Single hardcoded path string across all three files eliminated
+- [x] Acceptance: 3 new pytest tests — default path, env override, `default_db_path()` composition ✅
+
+**6B.4 — Schema drift verification**
+- [x] Added `verify_schema_drift(path: Path | None = None) -> list[str]` to `database.py`
+- [x] Opens DB read-only (`?mode=ro`); compares SQLModel metadata tables + columns against live `sqlite_master` / `PRAGMA table_info`
+- [x] Returns list of `"Missing table: <name>"` / `"Missing column: <table>.<col>"` strings; empty list = in-sync
+- [x] Safe to call at startup; table names come from SQLModel metadata (not user input)
+- [x] Acceptance: 3 new pytest tests — no-db warning, in-sync returns `[]`, detects missing column ✅
+
+**Test totals after Phase 10.2:**
+- Frontend (Vitest): **272 tests, 13 test files, 0 TS errors** (up from 253 / 12 files)
+  - hooks.test.tsx: 39/39 ✅
+  - feature-flags-panel.test.tsx: 12/12 ✅ (new file)
+- Backend (pytest): **311 tests** (up from 305; +6 in test_database.py)
+  - test_database.py: 8/8 ✅
 
 ## Completed
 - Milestones 1-5 completed.

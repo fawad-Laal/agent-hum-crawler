@@ -24,21 +24,16 @@ from urllib.parse import parse_qs, urlparse
 from agent_hum_crawler.feature_flags import load_feature_flags
 from agent_hum_crawler.config import ALLOWED_DISASTER_TYPES
 from agent_hum_crawler.source_credibility import tier_label
-from agent_hum_crawler.database import build_extraction_diagnostics_report
+from agent_hum_crawler.database import build_extraction_diagnostics_report, default_db_path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = ROOT / "reports"
 
 
-def _monitoring_db_path() -> Path:
-    """Return the path to the monitoring database (same as database.default_db_path)."""
-    return Path.home() / ".moltis" / "agent-hum-crawler" / "monitoring.db"
-
-
 def _db_query(sql: str, params: tuple = ()) -> list[dict]:
     """Execute a SELECT against the monitoring DB and return rows as dicts."""
-    db_path = _monitoring_db_path()
+    db_path = default_db_path()
     if not db_path.exists():
         return []
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -724,7 +719,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "SELECT * FROM cyclerun ORDER BY id DESC LIMIT ?",
                 (limit,),
             )
-            db_path = _monitoring_db_path()
+            db_path = default_db_path()
             self._send_json({"cycles": rows, "db_path": str(db_path), "count": len(rows)})
             return
         if parsed.path == "/api/db/events":

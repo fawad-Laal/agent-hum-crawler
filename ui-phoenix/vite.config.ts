@@ -29,5 +29,16 @@ export default defineConfig({
         inline: ['react-markdown', 'remark-gfm', 'devlop', 'micromark', 'mdast', 'unist', 'hast'],
       },
     },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/main.tsx', 'src/vite-env.d.ts'],
+      thresholds: {
+        statements: 51,
+        branches: 43,
+        functions: 43,
+        lines: 53,
+      },
+    },
   },
 })

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List
@@ -179,8 +180,16 @@ class ResponseRecord(SQLModel, table=True):
     source_url: str = ""
 
 
+def get_data_root() -> Path:
+    """Return the Moltis data directory, respecting the MOLTIS_DATA_ROOT env var."""
+    env = os.environ.get("MOLTIS_DATA_ROOT")
+    if env:
+        return Path(env)
+    return Path.home() / ".moltis" / "agent-hum-crawler"
+
+
 def default_db_path() -> Path:
-    return Path.home() / ".moltis" / "agent-hum-crawler" / "monitoring.db"
+    return get_data_root() / "monitoring.db"
 
 
 def build_engine(path: Path | None = None):
@@ -196,6 +205,46 @@ def init_db(path: Path | None = None) -> None:
     _ensure_eventrecord_columns(engine)
     _ensure_rawitem_columns(engine)
     _ensure_ontology_tables(engine)
+
+
+def verify_schema_drift(path: Path | None = None) -> list[str]:
+    """Compare SQLModel metadata against the live database.
+
+    Returns a list of drift warnings (missing tables or columns). An empty
+    list means the schema is in sync.  The database is opened read-only,
+    so this function is safe to call at startup.
+    """
+    import sqlite3 as _sqlite3
+
+    db = path or default_db_path()
+    if not db.exists():
+        return [f"Database not found: {db}"]
+
+    conn = _sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        live_tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        warnings: list[str] = []
+        for table_name, table_obj in SQLModel.metadata.tables.items():
+            if table_name not in live_tables:
+                warnings.append(f"Missing table: {table_name}")
+            else:
+                live_cols = {
+                    row[1]
+                    for row in conn.execute(
+                        f"PRAGMA table_info({table_name})"  # nosec — table names come from SQLModel metadata, not user input
+                    ).fetchall()
+                }
+                for col in table_obj.columns:
+                    if col.name not in live_cols:
+                        warnings.append(f"Missing column: {table_name}.{col.name}")
+        return warnings
+    finally:
+        conn.close()
 
 
 def _ensure_eventrecord_columns(engine) -> None:

@@ -220,12 +220,16 @@ export interface RunCycleParams {
   max_age_days: number;
 }
 
-export async function runCycle(params: RunCycleParams): Promise<CliResult> {
+export async function runCycle(
+  params: RunCycleParams,
+  onJobQueued?: (jobId: string) => void,
+): Promise<CliResult> {
   // POST returns 202 + job token; poll until the cycle finishes
   const job = await apiFetch("/run-cycle", {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<CliResult>(job.job_id, cliResultSchema);
 }
 
@@ -242,19 +246,27 @@ export interface WriteReportParams {
   use_llm: boolean;
 }
 
-export async function writeReport(params: WriteReportParams): Promise<CliResult> {
+export async function writeReport(
+  params: WriteReportParams,
+  onJobQueued?: (jobId: string) => void,
+): Promise<CliResult> {
   const job = await apiFetch("/write-report", {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<CliResult>(job.job_id, cliResultSchema);
 }
 
-export async function runSourceCheck(params: RunCycleParams): Promise<SourceCheckResponse> {
+export async function runSourceCheck(
+  params: RunCycleParams,
+  onJobQueued?: (jobId: string) => void,
+): Promise<SourceCheckResponse> {
   const job = await apiFetch("/source-check", {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<SourceCheckResponse>(job.job_id, sourceCheckResponseSchema);
 }
 
@@ -273,21 +285,27 @@ export interface WriteSAParams {
   quality_gate: boolean;
 }
 
-export async function writeSA(params: WriteSAParams): Promise<SAResponse> {
+export async function writeSA(
+  params: WriteSAParams,
+  onJobQueued?: (jobId: string) => void,
+): Promise<SAResponse> {
   const job = await apiFetch("/write-situation-analysis", {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<SAResponse>(job.job_id, saResponseSchema);
 }
 
 export async function runWorkbench(
-  profile: Record<string, unknown>
+  profile: Record<string, unknown>,
+  onJobQueued?: (jobId: string) => void,
 ): Promise<WorkbenchResponse> {
   const job = await apiFetch("/report-workbench", {
     method: "POST",
     body: JSON.stringify(profile),
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema);
 }
 
@@ -334,18 +352,25 @@ export interface RunPipelineParams {
   use_llm: boolean;
 }
 
-export async function runPipeline(params: RunPipelineParams): Promise<CliResult> {
+export async function runPipeline(
+  params: RunPipelineParams,
+  onJobQueued?: (jobId: string) => void,
+): Promise<CliResult> {
   const job = await apiFetch("/run-pipeline", {
     method: "POST",
     body: JSON.stringify(params),
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<CliResult>(job.job_id, cliResultSchema);
 }
 
-export async function rerunLastWorkbench(): Promise<WorkbenchResponse> {
+export async function rerunLastWorkbench(
+  onJobQueued?: (jobId: string) => void,
+): Promise<WorkbenchResponse> {
   const job = await apiFetch("/report-workbench/rerun-last", {
     method: "POST",
   }, jobQueuedSchema);
+  onJobQueued?.(job.job_id);
   return pollJob<WorkbenchResponse>(job.job_id, workbenchResponseSchema);
 }
 

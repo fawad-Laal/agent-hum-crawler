@@ -9,20 +9,15 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
+
+from agent_hum_crawler.database import build_extraction_diagnostics_report, default_db_path
 
 router = APIRouter()
 
 
-# ── helpers ───────────────────────────────────────────────────────────────
-
-
-def _db_path() -> Path:
-    return Path.home() / ".moltis" / "agent-hum-crawler" / "monitoring.db"
-
-
 def _query(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
-    db = _db_path()
+    db = default_db_path()
     if not db.exists():
         return []
     conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
@@ -45,7 +40,7 @@ def db_cycles(limit: int = Query(50, ge=1, le=200)) -> dict:
         "SELECT * FROM cyclerun ORDER BY id DESC LIMIT ?",
         (limit,),
     )
-    return {"cycles": rows, "count": len(rows), "db_path": str(_db_path())}
+    return {"cycles": rows, "count": len(rows), "db_path": str(default_db_path())}
 
 
 @router.get("/db/events")
@@ -87,3 +82,18 @@ def db_feed_health(limit: int = Query(100, ge=1, le=500)) -> dict:
         (limit,),
     )
     return {"feed_health": rows, "count": len(rows)}
+
+
+@router.get("/db/extraction-diagnostics")
+def db_extraction_diagnostics(
+    limit_cycles: int = Query(20, ge=1, le=100),
+    connector: str | None = None,
+) -> dict:
+    """Return extraction diagnostics report (mirrors legacy dashboard_api endpoint)."""
+    try:
+        return build_extraction_diagnostics_report(
+            limit_cycles=limit_cycles,
+            connector=connector or None,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

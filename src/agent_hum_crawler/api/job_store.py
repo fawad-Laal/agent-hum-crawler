@@ -109,6 +109,7 @@ class JobStore:
         job_id = uuid.uuid4().hex[:8]
         job = Job(job_id=job_id, status="queued")
         with self._lock:
+            self._purge()
             self._jobs[job_id] = job
 
         def _run(_fn: Callable[[], dict[str, Any]] = fn) -> None:
@@ -128,11 +129,13 @@ class JobStore:
                 with self._lock:
                     job.status = "done"
                     job.result = result
+                    job.completed_at = time.monotonic()
             except Exception as exc:  # noqa: BLE001
                 import traceback
                 with self._lock:
                     job.status = "error"
                     job.error = f"{type(exc).__name__}: {exc}"
+                    job.completed_at = time.monotonic()
                 traceback.print_exc()
             finally:
                 if sem is not None:
@@ -147,6 +150,20 @@ class JobStore:
     def get(self, job_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def _purge(self) -> None:
+        """Evict completed/error jobs older than *_IN_PROCESS_JOB_TTL* seconds.
+
+        Must be called while *self._lock* is held.
+        """
+        cutoff = time.monotonic() - _IN_PROCESS_JOB_TTL
+        stale = [
+            jid
+            for jid, j in self._jobs.items()
+            if j.completed_at is not None and j.completed_at < cutoff
+        ]
+        for jid in stale:
+            del self._jobs[jid]
 
     def response(self, job: Job) -> dict[str, Any]:
         """Serialise a job to a JSON-safe dict for the API response."""

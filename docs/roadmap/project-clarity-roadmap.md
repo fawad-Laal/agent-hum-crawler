@@ -507,9 +507,9 @@ The system was architected for natural disasters (cyclones, floods, earthquakes)
 
 ### Phase 5 — Frontend Rewrite (Project Phoenix)
 
-**Status:** Phases 1–8 Complete ✅ — Phase 9 (Analysis-Driven Intelligence & Observability) in planning  
-**Timeline:** 24 weeks total — Phases 1–8 delivered by 2026-03-04; Phase 9 starting next  
-**Scope:** Complete frontend rewrite + backend FastAPI migration + real-time SSE updates. Phase 9 adds extraction telemetry, diagnostics UI, and orchestration hardening derived from the March 2026 deep analysis.  
+**Status:** Phases 1–9 complete in codebase; Phase 10 testing/release and review-driven remediation active  
+**Timeline:** 24 weeks total — Phases 1–9 delivered through 2026-03-07; release-hardening remains  
+**Scope:** Complete frontend rewrite + backend FastAPI migration + real-time job handling. Remaining work is contract hardening, QA coverage, and review-driven remediation.  
 **Documentation:** [Frontend Rewrite Roadmap](frontend-rewrite-roadmap.md) | [Frontend Audit Report](../analysis/frontend-audit-report.md)
 
 **Critical Issues Addressed:**
@@ -529,8 +529,8 @@ The system was architected for natural disasters (cyclones, floods, earthquakes)
 | State | 19 useState hooks | Zustand + TanStack Query + React Hook Form |
 | UI Library | Custom CSS (649 lines) | Shadcn/ui + Tailwind |
 | Backend | ThreadingHTTPServer + subprocess | FastAPI + Uvicorn + direct imports |
-| Real-time | Polling | Server-Sent Events (SSE) |
-| Testing | 0% coverage | 80%+ (Vitest + Testing Library) |
+| Real-time | Polling | Server-Sent Events (SSE) + backend job-state alignment |
+| Testing | 0% coverage | 80%+ (Vitest + Testing Library) with explicit QA sign-off |
 
 **10-Phase Implementation:**
 
@@ -554,7 +554,7 @@ The system was architected for natural disasters (cyclones, floods, earthquakes)
 | API Latency | 5-30s | < 500ms (95th percentile) |
 | Concurrent Users | 1-5 | 100+ |
 | Component Count | 2 | 60-80 |
-| Test Coverage | 0% | 80%+ |
+| Test Coverage | Initial coverage infra landed | 80%+ with CI gates |
 | Lighthouse Score | 60-70 | 90+ |
 | Bundle Size | 250KB | < 400KB |
 
@@ -600,6 +600,52 @@ The March 2026 revalidation identified five systemic gaps not addressed by Phase
 - Zero raw JSON payload parsed at report/SA query time for new-style rows
 - Geo synonyms resolve to canonical admin nodes in SA output
 - README/docs accuracy verified against code constants
+
+### Phase 6B — Review-Driven Backend Remediation (Added 2026-03-07)
+
+**Status:** Planned  
+**Priority:** High — fixes live code/roadmap drift and runtime correctness issues identified in the whole-app review  
+**Reference:** [Whole App Review - March 2026](../analysis/whole-app-review-march2026.md)
+
+**Problem Statement:**  
+The March 7, 2026 re-review found several backend/runtime issues not yet represented in the roadmap:  
+(1) frontend and backend DB diagnostics contracts are out of sync;  
+(2) in-process job TTL cleanup is declared but not actually enforced;  
+(3) runtime storage remains coupled to `~/.moltis/...` paths, making standalone operation harder;  
+(4) local SQLite schema can drift behind code-defined models;  
+(5) roadmap/progress claims around diagnostics and real-time behavior need stronger evidence gates.
+
+| # | Task | Description | Acceptance Criteria | Review Ref |
+|---|------|-------------|---------------------|------------|
+| 6B.1 | Reconcile DB diagnostics API surface | Add or remove routes so FastAPI DB endpoints exactly match supported Phoenix client behavior and tests | Every Phoenix DB client method maps to a real route; contract tests fail if route/client drift reappears | Whole-app review: DB/API mismatch |
+| 6B.2 | Enforce in-process job TTL cleanup | Implement purge of completed/error jobs in the in-memory job store and add tests for eviction behavior | Completed jobs expire after configured TTL; long-lived API process does not retain stale finished jobs indefinitely | Whole-app review: job store TTL gap |
+| 6B.3 | Centralize storage path configuration | Replace scattered `~/.moltis/...` defaults with one storage-root setting and use it across DB, state, and freshness layers | One documented config source controls runtime data root; standalone and Moltis-hosted modes both work | Whole-app review: Moltis coupling |
+| 6B.4 | Add schema drift verification | Add startup or CI check comparing SQLModel metadata, migration expectations, and live DB schema for critical tables | Drift such as missing `ExtractionRecord` is surfaced as a failing check or explicit migration warning | Whole-app review: DB drift |
+| 6B.5 | Separate implemented from verified roadmap claims | Require runtime verification before marking diagnostics/real-time roadmap items complete | No roadmap item is marked complete on code presence alone; evidence must include live route/test verification | Whole-app review: roadmap/code drift |
+
+**Success Metrics:**
+- Zero unsupported Phoenix API calls against live backend routes.
+- Zero unbounded growth of finished jobs in the in-process store during soak testing.
+- One canonical storage-root configuration path documented and used by runtime modules.
+- DB schema drift detected before release, not after UI/client failures.
+
+### Phase 6C — Learning Loop / Historical Improvement (Planned)
+
+**Status:** Planned  
+**Priority:** Medium  
+**Goal:** Move from simple persistence/history-awareness to measurable improvement in crawling and reporting based on prior runs and outcomes.
+
+| # | Task | Description | Acceptance Criteria |
+|---|------|-------------|---------------------|
+| 6C.1 | Source yield memory | Persist source-level yield, extraction success, citation usefulness, and duplicate rate over time | Scheduler/crawler can rank sources by historical value per country/hazard |
+| 6C.2 | Report quality memory | Persist quality-gate outcomes, operator edits, reruns, and accepted report characteristics | Prompt assembly can retrieve high-performing prior outputs for similar contexts |
+| 6C.3 | Retrieval-assisted run context | Retrieve prior similar events/runs and provide them to reporting/SA prompts as bounded context | Historical context improves repeat-run consistency without hallucination growth |
+| 6C.4 | Feedback loop metrics | Record whether changes improved extraction yield, citation density, latency, and quality scores over baseline | Each learning change has before/after metrics tied to a real dataset slice |
+
+**Success Metrics:**
+- Crawling yield improves measurably on repeated countries/hazards after history-based ranking.
+- Report/SA quality score improves against a fixed benchmark set after memory-assisted prompting.
+- Learning-loop changes can be rolled back if metrics regress.
 
 ---
 

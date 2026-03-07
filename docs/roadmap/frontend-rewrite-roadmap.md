@@ -1,10 +1,11 @@
 ﻿# Frontend Rewrite Roadmap â€” Agent HUM Crawler
 
-**Date:** February 21, 2026  
-**Status:** Active  
+**Date:** March 7, 2026  
+**Status:** Active - Phases 1-9 complete in codebase; Phase 10 and review-driven remediation open  
 **Codename:** Project Phoenix  
 **Predecessor:** Original Dashboard (1795-line monolith in [ui/src/App.jsx](../../ui/src/App.jsx))  
-**Audit Report:** [Frontend Audit Report](../analysis/frontend-audit-report.md)
+**Audit Report:** [Frontend Audit Report](../analysis/frontend-audit-report.md)  
+**Review Baseline:** [Whole App Review - March 2026](../analysis/whole-app-review-march2026.md)
 
 ---
 
@@ -312,18 +313,39 @@ ui/
 
 ### Phase 10 — Testing & Release (Weeks 22-24) 🔜 **NEXT — Starting 2026-03-06**
 
-**Goal:** Achieve 80% test coverage, performance benchmarks, production deployment.
+**Goal:** Close release-quality gaps, prove frontend/backend contract correctness, and establish objective production-readiness gates.
 
 | # | Task | Acceptance Criteria | Status |
 |---|------|-------------------|--------|
-| 10.1 | Write unit tests | 80% coverage for components, hooks, utils (`@vitest/coverage-v8`) | 🔜 Next |
-| 10.2 | Write integration tests | Test feature workflows (run cycle → view report) | Not started |
+| 10.1 | Write unit tests | Coverage thresholds enforced in CI; current API client, query key, store, and Phase 5 suites remain green | In progress - coverage infrastructure and initial suites landed 2026-03-07 |
+| 10.2 | Write integration tests | Test feature workflows (run cycle → view report) and API/UI contract paths for diagnostics, jobs, and system views | Not started |
 | 10.3 | Add Playwright E2E tests | Full user journeys (5-10 scenarios) | Not started |
-| 10.4 | Performance audit | Lighthouse score 90+, LCP < 2.5s | Not started |
-| 10.5 | Accessibility audit | WCAG 2.1 AA compliance, keyboard nav | Not started |
+| 10.4 | Performance audit | Lighthouse score 90+, LCP < 2.5s, no route-level bundle regression beyond agreed thresholds | Not started |
+| 10.5 | Accessibility audit | WCAG 2.1 AA compliance, keyboard nav, visible focus, semantic landmarks, and accessible labels on critical actions | Not started |
 | 10.6 | Production deployment | Deploy to staging, then production with CI/CD | Not started |
 
 **Deliverable:** Fully tested, performant, accessible app deployed to production.
+
+---
+
+### Phase 10A - Review-Driven Remediation (Added 2026-03-07)
+
+**Goal:** Resolve gaps found in the whole-app review before the Phoenix roadmap can be considered release-ready.
+
+| # | Workstream | Detailed Tasks | Acceptance Criteria | Status |
+|---|------------|----------------|---------------------|--------|
+| 10A.1 | API contract reconciliation | Align backend DB routes, frontend API client, and tests for extraction diagnostics; remove stale assumptions about available endpoints | `ui-phoenix/src/lib/api.ts`, tests, and FastAPI routes agree on every `/api/db/*` endpoint; extraction diagnostics path works end-to-end against a live server | Planned |
+| 10A.2 | Feature flag data-shape safety | Replace boolean coercion of non-boolean config values with typed rendering/edit behavior; ensure unknown flag value types are not silently mutated | Non-boolean values such as `"false"`, `"0"`, or `"v2"` are displayed without being converted to enabled toggles; unit tests cover boolean, string, numeric, and unsupported values | Planned |
+| 10A.3 | Real job identity and SSE ownership | Thread backend `job_id` through mutation lifecycle, stop using UI-local ids as surrogate jobs, and make SSE/polling state derive from backend job state | Every long-running mutation stores and surfaces the real backend `job_id`; global badge and toasts reflect backend status, not local placeholders | Planned |
+| 10A.4 | Async UX deduplication | Remove duplicate toast/success handling between feature pages and mutation hooks; define one ownership layer for optimistic UX vs terminal status | One user action emits one success/error outcome; no duplicate success/error toasts in sources, reports, operations, or SA flows | Planned |
+| 10A.5 | Coverage closure for Phase 5-10 UI | Add targeted tests for diagnostics panel, job stream behavior, system/settings edge cases, and route-level rendering failures | New tests cover every reviewed regression area; no roadmap item closes without a failing-first or contract test proving the defect | Planned |
+| 10A.6 | Roadmap/code status reconciliation | Align roadmap narrative with shipped state: Phase 9 marked complete, Phase 10.1 reflected as in progress/delivered infrastructure, remove stale planned language | Roadmap, `progress.md`, and active UI test counts no longer contradict each other | Planned |
+
+**Exit Criteria for Phase 10A:**
+
+- Zero known Phoenix/frontend contract mismatches remain between roadmap and code.
+- Zero duplicate toast/report-completion notifications remain in reviewed feature paths.
+- All reviewed defects have either shipped fixes with tests or an explicitly deferred decision recorded in roadmap notes.
 
 ---
 
@@ -368,7 +390,17 @@ ui/
 
 ## 6. Success Metrics
 
-### 6.1 Performance Targets
+### 6.1 Delivery Targets
+
+| Metric | Baseline on 2026-03-07 | Release Target | Measurement |
+|--------|-------------------------|----------------|-------------|
+| **Route coverage** | Primary Phoenix routes implemented | 100% route smoke coverage in CI | Vitest integration/smoke suite |
+| **Frontend unit coverage** | Coverage infrastructure landed | >= 80% statements, >= 75% branches, >= 80% functions, >= 80% lines | `@vitest/coverage-v8` CI report |
+| **Contract coverage** | Partial (`api-client`, query keys, stores) | Every `/api/*` route used by Phoenix has a client/schema/test contract | API contract tests |
+| **Type safety** | 0 TypeScript errors reported in progress | Keep `tsc --noEmit` at zero | CI typecheck |
+| **Open critical defects** | Multiple review findings remain | 0 critical / 0 high before cutover | QA defect tracker |
+
+### 6.2 Performance Targets
 
 | Metric | Current | Target | Measurement |
 |--------|---------|--------|-------------|
@@ -378,27 +410,46 @@ ui/
 | **Bundle Size** | 250KB | < 400KB | Gzipped main bundle |
 | **Concurrent Users** | 1-5 | 100+ | Load test (Locust) |
 
-### 6.2 Developer Experience Targets
+### 6.3 Developer Experience Targets
 
 | Metric | Current | Target |
 |--------|---------|--------|
 | **Component Count** | 2 | 60-80 |
 | **Lines per File** | 1795 max | 150 avg, 300 max |
-| **Test Coverage** | 0% | 80%+ |
+| **Test Coverage** | Coverage infrastructure in progress | 80%+ with CI enforcement |
 | **Type Safety** | 0% (JS) | 100% (TS strict) |
 | **Build Time** | 2-3s | < 5s |
 | **Onboarding Time** | 3-5 days | 1 day |
 
-### 6.3 User Experience Targets
+### 6.4 User Experience Targets
 
 | Feature | Current | Target |
 |---------|---------|--------|
 | **Navigation** | Vertical scroll | Tab-based routing |
-| **Real-time Updates** | Manual refresh | SSE auto-updates |
+| **Real-time Updates** | Mixed polling/SSE behavior | Real backend job state shown consistently across views |
 | **Search** | None | Fuzzy search across all entities |
 | **Data Export** | None | PDF, DOCX, JSON, CSV |
 | **Accessibility** | WCAG Fail | WCAG 2.1 AA |
 | **Mobile Support** | Broken | Responsive (768px+) |
+
+### 6.5 QA Acceptance Gate
+
+No Phoenix phase or remediation item is complete until all of the following are attached to the work item or PR:
+
+1. Test evidence: updated unit, integration, or E2E results for the touched path.
+2. Contract evidence: if API behavior changed, client schema, route, and tests are updated together.
+3. Regression note: explicit statement of what reviewed defect or risk was addressed.
+4. Manual QA note: route exercised in local or staging environment with observed result.
+5. Documentation sync: roadmap, progress, and relevant docs updated if status or behavior changed.
+
+### 6.6 QA Review Protocol
+
+For implementation starting from this roadmap revision, QA review uses this bar:
+
+- Block closure if acceptance criteria are vague or not measurable.
+- Block closure if test evidence does not cover the reviewed regression.
+- Block closure if frontend/backend behavior differs from roadmap claims.
+- Re-open work if a defect is marked fixed in docs or UI copy while runtime behavior is unchanged.
 
 ---
 

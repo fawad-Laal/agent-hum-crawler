@@ -5,9 +5,9 @@
  */
 
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUpdateFeatureFlag } from "@/hooks/use-mutations";
-import { toast } from "sonner";
 import { Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,8 +58,17 @@ export function FeatureFlagsPanel({ flags, isLoading }: FeatureFlagsPanelProps) 
   return (
     <div className="space-y-1">
       {sorted.map(([flag, rawValue]) => {
-        // Coerce to boolean — non-zero numbers and non-empty strings count as enabled
-        const enabled = Boolean(rawValue);
+        // Type-aware boolean resolution — avoids Boolean("false") === true
+        const isBoolLike =
+          typeof rawValue === "boolean" ||
+          rawValue === 0 ||
+          rawValue === 1 ||
+          rawValue === "true" ||
+          rawValue === "false" ||
+          rawValue === "0" ||
+          rawValue === "1";
+        const enabled =
+          rawValue === true || rawValue === 1 || rawValue === "true" || rawValue === "1";
         const isThisPending = isPending && variables?.flag === flag;
         const description = FLAG_DESCRIPTIONS[flag];
 
@@ -89,26 +98,20 @@ export function FeatureFlagsPanel({ flags, isLoading }: FeatureFlagsPanelProps) 
               )}
             </div>
 
-            <Switch
-              checked={enabled}
-              onCheckedChange={(next) => {
-                toggle(
-                  { flag, enabled: next },
-                  {
-                    onError: (err) => {
-                      toast.error(`Failed to toggle ${flag}: ${err.message}`);
-                    },
-                    onSuccess: () => {
-                      toast.success(
-                        `${flagLabel(flag)} ${next ? "enabled" : "disabled"}`
-                      );
-                    },
-                  }
-                );
-              }}
-              aria-label={`Toggle ${flag}`}
-              disabled={isThisPending}
-            />
+            {isBoolLike ? (
+              <Switch
+                checked={enabled}
+                onCheckedChange={(next) => {
+                  toggle({ flag, enabled: next });
+                }}
+                aria-label={`Toggle ${flag}`}
+                disabled={isThisPending}
+              />
+            ) : (
+              <Badge variant="secondary" className="font-mono text-xs">
+                {String(rawValue)}
+              </Badge>
+            )}
           </div>
         );
       })}
